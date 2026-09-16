@@ -11,7 +11,10 @@ async function getKlikQrisConfig() {
   const kq = settings.klikqris;
   const apiKey = kq.apiKeyEncrypted ? decrypt(kq.apiKeyEncrypted) : process.env.KLIKQRIS_API_KEY;
   const merchantId = kq.merchantIdEncrypted ? decrypt(kq.merchantIdEncrypted) : process.env.KLIKQRIS_MERCHANT_ID;
-  const mode = kq.mode || process.env.KLIKQRIS_MODE || "production";
+  // Normalize casing — ENV values (KLIKQRIS_MODE=Sandbox etc.) are user-typed
+  // and easy to get wrong-cased, which would otherwise silently fall through
+  // to the production base URL while using a sandbox key.
+  const mode = String(kq.mode || process.env.KLIKQRIS_MODE || "production").toLowerCase();
   const baseUrl =
     mode === "sandbox" ? "https://klikqris.com/api/sandbox" : process.env.KLIKQRIS_BASE_URL || "https://klikqris.com/api";
 

@@ -60,14 +60,29 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
+// Bind explicitly to 0.0.0.0 — required by most container platforms (Railway
+// included) so the platform's proxy can reach the process. Binding with no
+// host can default to IPv6-only on some environments and never get hit.
+const HOST = "0.0.0.0";
+
+// Fail fast with a clear, named reason instead of a generic crash — makes
+// misconfigured environment variables obvious in the deploy logs.
+function checkRequiredEnv() {
+  const required = ["MONGODB_URI", "JWT_SECRET", "SESSION_SECRET", "ENCRYPTION_SECRET"];
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length) {
+    throw new Error(`Missing required environment variable(s): ${missing.join(", ")}`);
+  }
+}
 
 async function start() {
   try {
+    checkRequiredEnv();
     await connectDB();
     initSocket(httpServer, allowedOrigins.length ? allowedOrigins : "*");
 
-    httpServer.listen(PORT, () => {
-      logger.info(`Server started`, { port: PORT, env: process.env.NODE_ENV || "development" });
+    httpServer.listen(PORT, HOST, () => {
+      logger.info(`Server started`, { port: PORT, host: HOST, env: process.env.NODE_ENV || "development" });
     });
   } catch (err) {
     logger.error("Failed to start server", { message: err.message });
