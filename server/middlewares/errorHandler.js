@@ -7,6 +7,19 @@ function notFoundHandler(req, res) {
 }
 
 function errorHandler(err, req, res, _next) {
+  // Multer (file upload) errors — both MulterError (e.g. file too large) and
+  // the plain Error thrown from our fileFilter (unsupported mime type) —
+  // are client mistakes, not server failures. Without this they fall through
+  // to statusCode 500 and the real reason ("Tipe file tidak didukung...",
+  // "File terlalu besar...") gets replaced by a generic message below,
+  // making R2 upload failures look like a broken server instead of a bad file.
+  if (err.name === "MulterError") {
+    err.statusCode = 400;
+    if (err.code === "LIMIT_FILE_SIZE") err.message = "Ukuran file terlalu besar. Maksimal 5MB.";
+  } else if (/tipe file tidak didukung/i.test(err.message || "")) {
+    err.statusCode = 400;
+  }
+
   const statusCode = err.statusCode && err.statusCode >= 400 ? err.statusCode : 500;
 
   logger.error("Request failed", {
