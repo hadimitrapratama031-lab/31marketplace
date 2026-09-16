@@ -15,9 +15,15 @@ const { notFoundHandler, errorHandler } = require("./middlewares/errorHandler");
 const { publicApiLimiter } = require("./middlewares/rateLimit");
 const logger = require("./utils/logger");
 const apiRouter = require("./routes");
+const { resolveFrontendDir } = require("./config/paths");
 
 const app = express();
 const httpServer = http.createServer(app);
+
+// Railway (dan PaaS lain) menaruh app di belakang reverse proxy. Tanpa ini,
+// express-rate-limit membaca IP proxy untuk semua orang dan req.protocol
+// selalu "http" walau domainnya HTTPS.
+app.set("trust proxy", 1);
 
 // ---- CORS: only allow known frontend origins (Marketplace + Admin Web) ----
 // A browser's `Origin` header is always just `scheme://host:port` — never a
@@ -62,7 +68,7 @@ app.use(
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "https:", "'unsafe-inline'"],
         fontSrc: ["'self'", "https:", "data:"],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", "ws:", "wss:"],
       },
     },
   })
@@ -74,21 +80,125 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
-// ---- API routes ----
+// =====================================================================
+// URUTAN ROUTE (jangan diubah): API -> 404 API -> asset -> halaman -> 404
+// Dengan urutan ini "/api/*" tidak pernah jatuh ke frontend, dan route
+// frontend tidak pernah menelan request API.
+// =====================================================================
+
+// ---- 1. API routes ----
 app.use("/api", publicApiLimiter, apiRouter);
 
-// ---- Static frontend (Marketplace + Admin Web + Cek Pesanan) ----
-// Keeps the existing HTML/CSS/JS structure; only the JS behind it is now real.
-const rootDir = path.join(__dirname, "..");
-app.use(express.static(rootDir, { extensions: ["html"] }));
-app.get("/admin/login", (req, res) => res.sendFile(path.join(rootDir, "admin", "login.html")));
-// Redirect the bare "/admin" (no trailing slash) to "/admin/" so the browser
-// resolves admin.html's relative asset paths (admin.css, admin.js) against
-// the right base — otherwise they wrongly resolve to the site root and 404.
-app.get("/admin", (req, res) => res.redirect(301, "/admin/"));
-app.get("/admin/", (req, res) => res.sendFile(path.join(rootDir, "admin", "index.html")));
-app.get("/cek-pesanan", (req, res) => res.redirect(301, "/cek-pesanan/"));
-app.get(["/cek-pesanan/", "/cek-pesanan/*"], (req, res) => res.sendFile(path.join(rootDir, "cek-pesanan", "index.html")));
+// 404 khusus API: endpoint /api yang tidak ada harus tetap balas JSON dan
+// berhenti di sini, tidak boleh lanjut ke express.static / halaman HTML.
+app.all("/api/*", (req, res) => {
+  res.status(404).json({ status: false, message: `API endpoint not found: ${req.method} ${req.originalUrl}` });
+});
+
+// ---- 2. Lokasi frontend ----
+// Root Directory Railway menentukan folder mana yang ikut ter-deploy. Kalau
+// Root Directory = /server, maka index.html, /admin dan /assets yang ada di
+// repo root TIDAK ikut ter-upload, sehingga path "__dirname/.." menunjuk ke
+// folder kosong dan semua halaman jadi "Route not found". Resolver ini
+// mencari lokasi frontend yang benar-benar ada dan berteriak di log kalau
+// tidak ketemu, bukan diam-diam 404.
+const { frontendDir, tried } = resolveFrontendDir();
+
+if (frontendDir) {
+  logger.info("Frontend directory resolved", { frontendDir });
+} else {
+  logger.error(
+    "Frontend directory NOT FOUND — halaman Marketplace/Admin tidak bisa diserve. " +
+      "Pastikan Root Directory Railway dikosongkan (deploy dari root repo) atau set FRONTEND_DIR.",
+    { tried }
+  );
+}
+
+const ADMIN_DIR = frontendDir ? path.join(frontendDir, "admin") : null;
+const ASSETS_DIR = frontendDir ? path.join(frontendDir, "assets") : null;
+
+const staticOptions = {
+  index: false,
+  redirect: false,
+  extensions: ["html"],
+  maxAge: process.env.NODE_ENV === "production" ? "1h" : 0,
+};
+const assetOptions = {
+  index: false,
+  redirect: false,
+  maxAge: process.env.NODE_ENV === "production" ? "7d" : 0,
+};
+
+// Kirim satu file halaman. Kalau frontend tidak ter-deploy, balas pesan yang
+// menjelaskan sebabnya — bukan "Route not found" yang menyesatkan.
+function sendPage(res, next, ...segments) {
+  if (!frontendDir) {
+    return res
+      .status(500)
+      .type("text/plain")
+      .send(
+        "Frontend files tidak ditemukan di server.\n" +
+          "Penyebab paling umum: Railway Root Directory diset ke /server, sehingga folder\n" +
+          "index.html, /admin dan /assets di root repo tidak ikut ter-deploy.\n" +
+          "Perbaikan: kosongkan Root Directory (deploy dari root repo), atau set env FRONTEND_DIR."
+      );
+  }
+  const file = path.join(frontendDir, ...segments);
+  res.sendFile(file, (err) => {
+    if (err) next(err);
+  });
+}
+
+if (frontendDir) {
+  // ---- 3. Asset: /assets/*, /css/*, /js/* ----
+  // /css dan /js disediakan sebagai alias agar path absolut gaya
+  // "/css/style.css" atau "/js/app.js" tetap termuat, selain path relatif
+  // "assets/css/style.css" yang dipakai file HTML saat ini.
+  app.use("/assets", express.static(ASSETS_DIR, assetOptions));
+  app.use("/css", express.static(path.join(ASSETS_DIR, "css"), assetOptions));
+  app.use("/js", express.static(path.join(ASSETS_DIR, "js"), assetOptions));
+
+  // Asset Admin Web (admin.css, admin.js, login.js) — harus dimount sebelum
+  // route halaman /admin agar CSS/JS-nya tidak ditelan handler HTML.
+  app.use("/admin", express.static(ADMIN_DIR, assetOptions));
+}
+
+// ---- 4. Halaman frontend ----
+
+// Homepage Marketplace
+app.get("/", (req, res, next) => sendPage(res, next, "index.html"));
+
+// Admin Web. Bare "/admin" di-redirect ke "/admin/" supaya path relatif
+// admin.css / admin.js di dalam admin/index.html resolve ke /admin/admin.css,
+// bukan ke /admin.css di root (inilah penyebab /admin tampil polos tanpa CSS).
+app.get(["/admin/login", "/admin/login.html"], (req, res, next) => sendPage(res, next, "admin", "login.html"));
+app.get(["/admin", "/admin/"], (req, res, next) => {
+  // Express non-strict routing menganggap "/admin" dan "/admin/" sama, jadi
+  // pembedaannya harus lewat req.path — kalau tidak, redirect-nya jadi loop.
+  if (req.path === "/admin") return res.redirect(301, "/admin/");
+  return sendPage(res, next, "admin", "index.html");
+});
+
+// Halaman produk
+app.get(["/product", "/product.html"], (req, res, next) => sendPage(res, next, "product.html"));
+
+// Cek Pesanan
+app.get(["/cek-pesanan", "/cek-pesanan/", "/cek-pesanan/*"], (req, res, next) => {
+  if (req.path === "/cek-pesanan") return res.redirect(301, "/cek-pesanan/");
+  return sendPage(res, next, "cek-pesanan", "index.html");
+});
+
+// Rating
+app.get(["/rating", "/rating/", "/rating/*"], (req, res, next) => {
+  if (req.path === "/rating") return res.redirect(301, "/rating/");
+  return sendPage(res, next, "rating", "index.html");
+});
+
+// ---- 5. Sisa file statis (favicon, gambar, file lain di root repo) ----
+// Diletakkan PALING AKHIR sebelum 404 supaya tidak pernah menyalip /api.
+if (frontendDir) {
+  app.use(express.static(frontendDir, staticOptions));
+}
 
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -128,6 +238,10 @@ process.on("unhandledRejection", (reason) => {
   logger.error("Unhandled promise rejection", { message: reason?.message || String(reason) });
 });
 
-start();
+// Dijalankan sebagai entrypoint -> start server. Kalau di-require (test /
+// tooling), cukup ekspor app tanpa connect DB & listen.
+if (require.main === module) {
+  start();
+}
 
 module.exports = { app, httpServer };

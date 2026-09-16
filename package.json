@@ -1,0 +1,16 @@
+{
+  "name": "31store",
+  "version": "1.0.0",
+  "private": true,
+  "description": "31 Store — Marketplace + Admin Web (frontend statis) dan backend Express di /server",
+  "scripts": {
+    "postinstall": "npm install --prefix server --omit=dev",
+    "start": "node server/server.js",
+    "dev": "npm run dev --prefix server",
+    "seed:admin": "npm run seed:admin --prefix server",
+    "check:paths": "node server/scripts/checkPaths.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
