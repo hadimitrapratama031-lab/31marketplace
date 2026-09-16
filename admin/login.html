@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Login Admin — Marketplace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;display:grid;place-items:center;font-family:Inter,Arial,sans-serif;color:#241c31;background:radial-gradient(1000px 600px at 20% -10%,#efe7ff,transparent),radial-gradient(900px 500px at 110% 110%,#e6ddff,transparent),#f7f5fb;padding:24px}
+.login-card{width:min(410px,100%);background:#fff;border:1px solid #e9e4ef;border-radius:24px;padding:36px 32px;box-shadow:0 30px 70px -40px rgba(60,30,120,.45)}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+.brand-mark{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;font-weight:800;font-family:'Plus Jakarta Sans',sans-serif}
+.brand b{display:block;font-family:'Plus Jakarta Sans',sans-serif;font-size:15px}
+.brand small{color:#8c8597;font-size:10px;letter-spacing:.14em}
+h1{font-family:'Plus Jakarta Sans',sans-serif;font-size:22px;margin-bottom:6px}
+.sub{color:#8c8597;font-size:12px;margin-bottom:24px;line-height:1.6}
+label{display:block;margin-bottom:14px;font-size:11px;font-weight:600;letter-spacing:.06em;color:#6d6579;text-transform:uppercase}
+label input{width:100%;margin-top:7px;padding:12px 14px;border:1px solid #e3ddec;border-radius:12px;font:inherit;font-size:13px;text-transform:none;letter-spacing:normal;color:#241c31;background:#fbfaff}
+label input:focus{outline:none;border-color:#a78bfa;box-shadow:0 0 0 3px rgba(167,139,250,.18)}
+button{width:100%;margin-top:8px;padding:13px;border:0;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#9061f9);color:#fff;font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+button:disabled{opacity:.6;cursor:not-allowed}
+.error{display:none;margin-bottom:16px;padding:11px 13px;border-radius:11px;background:#fdecec;border:1px solid #f5c6c6;color:#b3261e;font-size:12px;line-height:1.5}
+.error.show{display:block}
+.foot{margin-top:20px;text-align:center;font-size:11px;color:#a49cae;line-height:1.7}
+.foot a{color:#7c3aed;text-decoration:none}
+</style>
+</head>
+<body>
+<form class="login-card" id="loginForm">
+  <div class="brand"><span class="brand-mark" id="brandMark">·</span><div><b id="brandName">Admin Panel</b><small>ADMIN PANEL</small></div></div>
+  <h1>Masuk ke Admin</h1>
+  <p class="sub">Gunakan akun admin yang dibuat lewat <code>npm run seed:admin</code> atau dibuatkan oleh superadmin.</p>
+  <div class="error" id="loginError"></div>
+  <label>Email<input id="email" type="email" autocomplete="username" required placeholder="admin@store.com"></label>
+  <label>Password<input id="password" type="password" autocomplete="current-password" required placeholder="••••••••"></label>
+  <button type="submit" id="submitBtn">Masuk</button>
+  <div class="foot"><a href="../">← Kembali ke Marketplace</a></div>
+</form>
+
+<script>
+(function () {
+  "use strict";
+  const TOKEN_KEY = "mp_admin_token";
+  const form = document.getElementById("loginForm");
+  const errorBox = document.getElementById("loginError");
+  const submitBtn = document.getElementById("submitBtn");
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.classList.add("show");
+  }
+
+  // Pull real store branding so the login page is not hardcoded to one store name.
+  fetch("/api/settings")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((payload) => {
+      const general = payload && payload.data && payload.data.general;
+      if (!general) return;
+      if (general.storeName) {
+        document.getElementById("brandName").textContent = general.storeName;
+        document.title = "Login Admin — " + general.storeName;
+        document.getElementById("brandMark").textContent = general.storeName.trim().charAt(0).toUpperCase();
+      }
+      if (general.favicon) {
+        const link = document.createElement("link");
+        link.rel = "icon";
+        link.href = general.favicon;
+        document.head.appendChild(link);
+      }
+    })
+    .catch(() => {});
+
+  // If a valid session already exists, skip the login form.
+  const existing = sessionStorage.getItem(TOKEN_KEY);
+  if (existing) {
+    fetch("/api/auth/me", { headers: { Authorization: "Bearer " + existing } })
+      .then((r) => {
+        if (r.ok) window.location.replace("./index.html");
+        else sessionStorage.removeItem(TOKEN_KEY);
+      })
+      .catch(() => {});
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorBox.classList.remove("show");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Memproses...";
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: document.getElementById("email").value.trim(),
+          password: document.getElementById("password").value,
+        }),
+      });
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload || payload.status === false) {
+        throw new Error((payload && payload.message) || "Login gagal. Coba lagi.");
+      }
+
+      sessionStorage.setItem(TOKEN_KEY, payload.data.token);
+      window.location.replace("./index.html");
+    } catch (err) {
+      showError(err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Masuk";
+    }
+  });
+})();
+</script>
+</body>
+</html>
