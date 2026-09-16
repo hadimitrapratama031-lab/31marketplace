@@ -69,8 +69,13 @@ app.use("/api", publicApiLimiter, apiRouter);
 const rootDir = path.join(__dirname, "..");
 app.use(express.static(rootDir, { extensions: ["html"] }));
 app.get("/admin/login", (req, res) => res.sendFile(path.join(rootDir, "admin", "login.html")));
-app.get("/admin", (req, res) => res.sendFile(path.join(rootDir, "admin", "index.html")));
-app.get(["/cek-pesanan", "/cek-pesanan/*"], (req, res) => res.sendFile(path.join(rootDir, "cek-pesanan", "index.html")));
+// Redirect the bare "/admin" (no trailing slash) to "/admin/" so the browser
+// resolves admin.html's relative asset paths (admin.css, admin.js) against
+// the right base — otherwise they wrongly resolve to the site root and 404.
+app.get("/admin", (req, res) => res.redirect(301, "/admin/"));
+app.get("/admin/", (req, res) => res.sendFile(path.join(rootDir, "admin", "index.html")));
+app.get("/cek-pesanan", (req, res) => res.redirect(301, "/cek-pesanan/"));
+app.get(["/cek-pesanan/", "/cek-pesanan/*"], (req, res) => res.sendFile(path.join(rootDir, "cek-pesanan", "index.html")));
 
 app.use(notFoundHandler);
 app.use(errorHandler);
