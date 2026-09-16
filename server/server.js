@@ -20,8 +20,21 @@ const app = express();
 const httpServer = http.createServer(app);
 
 // ---- CORS: only allow known frontend origins (Marketplace + Admin Web) ----
+// A browser's `Origin` header is always just `scheme://host:port` — never a
+// path and never a trailing slash. Env vars are frequently pasted with one of
+// those (e.g. ADMIN_URL=https://host/admin), which would silently break the
+// exact-match check below, so normalize down to just the origin here.
+function toOrigin(value) {
+  if (!value) return null;
+  try {
+    return new URL(value.trim()).origin;
+  } catch {
+    return null;
+  }
+}
+
 const allowedOrigins = [process.env.CLIENT_URL, process.env.ADMIN_URL, ...(process.env.EXTRA_CORS_ORIGINS || "").split(",")]
-  .map((o) => o && o.trim())
+  .map(toOrigin)
   .filter(Boolean);
 
 const corsOptions = {

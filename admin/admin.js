@@ -1672,6 +1672,11 @@
       return;
     }
 
+    const viewMarketplaceBtn = $("viewMarketplaceBtn");
+    if (viewMarketplaceBtn) {
+      viewMarketplaceBtn.addEventListener("click", () => window.open("../", "_blank"));
+    }
+
     try {
       const me = await api("/auth/me");
       state.admin = me.data.admin;
