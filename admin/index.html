@@ -416,17 +416,48 @@
   <div class="modal product-modal">
     <div class="modal-head"><div><span class="eyebrow">PRODUCT CATALOG</span><h3 id="productModalTitle">Tambah Produk</h3></div><button class="close" type="button" data-close-modal="productModal">×</button></div>
     <form id="productForm">
-      <div class="modal-grid">
-        <label class="image-upload" id="imageDrop"><input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp"><div class="upload-icon">＋</div><b>Upload gambar produk</b><small>PNG, JPG atau WEBP · Maks. 5MB</small><img id="imagePreview" alt=""></label>
-        <div class="form-grid">
-          <label class="wide">Nama Produk<input id="pName" required></label>
-          <label>Kategori<select id="pCategory" required></select></label>
-          <label>Status<select id="pStatus"><option value="active">active</option><option value="inactive">inactive</option></select></label>
-          <label>Harga (IDR)<input id="pPrice" required type="number" min="0" step="1"></label>
-          <label>Stok<input id="pStock" required type="number" min="0" step="1" value="0"></label>
-          <label>Urutan<input id="pSortOrder" type="number" step="1" value="0"></label>
-          <label class="wide">Deskripsi<textarea id="pDesc"></textarea></label>
+      <div class="modal-body">
+
+        <div class="form-block">
+          <div class="form-block-head"><i>▤</i><div><b>Informasi Produk</b><small>Nama, kategori, dan deskripsi yang tampil ke pembeli.</small></div></div>
+          <div class="form-grid">
+            <label class="wide">Nama Produk<input id="pName" required placeholder="Contoh: Voucher Diamond 100"></label>
+            <label>Kategori<select id="pCategory" required></select></label>
+            <label>Status<select id="pStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+            <label class="wide">Deskripsi<textarea id="pDesc" placeholder="Deskripsi singkat produk (opsional)"></textarea></label>
+          </div>
         </div>
+
+        <div class="form-block">
+          <div class="form-block-head"><i>฿</i><div><b>Harga &amp; Stok</b><small>Sumber kebenaran harga dan ketersediaan produk.</small></div></div>
+          <div class="form-grid three">
+            <label>Harga (IDR)<input id="pPrice" required type="number" min="0" step="1" placeholder="0"></label>
+            <label>Stok<input id="pStock" required type="number" min="0" step="1" value="0"></label>
+            <label>Urutan Tampil<input id="pSortOrder" type="number" step="1" value="0"></label>
+          </div>
+        </div>
+
+        <div class="form-block">
+          <div class="form-block-head"><i>▧</i><div><b>Media Produk</b><small>PNG, JPG, atau WEBP · Maksimal 5MB.</small></div></div>
+          <div class="image-upload" id="imageDrop" data-state="idle">
+            <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp">
+            <div class="upload-placeholder">
+              <div class="upload-icon">＋</div>
+              <b>Klik atau seret gambar ke sini</b>
+              <small>PNG, JPG, atau WEBP · Maks. 5MB</small>
+            </div>
+            <div class="upload-preview">
+              <img id="imagePreview" alt="">
+              <div class="upload-overlay">
+                <button type="button" class="img-action" data-replace-image>⟳ Ganti</button>
+                <button type="button" class="img-action danger" data-remove-image>✕ Hapus</button>
+              </div>
+            </div>
+            <div class="upload-spinner"><span></span>Mengunggah gambar...</div>
+            <div class="upload-error-box"><b>Gagal memuat/mengunggah gambar</b><small id="uploadErrorMsg">Terjadi kesalahan.</small></div>
+          </div>
+        </div>
+
       </div>
       <div class="modal-foot"><button type="button" class="outline" data-close-modal="productModal">Batal</button><button class="primary" type="submit" id="productSubmit">Simpan Produk</button></div>
     </form>
@@ -435,15 +466,20 @@
 
 <!-- ============ MODAL KATEGORI ============ -->
 <div id="categoryModal" class="modal-backdrop">
-  <div class="modal">
+  <div class="modal category-modal">
     <div class="modal-head"><div><span class="eyebrow">CATALOG</span><h3 id="categoryModalTitle">Tambah Kategori</h3></div><button class="close" type="button" data-close-modal="categoryModal">×</button></div>
     <form id="categoryForm">
-      <div class="form-grid">
-        <label class="wide">Nama Kategori<input id="cName" required></label>
-        <label>Icon (emoji/teks)<input id="cIcon" placeholder="🎮"></label>
-        <label>Urutan<input id="cSortOrder" type="number" step="1" value="0"></label>
-        <label>Status<select id="cStatus"><option value="active">active</option><option value="inactive">inactive</option></select></label>
-        <label class="wide">Deskripsi<textarea id="cDesc"></textarea></label>
+      <div class="modal-body">
+        <div class="form-block">
+          <div class="form-block-head"><i>▤</i><div><b>Informasi Kategori</b><small>Nama dan icon yang tampil sebagai section di Marketplace.</small></div></div>
+          <div class="form-grid category-grid">
+            <label class="wide">Nama Kategori<input id="cName" required placeholder="Contoh: Top Up Game"></label>
+            <label class="icon-field">Icon (emoji/teks)<div class="icon-input-row"><span class="icon-preview" id="cIconPreview">🎮</span><input id="cIcon" placeholder="🎮"></div></label>
+            <label>Urutan Tampil<input id="cSortOrder" type="number" step="1" value="0"></label>
+            <label>Status<select id="cStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+            <label class="wide">Deskripsi<textarea id="cDesc" placeholder="Deskripsi singkat kategori (opsional)"></textarea></label>
+          </div>
+        </div>
       </div>
       <div class="modal-foot"><button type="button" class="outline" data-close-modal="categoryModal">Batal</button><button class="primary" type="submit" id="categorySubmit">Simpan Kategori</button></div>
     </form>

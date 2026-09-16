@@ -82,7 +82,7 @@ const update = asyncHandler(async (req, res) => {
   const product = await Product.findById(id);
   if (!product) throw new AppError("Produk tidak ditemukan.", 404);
 
-  const { name, categoryId, description, price, stock, status, sortOrder } = req.body;
+  const { name, categoryId, description, price, stock, status, sortOrder, removeImage } = req.body;
   if (categoryId) {
     const category = await Category.findById(categoryId);
     if (!category) throw new AppError("Kategori tidak ditemukan.", 400);
@@ -96,11 +96,18 @@ const update = asyncHandler(async (req, res) => {
   if (sortOrder !== undefined) product.sortOrder = sortOrder;
 
   if (req.file) {
+    // Ganti gambar: upload dulu, baru hapus yang lama (kalau upload gagal,
+    // produk masih punya gambar lama, bukan malah kosong).
     const oldKey = product.imageKey;
     const uploaded = await r2Service.uploadBuffer(req.file.buffer, req.file.originalname, req.file.mimetype, "products");
     product.image = uploaded.url;
     product.imageKey = uploaded.key;
     if (oldKey) await r2Service.deleteObject(oldKey);
+  } else if (removeImage === "true" || removeImage === true) {
+    // Hapus gambar tanpa mengganti (tombol "Hapus" di form Edit Produk).
+    if (product.imageKey) await r2Service.deleteObject(product.imageKey);
+    product.image = "";
+    product.imageKey = "";
   }
 
   await product.save();

@@ -473,6 +473,30 @@
   }
 
   let pendingImageFile = null;
+  let removeExistingImage = false;
+  const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+
+  function setImageDropState(state) {
+    // state: "idle" | "uploading" | "error"
+    $("imageDrop").dataset.state = state;
+  }
+
+  function setProductImageFile(file) {
+    if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      showToast("Format gambar tidak didukung. Gunakan PNG, JPG, atau WEBP.", "error");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Ukuran gambar maksimal 5MB.", "error");
+      return;
+    }
+    pendingImageFile = file;
+    removeExistingImage = false;
+    setImageDropState("idle");
+    $("imagePreview").src = URL.createObjectURL(file);
+    $("imageDrop").classList.add("has-image");
+  }
 
   function openProductModal(id) {
     if (!state.categories.length) {
@@ -482,6 +506,7 @@
     }
     state.editing.productId = id || null;
     pendingImageFile = null;
+    removeExistingImage = false;
     const p = id ? state.products.find((x) => x._id === id) : null;
 
     $("productModalTitle").textContent = p ? "Edit Produk" : "Tambah Produk";
@@ -494,6 +519,7 @@
     $("pDesc").value = p ? p.description || "" : "";
 
     const drop = $("imageDrop");
+    setImageDropState("idle");
     $("imageInput").value = "";
     $("imagePreview").src = p && p.image ? p.image : "";
     drop.classList.toggle("has-image", Boolean(p && p.image));
@@ -511,15 +537,24 @@
     form.append("sortOrder", $("pSortOrder").value || "0");
     form.append("description", $("pDesc").value.trim());
     if (pendingImageFile) form.append("image", pendingImageFile);
+    else if (removeExistingImage) form.append("removeImage", "true");
 
     const id = state.editing.productId;
+    const hasImageWork = Boolean(pendingImageFile);
+    if (hasImageWork) setImageDropState("uploading");
+
     await withBusy($("productSubmit"), "Menyimpan...", async () => {
       try {
         await api(id ? "/products/admin/" + id : "/products/admin", { method: id ? "PUT" : "POST", body: form });
+        setImageDropState("idle");
         closeModal("productModal");
         showToast(id ? "Produk diperbarui." : "Produk ditambahkan.", "success");
         await loadProducts();
       } catch (err) {
+        if (hasImageWork) {
+          $("uploadErrorMsg").textContent = err.message || "Upload gagal, coba lagi.";
+          setImageDropState("error");
+        }
         showToast(err.message, "error");
       }
     });
@@ -571,6 +606,10 @@
         .join("") || emptyRow(7, "Belum ada kategori.");
   }
 
+  function updateCategoryIconPreview() {
+    $("cIconPreview").textContent = $("cIcon").value.trim() || "▤";
+  }
+
   function openCategoryModal(id) {
     state.editing.categoryId = id || null;
     const c = id ? state.categories.find((x) => x._id === id) : null;
@@ -580,6 +619,7 @@
     $("cSortOrder").value = c ? c.sortOrder : 0;
     $("cStatus").value = c ? c.status : "active";
     $("cDesc").value = c ? c.description || "" : "";
+    updateCategoryIconPreview();
     openModal("categoryModal");
   }
 
@@ -1477,21 +1517,67 @@
     $("categoryFilter").addEventListener("change", renderProducts);
     $("productStatusFilter").addEventListener("change", renderProducts);
     $("productForm").addEventListener("submit", submitProduct);
+
+    const imageDrop = $("imageDrop");
     $("imageInput").addEventListener("change", (e) => {
       const file = e.target.files && e.target.files[0];
-      if (!file) return;
-      if (file.size > 5 * 1024 * 1024) {
-        showToast("Ukuran gambar maksimal 5MB.", "error");
-        e.target.value = "";
-        return;
-      }
-      pendingImageFile = file;
-      $("imagePreview").src = URL.createObjectURL(file);
-      $("imageDrop").classList.add("has-image");
+      setProductImageFile(file);
+    });
+
+    // Drag & drop: seret file gambar langsung ke dropzone.
+    ["dragenter", "dragover"].forEach((evt) =>
+      imageDrop.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        imageDrop.classList.add("drag-over");
+      })
+    );
+    ["dragleave", "dragend"].forEach((evt) =>
+      imageDrop.addEventListener(evt, (e) => {
+        e.preventDefault();
+        imageDrop.classList.remove("drag-over");
+      })
+    );
+    imageDrop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      imageDrop.classList.remove("drag-over");
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      setProductImageFile(file);
+    });
+
+    // Tombol "Ganti" pada overlay preview membuka file picker lagi.
+    document.querySelectorAll("[data-replace-image]").forEach((btn) =>
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        $("imageInput").click();
+      })
+    );
+    // Tombol "Hapus" melepas gambar (baru atau existing) dari form.
+    document.querySelectorAll("[data-remove-image]").forEach((btn) =>
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        pendingImageFile = null;
+        removeExistingImage = true;
+        $("imageInput").value = "";
+        $("imagePreview").src = "";
+        imageDrop.classList.remove("has-image");
+        setImageDropState("idle");
+      })
+    );
+    // Kalau URL gambar (misalnya dari R2) rusak/tidak bisa dimuat, tampilkan
+    // status error yang jelas alih-alih kotak kosong tanpa keterangan.
+    $("imagePreview").addEventListener("error", () => {
+      if (!$("imagePreview").src) return;
+      $("uploadErrorMsg").textContent = "URL gambar tidak bisa dimuat. Coba upload ulang.";
+      setImageDropState("error");
     });
 
     // Categories & FAQ
     $("categoryForm").addEventListener("submit", submitCategory);
+    $("cIcon").addEventListener("input", updateCategoryIconPreview);
     $("faqForm").addEventListener("submit", submitFaq);
 
     // Customers
