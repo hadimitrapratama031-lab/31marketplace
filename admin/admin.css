@@ -6,35 +6,36 @@
 
 :root{
   /* --- surfaces --- */
-  --bg:#f5f6f3;
+  --bg:#f7f5fb;
   --surface:#ffffff;
-  --surface-sunken:#eef0ea;
-  --surface-hover:#f7f8f5;
+  --surface-sunken:#faf8fe;
+  --surface-hover:#f7f3fc;
 
   /* --- ink --- */
-  --ink:#161a16;
-  --ink-soft:#565e56;
-  --ink-faint:#8a908a;
-  --ink-invert:#fbfbf9;
+  --ink:#241c31;
+  --ink-soft:#6b6572;
+  --ink-faint:#a49cae;
+  --ink-invert:#ffffff;
 
   /* --- borders --- */
-  --border:#e0e3dc;
-  --border-strong:#c7ccc1;
+  --border:#e8e3ed;
+  --border-strong:#d3c8e6;
 
-  /* --- brand accent (gold, used sparingly: active states, focus, key marks) --- */
-  --gold:#a9762f;
-  --gold-deep:#7c561f;
-  --gold-soft:#f4ead6;
+  /* --- brand accent (violet, used for active states, focus, key marks, primary CTAs) --- */
+  --gold:#7048c6;
+  --gold-deep:#6741ae;
+  --gold-soft:#f0eafd;
+  --gold-light:#a57ae9;
 
   /* --- status --- */
-  --ok:#1f7a4d;
-  --ok-soft:#e2f3e9;
-  --warn:#b7791f;
-  --warn-soft:#faf0da;
-  --info:#34588c;
-  --info-soft:#e7eef6;
-  --bad:#b23a2e;
-  --bad-soft:#fbe9e6;
+  --ok:#1b8a4c;
+  --ok-soft:#e8f7ee;
+  --warn:#c68a25;
+  --warn-soft:#fff5df;
+  --info:#7048c6;
+  --info-soft:#eee9fb;
+  --bad:#b3261e;
+  --bad-soft:#fdecec;
 
   /* --- shape / motion --- */
   --r-sm:8px;
@@ -83,8 +84,9 @@ code{font-family:ui-monospace,"SF Mono",Consolas,monospace}
 .brand-mark{
   width:36px;height:36px;border-radius:10px;
   display:grid;place-items:center;
-  background:var(--ink);color:var(--gold-soft);
+  background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#fff;
   font-family:var(--font-display);font-weight:700;font-size:15px;
+  box-shadow:0 9px 20px rgba(112,72,198,.19);
 }
 .brand b{display:block;font-family:var(--font-display);font-size:14px;font-weight:600;letter-spacing:-.01em}
 .brand small{font-size:9px;letter-spacing:.12em;color:var(--ink-faint);font-weight:700}
@@ -121,15 +123,15 @@ nav{flex:1;overflow-y:auto}
 .nav-item.active{background:var(--gold-soft);color:var(--gold-deep);border-left-color:var(--gold)}
 .nav-item.active i{color:var(--gold-deep)}
 .nav-item em{
-  font-style:normal;font-size:9px;background:var(--ink);color:var(--ink-invert);
+  font-style:normal;font-size:9px;background:var(--gold);color:#fff;
   border-radius:8px;padding:2px 6px;margin-left:auto;font-weight:700;
 }
 
 .view-store{
-  margin-top:10px;text-decoration:none;color:var(--ink-invert);
-  background:var(--ink);border-radius:var(--r-sm);
+  margin-top:10px;text-decoration:none;color:#fff;
+  background:var(--gold);border-radius:var(--r-sm);
   padding:10px 12px;font-size:11.5px;font-weight:700;text-align:center;
-  display:block;
+  display:block;box-shadow:0 9px 20px rgba(112,72,198,.19);
 }
 .view-store span{margin-left:7px}
 
@@ -195,12 +197,12 @@ nav{flex:1;overflow-y:auto}
 .welcome p,.page-head p{font-size:12px;color:var(--ink-faint);max-width:56ch}
 
 .primary{
-  border:0;background:var(--ink);color:var(--ink-invert);border-radius:var(--r-sm);
+  border:0;background:var(--gold);color:#fff;border-radius:var(--r-sm);
   padding:11px 16px;font:600 12px var(--font-body);
-  box-shadow:var(--shadow-1);white-space:nowrap;
+  box-shadow:0 9px 20px rgba(112,72,198,.19);white-space:nowrap;
   transition:background .12s;
 }
-.primary:hover{background:#262c26}
+.primary:hover{background:var(--gold-deep)}
 .primary:disabled{opacity:.55;cursor:not-allowed}
 
 /* ============================================================= dashboard */
@@ -312,7 +314,7 @@ label input,label textarea,label select,.block-label textarea{
   transition:border-color .12s,box-shadow .12s;
 }
 label input:hover,label textarea:hover,label select:hover{border-color:var(--border-strong)}
-label input:focus,label textarea:focus,label select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(169,118,47,.14)}
+label input:focus,label textarea:focus,label select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(112,72,198,.16)}
 label input:disabled,label textarea:disabled,label select:disabled{color:var(--ink-faint);background:var(--surface-sunken)}
 label input[type="color"]{padding:4px;height:38px;cursor:pointer}
 label textarea{min-height:74px;resize:vertical}
@@ -333,7 +335,7 @@ label textarea{min-height:74px;resize:vertical}
 .toggle-row b{display:block;font-size:11px;font-weight:600}
 .toggle-row small{display:block;color:var(--ink-faint);font-size:9.5px;margin-top:3px}
 .toggle-row input{appearance:none;width:34px;height:19px;border-radius:20px;background:var(--border-strong);position:relative;cursor:pointer;flex:0 0 auto}
-.toggle-row input:checked{background:var(--ink)}
+.toggle-row input:checked{background:var(--gold)}
 .toggle-row input:after{content:"";position:absolute;width:15px;height:15px;top:2px;left:2px;background:#fff;border-radius:50%;transition:.15s}
 .toggle-row input:checked:after{left:17px}
 

@@ -9,11 +9,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#f5f6f3;--surface:#ffffff;--surface-sunken:#eef0ea;
-  --ink:#161a16;--ink-soft:#565e56;--ink-faint:#8a908a;--ink-invert:#fbfbf9;
-  --border:#e0e3dc;--border-strong:#c7ccc1;
-  --gold:#a9762f;--gold-deep:#7c561f;--gold-soft:#f4ead6;
-  --bad:#b23a2e;--bad-soft:#fbe9e6;
+  --bg:#f7f5fb;--surface:#ffffff;--surface-sunken:#faf8fe;
+  --ink:#241c31;--ink-soft:#6b6572;--ink-faint:#a49cae;--ink-invert:#ffffff;
+  --border:#e8e3ed;--border-strong:#d3c8e6;
+  --gold:#7048c6;--gold-deep:#6741ae;--gold-soft:#f0eafd;--gold-light:#a57ae9;
+  --bad:#b3261e;--bad-soft:#fdecec;
   --font-display:"Space Grotesk",Inter,Arial,sans-serif;--font-body:"Inter",Arial,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -38,8 +38,9 @@ body{
 .login-card{width:min(380px,100%)}
 .brand-row{display:flex;align-items:center;gap:11px;margin-bottom:30px}
 .brand-mark{
-  width:36px;height:36px;border-radius:9px;background:var(--ink);color:var(--gold-soft);
+  width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#fff;
   display:grid;place-items:center;font-weight:700;font-family:var(--font-display);font-size:15px;
+  box-shadow:0 9px 20px rgba(112,72,198,.19);
 }
 .brand-row b{display:block;font-family:var(--font-display);font-size:14px;font-weight:600}
 .brand-row small{color:var(--ink-faint);font-size:9.5px;letter-spacing:.1em;font-weight:700}
@@ -53,14 +54,15 @@ label input{
   font:inherit;font-size:13px;color:var(--ink);background:var(--surface);outline:0;
   transition:border-color .12s,box-shadow .12s;
 }
-label input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(169,118,47,.14)}
+label input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(112,72,198,.16)}
 
 button{
   width:100%;margin-top:6px;padding:12px;border:0;border-radius:9px;
-  background:var(--ink);color:var(--ink-invert);font:inherit;font-weight:600;font-size:13px;
+  background:var(--gold);color:#fff;font:inherit;font-weight:600;font-size:13px;
+  box-shadow:0 9px 20px rgba(112,72,198,.19);
   transition:background .12s;
 }
-button:hover{background:#262c26}
+button:hover{background:var(--gold-deep)}
 button:disabled{opacity:.6;cursor:not-allowed}
 
 .error{display:none;margin-bottom:16px;padding:11px 13px;border-radius:9px;background:var(--bad-soft);border:1px solid #f0cbc6;color:var(--bad);font-size:11.5px;line-height:1.5}
