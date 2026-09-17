@@ -8,6 +8,7 @@ const { AppError } = require("../middlewares/errorHandler");
 const { generateOrderCode } = require("../utils/orderCode");
 const { normalizeWhatsApp, isValidWhatsApp, isValidEmail } = require("../utils/phone");
 const { emitEvent } = require("../services/socket.service");
+const { resolveAssetUrl } = require("../utils/assetUrl");
 const klikqris = require("../services/klikqris.service");
 const notificationService = require("../services/notification.service");
 const logger = require("../utils/logger");
@@ -262,4 +263,112 @@ const getAdminById = asyncHandler(async (req, res) => {
   res.json({ status: true, data: { order, transaction } });
 });
 
-module.exports = { createOrder, getByOrderCode, listAdmin, summaryAdmin, getAdminById };
+/* --------------------------------------------------- Cek Pesanan by email */
+
+// Satu normalisasi untuk keduanya: penyimpanan (createOrder) dan pencarian.
+// Kalau keduanya tidak memakai fungsi yang sama, "Budi@Mail.com " dengan spasi
+// di ujung akan tersimpan tapi tidak pernah ketemu lagi.
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+// Bentuk ringkas satu order untuk daftar hasil pencarian. Tidak pernah memuat
+// kredensial, API key, token, signature, atau payload gateway mentah.
+function toPublicSummary(order, transaction) {
+  return {
+    orderCode: order.orderCode,
+    product: {
+      name: order.product.name,
+      image: resolveAssetUrl(order.product.image, "cekpesanan: order.product.image"),
+      slug: order.product.slug || "",
+    },
+    quantity: order.quantity,
+    total: transaction && transaction.totalAmount ? transaction.totalAmount : order.total,
+    paymentMethod: transaction ? (transaction.paymentGateway === "KLIKQRIS" ? "QRIS" : transaction.paymentGateway) : "",
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    createdAt: order.createdAt,
+  };
+}
+
+/**
+ * POST /api/orders/lookup — mencari pesanan berdasarkan EMAIL pembeli.
+ *
+ * POST, bukan GET: alamat email tidak boleh berakhir di query string yang
+ * ikut tercatat di access log Railway, riwayat browser, dan header Referer.
+ *
+ * MongoDB adalah satu-satunya sumber kebenaran di sini — halaman Cek Pesanan
+ * tidak lagi bergantung pada apa pun yang tersimpan di LocalStorage.
+ */
+const lookupByEmail = asyncHandler(async (req, res) => {
+  const email = normalizeEmail(req.body && req.body.email);
+  if (!isValidEmail(email)) throw new AppError("Format email tidak valid.", 400);
+
+  const orders = await Order.find({ "customer.email": email }).sort({ createdAt: -1 }).limit(50).lean();
+
+  // Satu query untuk semua transaksi, bukan satu query per order.
+  const transactions = orders.length
+    ? await Transaction.find({ orderId: { $in: orders.map((o) => o._id) } })
+        .select("orderId paymentGateway totalAmount")
+        .lean()
+    : [];
+  const txByOrder = new Map(transactions.map((t) => [String(t.orderId), t]));
+
+  res.json({
+    status: true,
+    data: {
+      email,
+      orders: orders.map((order) => toPublicSummary(order, txByOrder.get(String(order._id)))),
+    },
+  });
+});
+
+/**
+ * POST /api/orders/detail — detail satu pesanan.
+ *
+ * Email ikut dikirim dan DICOCOKKAN dengan pemilik order. Tanpa itu, siapa pun
+ * yang menebak kode order bisa membaca email dan riwayat pembelian orang lain;
+ * kode order saja bukan rahasia — ia tercetak di halaman sukses dan di email.
+ */
+const getPublicDetail = asyncHandler(async (req, res) => {
+  const email = normalizeEmail(req.body && req.body.email);
+  const orderCode = String((req.body && req.body.orderCode) || "").trim().toUpperCase();
+  if (!isValidEmail(email)) throw new AppError("Format email tidak valid.", 400);
+  if (!orderCode) throw new AppError("Kode order wajib diisi.", 400);
+
+  const order = await Order.findOne({ orderCode, "customer.email": email });
+  // Pesan yang sama untuk "tidak ada" dan "bukan milik email ini" — kalau
+  // dibedakan, endpoint ini jadi alat untuk menebak kode order mana yang valid.
+  if (!order) throw new AppError("Pesanan tidak ditemukan untuk email tersebut.", 404);
+
+  const transaction = await Transaction.findOne({ orderId: order._id });
+
+  res.json({
+    status: true,
+    data: {
+      orderCode: order.orderCode,
+      customerEmail: order.customer.email,
+      product: {
+        name: order.product.name,
+        image: resolveAssetUrl(order.product.image, "cekpesanan: order.product.image"),
+        slug: order.product.slug || "",
+        category: order.product.category || "",
+      },
+      quantity: order.quantity,
+      price: order.product.price,
+      total: transaction && transaction.totalAmount ? transaction.totalAmount : order.total,
+      paymentMethod: transaction ? (transaction.paymentGateway === "KLIKQRIS" ? "QRIS" : transaction.paymentGateway) : "",
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      createdAt: order.createdAt,
+      paidAt: transaction ? transaction.paidAt || null : null,
+      expiredAt: transaction ? transaction.expiredAt || null : null,
+      // Link bayar hanya relevan (dan hanya aman) selama pesanan masih PENDING.
+      // signature, rawCreateResponse, dan payload webhook tidak pernah keluar.
+      payUrl: transaction && transaction.status === "PENDING" ? transaction.directUrl || transaction.qrisUrl || "" : "",
+      qrisUrl: transaction && transaction.status === "PENDING" ? transaction.qrisUrl || "" : "",
+    },
+  });
+});
+
+module.exports = { createOrder, getByOrderCode, lookupByEmail, getPublicDetail, listAdmin, summaryAdmin, getAdminById };

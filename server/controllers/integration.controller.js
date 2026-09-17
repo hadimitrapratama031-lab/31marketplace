@@ -5,6 +5,8 @@ const fonnteService = require("../services/fonnte.service");
 const resendService = require("../services/resend.service");
 const r2Service = require("../services/r2.service");
 const notificationService = require("../services/notification.service");
+const discordService = require("../services/discord.service");
+const diagnostics = require("../services/diagnostics.service");
 const asyncHandler = require("../utils/asyncHandler");
 const { emitEvent } = require("../services/socket.service");
 
@@ -31,8 +33,8 @@ const updateFonnte = asyncHandler(async (req, res) => {
 });
 
 const updateResend = asyncHandler(async (req, res) => {
-  const { apiKey, fromEmail, fromName, enabled } = req.body;
-  await integrationService.updateResendCredentials({ apiKey, fromEmail, fromName, enabled });
+  const { apiKey, fromEmail, fromName, replyTo, enabled } = req.body;
+  await integrationService.updateResendCredentials({ apiKey, fromEmail, fromName, replyTo, enabled });
   emitEvent("integration:updated", { provider: "resend" });
   const summary = await integrationService.getIntegrationStatusSummary();
   res.json({ status: true, message: "Konfigurasi Resend disimpan.", data: summary.resend });
@@ -147,7 +149,35 @@ const previewNotificationTemplates = asyncHandler(async (req, res) => {
   res.json({ status: true, data });
 });
 
+/**
+ * Menelusuri gambar email dari Admin Web → MongoDB → template → HTML → uji
+ * akses dari internet. Read-only: tidak mengubah setting maupun template.
+ */
+const auditEmailAssets = asyncHandler(async (req, res) => {
+  const data = await diagnostics.auditEmailAssets(req.query.orderCode);
+  res.json({ status: true, data });
+});
+
+// Audit penyebab Spam dari sisi aplikasi/provider — tanpa menyentuh template.
+const auditDeliverability = asyncHandler(async (req, res) => {
+  const data = await diagnostics.auditDeliverability();
+  res.json({ status: true, data });
+});
+
+const getDiscordStatus = asyncHandler(async (req, res) => {
+  res.json({ status: true, data: discordService.getStatus() });
+});
+
+const testDiscord = asyncHandler(async (req, res) => {
+  const result = await discordService.testConnection();
+  res.status(result.success ? 200 : 400).json({ status: result.success, message: result.message });
+});
+
 module.exports = {
+  auditEmailAssets,
+  auditDeliverability,
+  getDiscordStatus,
+  testDiscord,
   previewNotificationTemplates,
   listNotificationLogs,
   retryNotification,

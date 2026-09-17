@@ -8,6 +8,8 @@
  * buildEmail) yang dipakai kalau admin BELUM menulis template sendiri.
  */
 
+const { resolveAssetUrl } = require("../utils/assetUrl");
+
 /* ------------------------------------------------------------ primitives */
 
 // Mengganti token {{placeholder}} dengan nilai asli. Render tetap di backend
@@ -56,20 +58,20 @@ function escapeHTML(value) {
     .replace(/'/g, "&#39;");
 }
 
-// Email client tidak bisa memuat localhost/blob/relative path. URL apa pun
-// yang tidak lolos cek ini dibuang, bukan dipasang dan berakhir jadi gambar
-// rusak di Gmail (spec 15 & 18).
-function safeRemoteUrl(value) {
-  if (!value) return "";
-  const url = String(value).trim();
-  if (!/^https:\/\//i.test(url)) return "";
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0" || host.endsWith(".local")) return "";
-    return url;
-  } catch {
-    return "";
-  }
+// Email client tidak bisa memuat localhost/blob/relative path.
+//
+// Versi lama fungsi ini hanya menerima URL yang SUDAH https:// dan membuang
+// sisanya tanpa jejak — termasuk path relatif seperti "/branding/logo.png"
+// yang tersimpan di MongoDB ketika R2_PUBLIC_URL belum/salah diset saat file
+// diunggah. Di browser path itu masih tampil (di-resolve ke domain toko),
+// sehingga logonya terlihat benar di Admin Web tapi hilang di email.
+//
+// Sekarang normalisasi dan pembuangannya dikerjakan utils/assetUrl.js: path
+// relatif dipasangkan ke R2_PUBLIC_URL, http:// di-upgrade ke https://, dan
+// URL yang tetap tidak bisa dipakai dicatat ke log lengkap dengan alasannya.
+// Aset yang dipilih admin tidak pernah diganti — hanya URL-nya yang dibetulkan.
+function safeRemoteUrl(value, label) {
+  return resolveAssetUrl(value, label);
 }
 
 /* ------------------------------------------------------------ event copy */
@@ -133,7 +135,7 @@ const EVENT_COPY = {
  * database — tidak ada yang dikarang, dan field yang kosong tetap kosong
  * sehingga baris yang bersangkutan tidak ikut dirender.
  */
-function buildContext({ event, order, transaction, settings }) {
+function buildContext({ event, order, transaction, settings, productImageFallback }) {
   const general = (settings && settings.general) || {};
   const contact = (settings && settings.contact) || {};
   const theme = (settings && settings.theme) || {};
@@ -156,7 +158,9 @@ function buildContext({ event, order, transaction, settings }) {
     event,
     storeName: general.storeName || "Store",
     storeTagline: general.description || "",
-    logoUrl: safeRemoteUrl(general.logo || (settings && settings.footer && settings.footer.logo)),
+    // Logo Store: yang dipakai adalah logo aktif dari Admin Web > Branding.
+    // footer.logo hanya cadangan kalau field branding memang kosong.
+    logoUrl: safeRemoteUrl(general.logo || (settings && settings.footer && settings.footer.logo), "general.logo"),
 
     customerName: (order.customer && order.customer.name) || "Pelanggan",
     customerEmail: (order.customer && order.customer.email) || "",
@@ -164,7 +168,12 @@ function buildContext({ event, order, transaction, settings }) {
 
     orderCode: order.orderCode,
     productName: (order.product && order.product.name) || "",
-    productImage: safeRemoteUrl(order.product && order.product.image),
+    // Gambar produk diambil dari snapshot order. `productImageFallback` diisi
+    // notification.service dengan Product.image yang hidup sekarang, untuk
+    // order lama yang snapshot-nya tersimpan sebelum URL R2-nya dibetulkan.
+    productImage:
+      safeRemoteUrl(order.product && order.product.image, "order.product.image") ||
+      safeRemoteUrl(productImageFallback, "product.image (live)"),
     quantity: order.quantity,
     price: formatIDR(order.product && order.product.price),
     // Yang ditagihkan gateway adalah totalAmount (total + kode unik). Kalau
@@ -177,13 +186,13 @@ function buildContext({ event, order, transaction, settings }) {
     orderedAt: formatDateTime(order.createdAt),
     paidAt: formatDateTime(transaction && transaction.paidAt),
     expiredAt: formatDateTime(transaction && transaction.expiredAt),
-    payUrl: safeRemoteUrl(transaction && (transaction.directUrl || transaction.qrisUrl)),
+    payUrl: safeRemoteUrl(transaction && (transaction.directUrl || transaction.qrisUrl), "transaction.payUrl"),
 
     waHref,
-    waIcon: safeRemoteUrl(wa.icon),
+    waIcon: safeRemoteUrl(wa.icon, "contact.whatsapp.icon"),
     waEnabled: wa.enabled !== false && Boolean(waHref),
-    discordHref: safeRemoteUrl(discord.url) || (discord.url && /^https?:\/\//i.test(discord.url) ? discord.url : ""),
-    discordIcon: safeRemoteUrl(discord.icon),
+    discordHref: safeRemoteUrl(discord.url, "contact.discord.url") || (discord.url && /^https?:\/\//i.test(discord.url) ? discord.url : ""),
+    discordIcon: safeRemoteUrl(discord.icon, "contact.discord.icon"),
     discordEnabled: discord.enabled !== false && Boolean(discord.url),
 
     accent: copy ? copy.accent : theme.primary || "#6d3bee",

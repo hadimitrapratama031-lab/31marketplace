@@ -2,8 +2,11 @@ const IntegrationSettings = require("../models/IntegrationSettings");
 const NotificationLog = require("../models/NotificationLog");
 const WebsiteSettings = require("../models/WebsiteSettings");
 const Transaction = require("../models/Transaction");
+const Product = require("../models/Product");
 const fonnte = require("./fonnte.service");
 const resend = require("./resend.service");
+const discord = require("./discord.service");
+const { inspectAssetUrl } = require("../utils/assetUrl");
 const { emitEvent } = require("./socket.service");
 const templates = require("./template.service");
 const { isValidWhatsApp, isValidEmail } = require("../utils/phone");
@@ -142,9 +145,16 @@ async function deliverChannel({ order, event, channel, recipient, templateSource
   // Validasi tujuan dilakukan SEBELUM slot di-claim: penerima yang tidak valid
   // adalah kesalahan data order, bukan kegagalan pengiriman yang perlu dicatat
   // sebagai percobaan.
-  const recipientValid = channel === "whatsapp" ? isValidWhatsApp(recipient) : isValidEmail(recipient);
+  // Discord tidak punya "alamat pembeli": tujuannya adalah channel server toko
+  // yang dikonfigurasi lewat ENV, jadi yang divalidasi adalah keberadaan
+  // konfigurasi itu, bukan format nomor/email.
+  const recipientValid =
+    channel === "whatsapp" ? isValidWhatsApp(recipient) : channel === "discord" ? Boolean(recipient) : isValidEmail(recipient);
   if (!recipientValid) {
-    const error = `Tujuan ${channel} tidak valid: ${recipient || "(kosong)"}`;
+    const error =
+      channel === "discord"
+        ? "Channel Discord belum dikonfigurasi (DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID atau DISCORD_WEBHOOK_URL kosong)."
+        : `Tujuan ${channel} tidak valid: ${recipient || "(kosong)"}`;
     const claim = await claimSlot(base);
     if (claim.claimed) {
       await finish(claim.doc, { status: "failed", permanentFailure: true, error, failedAt: new Date() });
@@ -214,6 +224,41 @@ async function deliverChannel({ order, event, channel, recipient, templateSource
   return { channel, status: "FAILED", error };
 }
 
+/* ------------------------------------------------------------------ asset */
+
+/**
+ * Order menyimpan SNAPSHOT gambar produk saat checkout. Itu benar untuk harga
+ * dan nama (riwayat tidak boleh berubah), tapi untuk gambar ia jadi masalah:
+ * order yang dibuat ketika R2_PUBLIC_URL masih salah menyimpan URL yang tidak
+ * bisa dimuat selamanya, walau gambar produknya sendiri sudah dibetulkan.
+ *
+ * Jadi: snapshot tetap yang utama, dan HANYA kalau snapshot itu terbukti tidak
+ * bisa dipakai, gambar produk yang hidup sekarang dibaca dari koleksi Product.
+ * Tidak ada gambar baru yang dikarang — sumbernya tetap aset yang sama yang
+ * sudah diunggah admin.
+ */
+async function resolveProductImageFallback(order) {
+  const snapshot = inspectAssetUrl(order.product && order.product.image);
+  if (snapshot.ok) return "";
+
+  const productId = order.product && order.product.productId;
+  if (!productId) return "";
+  try {
+    const live = await Product.findById(productId).select("image").lean();
+    const fallback = (live && live.image) || "";
+    if (fallback) {
+      logger.info("[Notification] gambar produk diambil dari Product (snapshot order tidak bisa dipakai)", {
+        orderCode: order.orderCode,
+        reason: snapshot.reason,
+      });
+    }
+    return fallback;
+  } catch (err) {
+    logger.warn("[Notification] gagal membaca gambar produk terkini", { orderCode: order.orderCode, message: err.message });
+    return "";
+  }
+}
+
 /* ------------------------------------------------------------------ entry */
 
 /**
@@ -246,7 +291,8 @@ async function notifyOrderEvent(order, eventKey, opts = {}) {
   // Konteks dibangun sekali; WhatsApp dan Email membaca data yang sama —
   // nomor admin, link Discord, logo, dan gambar produk semuanya berasal dari
   // WebsiteSettings (Admin Web), tidak ada yang di-hardcode.
-  const ctx = templates.buildContext({ event: eventKey, order, transaction, settings: websiteSettings });
+  const productImageFallback = await resolveProductImageFallback(order);
+  const ctx = templates.buildContext({ event: eventKey, order, transaction, settings: websiteSettings, productImageFallback });
   const results = [];
 
   if (integrationSettings.notifications.whatsappEnabled) {
@@ -277,12 +323,36 @@ async function notifyOrderEvent(order, eventKey, opts = {}) {
         channel: "email",
         recipient: ctx.customerEmail,
         templateSource: mail.source,
-        send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html, text: mail.text }),
+        send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html, text: mail.text, entityRef: order.orderCode }),
       })
     );
   } else {
     logDelivery({ orderId: order._id, orderCode: order.orderCode, event: eventKey, channel: "email", recipient: ctx.customerEmail, status: "SKIPPED", attempts: 0, error: "Email dinonaktifkan di Admin Web" });
     results.push({ channel: "email", status: "SKIPPED" });
+  }
+
+  // Discord: HANYA paymentSuccess. Batasnya ditulis di sini, satu baris, bukan
+  // disebar sebagai pengecekan di beberapa tempat — orderCreated,
+  // paymentFailed, dan paymentExpired tidak pernah sampai ke Discord.
+  if (eventKey === "paymentSuccess") {
+    const discordCfg = discord.getConfig();
+    if (integrationSettings.notifications.discordEnabled !== false && discordCfg.configured) {
+      const target = discordCfg.mode === "bot" ? `channel:${discordCfg.channelId}` : "webhook";
+      results.push(
+        await deliverChannel({
+          order,
+          event: eventKey,
+          channel: "discord",
+          recipient: target,
+          templateSource: "builtin",
+          send: () => discord.sendPaymentSuccess(ctx),
+        })
+      );
+    } else {
+      const reason = discordCfg.configured ? "Discord dinonaktifkan di Admin Web" : "Discord belum dikonfigurasi di ENV";
+      logDelivery({ orderId: order._id, orderCode: order.orderCode, event: eventKey, channel: "discord", recipient: "", status: "SKIPPED", attempts: 0, error: reason });
+      results.push({ channel: "discord", status: "SKIPPED" });
+    }
   }
 
   return { event: eventKey, orderCode: order.orderCode, results };
@@ -355,7 +425,8 @@ async function retryLog(logId) {
   const settings = await IntegrationSettings.getSingleton();
   const websiteSettings = await WebsiteSettings.getSingleton();
   const transaction = await Transaction.findOne({ orderId: order._id });
-  const ctx = templates.buildContext({ event: log.event, order, transaction, settings: websiteSettings });
+  const productImageFallback = await resolveProductImageFallback(order);
+  const ctx = templates.buildContext({ event: log.event, order, transaction, settings: websiteSettings, productImageFallback });
 
   // Template diselesaikan SEKALI di sini, bukan di dalam callback send():
   // dengan begitu retry ketiga memakai teks yang persis sama dengan percobaan
@@ -372,6 +443,16 @@ async function retryLog(logId) {
       templateSource: wa.source,
       send: () => fonnte.sendWhatsApp(ctx.customerWhatsApp, wa.text),
     });
+  } else if (log.channel === "discord") {
+    const discordCfg = discord.getConfig();
+    result = await deliverChannel({
+      order,
+      event: log.event,
+      channel: "discord",
+      recipient: discordCfg.configured ? (discordCfg.mode === "bot" ? `channel:${discordCfg.channelId}` : "webhook") : "",
+      templateSource: "builtin",
+      send: () => discord.sendPaymentSuccess(ctx),
+    });
   } else {
     const mail = templates.resolveEmail(ctx, settings.templates.email[log.event]);
     debugTemplate({ order, event: log.event, channel: "email", source: mail.source, preview: mail.subject });
@@ -381,7 +462,7 @@ async function retryLog(logId) {
       channel: "email",
       recipient: ctx.customerEmail,
       templateSource: mail.source,
-      send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html, text: mail.text }),
+      send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html, text: mail.text, entityRef: order.orderCode }),
     });
   }
 

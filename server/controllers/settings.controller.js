@@ -61,10 +61,27 @@ const updateSection = asyncHandler(async (req, res) => {
   res.json({ status: true, data: settings });
 });
 
+// Folder yang asetnya ikut dipasang di email transaksional. Untuk folder ini
+// SVG dan ICO ditolak: keduanya tampil sempurna di browser (jadi admin
+// mengira logonya sudah benar) tapi TIDAK PERNAH dirender sebagai <img> oleh
+// Gmail dan Outlook. Inilah sebab paling umum "logo WhatsApp/Discord tidak
+// tampil di email padahal tampil di web". Folder lain tidak dibatasi.
+const EMAIL_ASSET_FOLDERS = new Set(["branding", "contact", "products", "settings"]);
+const EMAIL_UNSAFE_MIME = new Set(["image/svg+xml", "image/x-icon", "image/vnd.microsoft.icon"]);
+
 // ADMIN — upload an asset (logo/favicon/background/etc) and store its URL into a given settings path.
 const uploadAsset = asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ status: false, message: "File tidak ditemukan." });
   const { folder = "settings" } = req.body;
+
+  if (EMAIL_ASSET_FOLDERS.has(folder) && EMAIL_UNSAFE_MIME.has(req.file.mimetype)) {
+    return res.status(400).json({
+      status: false,
+      message:
+        "Format SVG/ICO tidak bisa ditampilkan di email (Gmail dan Outlook tidak merendernya). Unggah aset ini sebagai PNG atau JPG.",
+    });
+  }
+
   const uploaded = await r2Service.uploadBuffer(req.file.buffer, req.file.originalname, req.file.mimetype, folder);
   res.json({ status: true, data: uploaded });
 });

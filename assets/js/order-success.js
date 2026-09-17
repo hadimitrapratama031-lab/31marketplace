@@ -98,7 +98,10 @@
 
       '<div class="success-cta">' +
       '<a class="btn btn-primary" href="products.html">Lihat produk lain</a>' +
-      '<a class="btn btn-ghost" href="cek-pesanan/?order=' + encodeURIComponent(order.orderCode) + '">Lacak pesanan ini</a>' +
+      // Cek Pesanan sekarang dibuka dengan email, bukan kode order: kode order
+      // saja tercetak di mana-mana dan tidak membuktikan kepemilikan. Emailnya
+      // tidak dibawa di URL — pembeli mengetiknya sendiri di halaman itu.
+      '<a class="btn btn-ghost" href="cek-pesanan/">Lacak pesanan</a>' +
       "</div>" +
       "</div>";
   }

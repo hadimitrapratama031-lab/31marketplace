@@ -44,7 +44,7 @@ function classifyTransportError(err) {
 
 // Pengirim level bawah: hanya butuh apiKey/fromEmail. Toggle Enabled diurus
 // sendEmail() di bawah, supaya tombol Test Email tetap bisa dipakai lebih dulu.
-async function sendEmailRaw({ apiKey, fromEmail, fromName, to, subject, html, text }) {
+async function sendEmailRaw({ apiKey, fromEmail, fromName, replyTo, to, subject, html, text, entityRef }) {
   // Validasi sebelum menyentuh jaringan — recipient kosong tidak boleh
   // membuat server melempar exception (spec 25).
   if (!apiKey) return { success: false, permanent: true, message: "API key Resend belum dikonfigurasi." };
@@ -70,6 +70,12 @@ async function sendEmailRaw({ apiKey, fromEmail, fromName, to, subject, html, te
       {
         from: `${fromName || "Store"} <${fromEmail}>`,
         to: [to],
+        // Reply-To yang benar-benar dibaca manusia adalah salah satu sinyal
+        // "pengirim sah" yang dinilai Gmail, dan tanpanya balasan pelanggan
+        // jatuh ke alamat noreply yang tidak dipantau siapa pun. Kalau admin
+        // belum mengisinya, header ini tidak dikirim sama sekali — lebih baik
+        // tidak ada daripada menunjuk ke alamat yang tidak dibaca.
+        ...(replyTo && isValidEmail(replyTo) ? { reply_to: replyTo } : {}),
         subject,
         html,
         // text/plain wajib disertakan (multipart/alternative) — HTML tanpa
@@ -78,6 +84,12 @@ async function sendEmailRaw({ apiKey, fromEmail, fromName, to, subject, html, te
         // lama yang belum diperbarui), turunkan versi minimal dari HTML
         // apa adanya supaya bagian ini tidak pernah kosong.
         text: text && String(text).trim() ? text : String(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+        // Header identitas per-order. Gmail memakai kemiripan isi untuk
+        // mengelompokkan (dan kadang menyembunyikan) pesan beruntun dari
+        // pengirim yang sama; referensi unik per order membuat tiap email
+        // transaksional berdiri sendiri, bukan terlihat sebagai pengiriman
+        // massal berulang. Tidak mengubah apa pun yang dilihat pelanggan.
+        ...(entityRef ? { headers: { "X-Entity-Ref-ID": String(entityRef) } } : {}),
       },
       {
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -109,12 +121,22 @@ async function sendEmailRaw({ apiKey, fromEmail, fromName, to, subject, html, te
 }
 
 // Dipakai untuk notifikasi order sungguhan — menghormati toggle Enabled.
-async function sendEmail({ to, subject, html, text }) {
+async function sendEmail({ to, subject, html, text, entityRef }) {
   const cfg = await getResendConfig();
   if (!cfg.enabled) {
     return { success: false, permanent: true, disabled: true, message: "Resend belum diaktifkan/dikonfigurasi." };
   }
-  return sendEmailRaw({ apiKey: cfg.apiKey, fromEmail: cfg.fromEmail, fromName: cfg.fromName, to, subject, html, text });
+  return sendEmailRaw({
+    apiKey: cfg.apiKey,
+    fromEmail: cfg.fromEmail,
+    fromName: cfg.fromName,
+    replyTo: cfg.replyTo,
+    to,
+    subject,
+    html,
+    text,
+    entityRef,
+  });
 }
 
 // Dipakai tombol "Test Email".

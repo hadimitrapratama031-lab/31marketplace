@@ -42,6 +42,8 @@ const IntegrationSettingsSchema = new mongoose.Schema(
       apiKeyEncrypted: { type: String, default: null },
       fromEmail: { type: String, default: "" },
       fromName: { type: String, default: "" },
+      // Alamat balasan (opsional). Kosong = header Reply-To tidak dikirim.
+      replyTo: { type: String, default: "" },
       lastTestStatus: { type: String, enum: ["untested", "success", "error"], default: "untested" },
       lastTestAt: { type: Date },
       lastTestMessage: { type: String, default: "" },
@@ -58,6 +60,10 @@ const IntegrationSettingsSchema = new mongoose.Schema(
     notifications: {
       whatsappEnabled: { type: Boolean, default: true },
       emailEnabled: { type: Boolean, default: true },
+      // Saklar channel Discord. Kredensialnya tetap di ENV (server-side);
+      // yang disimpan di sini hanya "boleh kirim atau tidak", sama seperti
+      // dua channel lain. Discord hanya dipakai untuk event paymentSuccess.
+      discordEnabled: { type: Boolean, default: true },
       events: {
         orderCreated: { type: Boolean, default: true },
         paymentPending: { type: Boolean, default: true },

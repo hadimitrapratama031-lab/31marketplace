@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Lacak status pesanan 31 Store dengan kode order: status pembayaran, detail produk, dan sisa waktu pembayaran.">
+  <meta name="description" content="Lacak status pesanan 31 Store dengan email yang dipakai saat checkout: status pembayaran, detail produk, dan sisa waktu pembayaran.">
   <meta name="theme-color" content="#fbfaff">
   <title>Cek Pesanan — 31 Store</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,11 +45,11 @@
     <div class="track-layout">
       <div class="page-head">
         <h1 class="display">Lacak pesanan kamu</h1>
-        <p class="lede">Masukkan kode order yang kamu terima setelah checkout. Statusnya diperbarui otomatis selama halaman ini terbuka.</p>
+        <p class="lede">Masukkan email yang kamu pakai saat checkout. Semua pesanan atas email itu akan muncul, dan statusnya diperbarui otomatis selama halaman ini terbuka.</p>
       </div>
 
       <form class="track-form" id="track-form" novalidate>
-        <input class="input" id="order-code" required placeholder="ORD-XXXX-XXXX" aria-label="Kode order" autocomplete="off" spellcheck="false">
+        <input class="input" id="order-email" type="email" required placeholder="email@kamu.com" aria-label="Email yang dipakai saat checkout" autocomplete="email" spellcheck="false" inputmode="email">
         <button class="btn btn-primary" type="submit" id="track-submit">Cek pesanan</button>
       </form>
       <p class="form-note" id="track-note"></p>

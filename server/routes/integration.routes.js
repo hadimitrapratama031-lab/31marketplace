@@ -19,6 +19,14 @@ router.get("/resend/domain-status", ctrl.getResendDomainStatus);
 
 router.post("/r2/test", ctrl.testR2);
 
+// Diagnostik gambar email + deliverability. Keduanya read-only.
+router.get("/notifications/email-assets", ctrl.auditEmailAssets);
+router.get("/notifications/deliverability", ctrl.auditDeliverability);
+
+// Discord: kredensial tetap di ENV, jadi tidak ada endpoint PUT untuk menyimpannya.
+router.get("/discord/status", ctrl.getDiscordStatus);
+router.post("/discord/test", ctrl.testDiscord);
+
 router.put("/notifications", ctrl.updateNotifications);
 router.get("/notifications/logs", ctrl.listNotificationLogs);
 router.get("/notifications/preview", ctrl.previewNotificationTemplates);

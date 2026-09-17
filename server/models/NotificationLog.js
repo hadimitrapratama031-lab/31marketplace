@@ -13,7 +13,10 @@ const NotificationLogSchema = new mongoose.Schema(
   {
     orderId: { type: mongoose.Schema.Types.ObjectId, ref: "Order", required: true, index: true },
     orderCode: { type: String, default: "", index: true }, // dibawa ikut supaya log bisa dibaca admin tanpa join
-    channel: { type: String, enum: ["whatsapp", "email"], required: true },
+    // "discord" memakai baris log yang sama seperti channel lain, sehingga
+    // idempotency (orderId, event, channel), retry manual, dan tampilan log di
+    // Admin Web berlaku untuknya tanpa sistem tambahan.
+    channel: { type: String, enum: ["whatsapp", "email", "discord"], required: true },
     event: {
       type: String,
       enum: ["orderCreated", "paymentPending", "paymentSuccess", "paymentFailed", "paymentExpired", "orderCompleted"],

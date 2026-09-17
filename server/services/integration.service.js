@@ -70,7 +70,10 @@ async function getResendConfig() {
   const apiKey = rs.apiKeyEncrypted ? decrypt(rs.apiKeyEncrypted) : process.env.RESEND_API_KEY;
   const fromEmail = rs.fromEmail || process.env.RESEND_FROM_EMAIL;
   const fromName = rs.fromName || process.env.RESEND_FROM_NAME;
-  return { enabled: Boolean(rs.enabled) && Boolean(apiKey), apiKey, fromEmail, fromName };
+  // Alamat balasan yang benar-benar dibaca admin. Dibiarkan kosong kalau tidak
+  // diset — header Reply-To palsu lebih buruk daripada tidak ada.
+  const replyTo = rs.replyTo || process.env.RESEND_REPLY_TO || "";
+  return { enabled: Boolean(rs.enabled) && Boolean(apiKey), apiKey, fromEmail, fromName, replyTo };
 }
 
 async function updateKlikQrisCredentials({ apiKey, merchantId, mode, enabled }) {
@@ -91,7 +94,7 @@ async function updateFonnteCredentials({ token, enabled }) {
   return settings;
 }
 
-async function updateResendCredentials({ apiKey, fromEmail, fromName, enabled }) {
+async function updateResendCredentials({ apiKey, fromEmail, fromName, replyTo, enabled }) {
   if (fromEmail) {
     const cleaned = cleanCredential(fromEmail);
     // Ditolak di titik penyimpanan, bukan hanya di titik pengiriman: admin
@@ -113,6 +116,13 @@ async function updateResendCredentials({ apiKey, fromEmail, fromName, enabled })
   if (apiKey) settings.resend.apiKeyEncrypted = encrypt(cleanCredential(apiKey));
   if (fromEmail) settings.resend.fromEmail = cleanCredential(fromEmail);
   if (fromName) settings.resend.fromName = cleanCredential(fromName);
+  if (replyTo !== undefined) {
+    const cleanedReply = cleanCredential(replyTo);
+    if (cleanedReply && !isValidEmail(cleanedReply)) {
+      throw new AppError(`Alamat "Reply-To" tidak valid: ${cleanedReply}`, 400);
+    }
+    settings.resend.replyTo = cleanedReply;
+  }
   if (typeof enabled === "boolean") settings.resend.enabled = enabled;
   await settings.save();
   return settings;
@@ -156,6 +166,7 @@ async function getIntegrationStatusSummary() {
       apiKeyMasked: settings.resend.apiKeyEncrypted ? maskSecret(decrypt(settings.resend.apiKeyEncrypted)) : null,
       fromEmail: settings.resend.fromEmail || process.env.RESEND_FROM_EMAIL || null,
       fromName: settings.resend.fromName || process.env.RESEND_FROM_NAME || null,
+      replyTo: settings.resend.replyTo || process.env.RESEND_REPLY_TO || null,
       lastTestStatus: settings.resend.lastTestStatus,
       lastTestAt: settings.resend.lastTestAt,
       lastTestMessage: settings.resend.lastTestMessage,
