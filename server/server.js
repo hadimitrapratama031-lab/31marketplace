@@ -64,7 +64,11 @@ app.use(
         defaultSrc: ["'self'"],
         // Product photos & QRIS images are hosted externally (Cloudflare R2 /
         // KlikQRIS), not on this domain — default 'self' data: would block them.
-        imgSrc: ["'self'", "data:", "https:"],
+        // "blob:" is required too: Admin Web previews a picked file with
+        // URL.createObjectURL() before it's ever uploaded, which produces a
+        // blob: URL, not an https: one — without this the browser blocks the
+        // preview image itself (upload still succeeds, only the preview fails).
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "https:", "'unsafe-inline'"],
         fontSrc: ["'self'", "https:", "data:"],
