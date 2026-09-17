@@ -131,7 +131,16 @@ const retryNotification = asyncHandler(async (req, res) => {
   res.status(result.success ? 200 : 400).json({ status: result.success, message: result.message, data: result.data });
 });
 
+// ADMIN — merender keempat event tanpa mengirim apa pun, lewat resolver yang
+// sama dengan pengiriman sungguhan. Dipakai untuk memverifikasi template mana
+// yang aktif di runtime setelah migrasi.
+const previewNotificationTemplates = asyncHandler(async (req, res) => {
+  const data = await notificationService.previewTemplates(req.query.orderCode);
+  res.json({ status: true, data });
+});
+
 module.exports = {
+  previewNotificationTemplates,
   listNotificationLogs,
   retryNotification,
   getStatus,

@@ -482,25 +482,82 @@ Balasan ke alamat ini tidak terbaca &mdash; gunakan kontak admin di atas.
  * menang kalau admin benar-benar sudah mengisinya; kalau tidak, dipakai
  * builder premium di atas. Tidak ada sistem template kedua.
  */
+/**
+ * Teks default versi LAMA yang pernah ditanam sebagai `default:` di skema
+ * IntegrationSettings. Dokumen singleton dibuat otomatis pada boot pertama,
+ * jadi field-field ini TIDAK PERNAH kosong di database — dan selama "tidak
+ * kosong" dipakai sebagai tanda "admin menulis template sendiri", template
+ * bawaan yang baru tidak akan pernah terpakai.
+ *
+ * Daftar ini membuat runtime bisa mengenali teks itu sebagai peninggalan
+ * skema, bukan karya admin, bahkan kalau migrasi database belum dijalankan.
+ * Jangan menambahkan template buatan admin ke sini.
+ */
+const LEGACY_TEMPLATES = new Set(
+  [
+    "Halo {{customer_name}}, order {{order_code}} untuk {{product_name}} sudah dibuat. Total: {{total}}.",
+    "Pembayaran berhasil! Order {{order_code}} ({{product_name}}) sebesar {{total}} sudah kami terima. Terima kasih sudah belanja di {{store_name}}.",
+    "Pembayaran untuk order {{order_code}} gagal diproses. Silakan coba lagi atau hubungi admin {{store_name}}.",
+    "Waktu pembayaran untuk order {{order_code}} telah habis. Silakan lakukan order ulang di {{store_name}}.",
+    "Order {{order_code}} Diterima — {{store_name}}",
+    "Pembayaran Berhasil — {{order_code}}",
+    "Pembayaran Gagal — {{order_code}}",
+    "Order Kedaluwarsa — {{order_code}}",
+    "<p>Halo {{customer_name}},</p><p>Order <b>{{order_code}}</b> untuk <b>{{product_name}}</b> x{{quantity}} sudah kami terima. Total: <b>{{total}}</b>.</p><p>Status: {{payment_status}}</p>",
+    "<p>Halo {{customer_name}},</p><p>Pembayaran order <b>{{order_code}}</b> sebesar <b>{{total}}</b> telah berhasil. Terima kasih sudah berbelanja di {{store_name}}!</p>",
+    "<p>Halo {{customer_name}},</p><p>Pembayaran order <b>{{order_code}}</b> gagal diproses. Silakan coba lagi.</p>",
+    "<p>Halo {{customer_name}},</p><p>Waktu pembayaran order <b>{{order_code}}</b> telah habis.</p>",
+  ].map((t) => t.trim())
+);
+
+// Kosong ATAU sama persis dengan default skema lama = bukan template admin.
+function isAdminWritten(value) {
+  if (!value || !String(value).trim()) return false;
+  return !LEGACY_TEMPLATES.has(String(value).trim());
+}
+
+/**
+ * Menentukan isi final SEKALIGUS melaporkan asalnya. `source` sengaja ikut
+ * dikembalikan supaya bisa dicatat di NotificationLog dan dilihat admin —
+ * tanpa itu tidak ada cara membuktikan template mana yang benar-benar
+ * dipakai runtime, hanya menebak dari isi pesan.
+ */
+function resolveWhatsApp(ctx, customTemplate) {
+  if (isAdminWritten(customTemplate)) {
+    return { source: "custom", text: renderTemplate(customTemplate, placeholders(ctx)) };
+  }
+  return { source: "builtin", text: buildWhatsAppMessage(ctx) };
+}
+
+function resolveEmail(ctx, customTemplate) {
+  const data = placeholders(ctx);
+  const tpl = customTemplate || {};
+  const htmlIsCustom = isAdminWritten(tpl.html);
+  const subjectIsCustom = isAdminWritten(tpl.subject);
+  return {
+    source: htmlIsCustom ? "custom" : "builtin",
+    subject: subjectIsCustom ? renderTemplate(tpl.subject, data) : ctx.subject,
+    html: htmlIsCustom ? renderTemplate(tpl.html, data) : buildEmailHtml(ctx),
+  };
+}
+
+// Dipertahankan supaya pemanggil lama tetap jalan; keduanya hanya membungkus
+// resolver di atas agar tidak ada dua logika pemilihan template.
 function buildWhatsApp(ctx, customTemplate) {
-  if (customTemplate && customTemplate.trim()) return renderTemplate(customTemplate, placeholders(ctx));
-  return buildWhatsAppMessage(ctx);
+  return resolveWhatsApp(ctx, customTemplate).text;
 }
 
 function buildEmail(ctx, customTemplate) {
-  const data = placeholders(ctx);
-  const hasCustom = customTemplate && customTemplate.html && customTemplate.html.trim();
-  return {
-    subject:
-      customTemplate && customTemplate.subject && customTemplate.subject.trim()
-        ? renderTemplate(customTemplate.subject, data)
-        : ctx.subject,
-    html: hasCustom ? renderTemplate(customTemplate.html, data) : buildEmailHtml(ctx),
-  };
+  const resolved = resolveEmail(ctx, customTemplate);
+  return { subject: resolved.subject, html: resolved.html };
 }
 
 module.exports = {
   renderTemplate,
+  resolveWhatsApp,
+  resolveEmail,
+  isAdminWritten,
+  LEGACY_TEMPLATES,
   formatIDR,
   formatDateTime,
   safeRemoteUrl,

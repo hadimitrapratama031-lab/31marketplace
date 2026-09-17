@@ -68,56 +68,39 @@ const IntegrationSettingsSchema = new mongoose.Schema(
       },
     },
 
+    // Template kustom opsional. KOSONG = pakai template bawaan dari
+    // services/template.service.js.
+    //
+    // Field-field ini DULU punya `default:` berisi teks satu baris. Karena
+    // dokumen singleton dibuat otomatis pada boot pertama, default itu ikut
+    // tersimpan ke database — sehingga setiap field selalu "terisi", dan
+    // pemilih template membacanya sebagai "admin sudah menulis sendiri".
+    // Itulah sebabnya template baru tidak pernah terpakai walau filenya ada.
+    // Defaultnya sekarang string kosong; jalankan
+    // `npm run migrate:templates` untuk membersihkan dokumen lama.
     templates: {
       whatsapp: {
-        orderCreated: {
-          type: String,
-          default: "Halo {{customer_name}}, order {{order_code}} untuk {{product_name}} sudah dibuat. Total: {{total}}.",
-        },
-        paymentSuccess: {
-          type: String,
-          default:
-            "Pembayaran berhasil! Order {{order_code}} ({{product_name}}) sebesar {{total}} sudah kami terima. Terima kasih sudah belanja di {{store_name}}.",
-        },
-        paymentFailed: {
-          type: String,
-          default: "Pembayaran untuk order {{order_code}} gagal diproses. Silakan coba lagi atau hubungi admin {{store_name}}.",
-        },
-        paymentExpired: {
-          type: String,
-          default: "Waktu pembayaran untuk order {{order_code}} telah habis. Silakan lakukan order ulang di {{store_name}}.",
-        },
+        orderCreated: { type: String, default: "" },
+        paymentSuccess: { type: String, default: "" },
+        paymentFailed: { type: String, default: "" },
+        paymentExpired: { type: String, default: "" },
       },
       email: {
         orderCreated: {
-          subject: { type: String, default: "Order {{order_code}} Diterima — {{store_name}}" },
-          html: {
-            type: String,
-            default:
-              "<p>Halo {{customer_name}},</p><p>Order <b>{{order_code}}</b> untuk <b>{{product_name}}</b> x{{quantity}} sudah kami terima. Total: <b>{{total}}</b>.</p><p>Status: {{payment_status}}</p>",
-          },
+          subject: { type: String, default: "" },
+          html: { type: String, default: "" },
         },
         paymentSuccess: {
-          subject: { type: String, default: "Pembayaran Berhasil — {{order_code}}" },
-          html: {
-            type: String,
-            default:
-              "<p>Halo {{customer_name}},</p><p>Pembayaran order <b>{{order_code}}</b> sebesar <b>{{total}}</b> telah berhasil. Terima kasih sudah berbelanja di {{store_name}}!</p>",
-          },
+          subject: { type: String, default: "" },
+          html: { type: String, default: "" },
         },
         paymentFailed: {
-          subject: { type: String, default: "Pembayaran Gagal — {{order_code}}" },
-          html: {
-            type: String,
-            default: "<p>Halo {{customer_name}},</p><p>Pembayaran order <b>{{order_code}}</b> gagal diproses. Silakan coba lagi.</p>",
-          },
+          subject: { type: String, default: "" },
+          html: { type: String, default: "" },
         },
         paymentExpired: {
-          subject: { type: String, default: "Order Kedaluwarsa — {{order_code}}" },
-          html: {
-            type: String,
-            default: "<p>Halo {{customer_name}},</p><p>Waktu pembayaran order <b>{{order_code}}</b> telah habis.</p>",
-          },
+          subject: { type: String, default: "" },
+          html: { type: String, default: "" },
         },
       },
     },

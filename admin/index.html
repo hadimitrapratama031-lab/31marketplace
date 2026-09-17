@@ -1276,6 +1276,7 @@
                       <th>Order code</th>
                       <th>Kejadian</th>
                       <th class="shrink">Channel</th>
+                      <th class="shrink">Template</th>
                       <th>Tujuan</th>
                       <th class="shrink">Status</th>
                       <th class="num shrink">Percobaan</th>
@@ -1294,21 +1295,30 @@
           <!-- templates -->
           <div class="pane" id="tab-templates">
             <div class="panel">
-              <div class="panel-head"><div class="panel-head-text"><h3>Template WhatsApp</h3><p>Teks yang dikirim ke pembeli pada tiap kejadian.</p></div></div>
+              <div class="panel-head">
+                <div class="panel-head-text"><h3>Template WhatsApp</h3><p>Kosongkan untuk memakai template bawaan yang sudah dirancang. Isi hanya kalau Anda ingin menulis sendiri.</p></div>
+                <button class="btn btn-ghost btn-sm" type="button" id="tplPreview">Pratinjau template aktif</button>
+              </div>
               <div class="panel-body">
                 <div class="notice">
                   <svg class="ico ico-sm"><use href="#i-info"></use></svg>
+                  <div><b>Kosong berarti template bawaan</b>
+                    <span class="sub">Kotak yang dibiarkan kosong akan dikirim memakai template bawaan &mdash; lengkap dengan detail pesanan, logo, dan tombol kontak. Menulis di sini akan menggantikannya sepenuhnya untuk kejadian tersebut.</span>
+                  </div>
+                </div>
+                <div class="notice" style="margin-top:var(--s4)">
+                  <svg class="ico ico-sm"><use href="#i-info"></use></svg>
                   <div><b>Kata kunci yang bisa dipakai</b>
                     <span class="token-list">
-                      <code>{{customer_name}}</code><code>{{order_code}}</code><code>{{product_name}}</code><code>{{quantity}}</code><code>{{total}}</code><code>{{payment_status}}</code><code>{{store_name}}</code>
+                      <code>{{customer_name}}</code><code>{{order_code}}</code><code>{{product_name}}</code><code>{{quantity}}</code><code>{{price}}</code><code>{{total}}</code><code>{{payment_method}}</code><code>{{payment_status}}</code><code>{{store_name}}</code><code>{{ordered_at}}</code><code>{{paid_at}}</code><code>{{expired_at}}</code><code>{{pay_url}}</code><code>{{wa_admin_url}}</code><code>{{discord_url}}</code>
                     </span>
                   </div>
                 </div>
                 <div style="margin-top:var(--s5)">
-                  <div class="tpl-block"><h4>Order dibuat</h4><label class="field"><textarea data-tpl-wa="orderCreated" rows="4"></textarea></label></div>
-                  <div class="tpl-block"><h4>Pembayaran berhasil</h4><label class="field"><textarea data-tpl-wa="paymentSuccess" rows="4"></textarea></label></div>
-                  <div class="tpl-block"><h4>Pembayaran gagal</h4><label class="field"><textarea data-tpl-wa="paymentFailed" rows="4"></textarea></label></div>
-                  <div class="tpl-block"><h4>Pembayaran kedaluwarsa</h4><label class="field"><textarea data-tpl-wa="paymentExpired" rows="4"></textarea></label></div>
+                  <div class="tpl-block"><h4>Order dibuat</h4><label class="field"><textarea data-tpl-wa="orderCreated" rows="4" placeholder="Kosongkan untuk memakai template bawaan."></textarea></label></div>
+                  <div class="tpl-block"><h4>Pembayaran berhasil</h4><label class="field"><textarea data-tpl-wa="paymentSuccess" rows="4" placeholder="Kosongkan untuk memakai template bawaan."></textarea></label></div>
+                  <div class="tpl-block"><h4>Pembayaran gagal</h4><label class="field"><textarea data-tpl-wa="paymentFailed" rows="4" placeholder="Kosongkan untuk memakai template bawaan."></textarea></label></div>
+                  <div class="tpl-block"><h4>Pembayaran kedaluwarsa</h4><label class="field"><textarea data-tpl-wa="paymentExpired" rows="4" placeholder="Kosongkan untuk memakai template bawaan."></textarea></label></div>
                 </div>
               </div>
             </div>
@@ -1316,7 +1326,7 @@
             <div class="panel">
               <div class="panel-head"><div class="panel-head-text"><h3>Template email</h3><p>Subjek dan isi HTML untuk tiap kejadian.</p></div></div>
               <div class="panel-body"><div id="emailTemplates"></div></div>
-              <div class="panel-foot"><button class="btn btn-primary" type="button" id="templatesSave">Simpan template</button></div>
+              <div class="panel-foot"><button class="btn btn-outline" type="button" id="templatesReset">Kembalikan ke bawaan</button><button class="btn btn-primary" type="button" id="templatesSave">Simpan template</button></div>
             </div>
           </div>
 
@@ -1578,6 +1588,23 @@
     <div class="modal-body" id="orderModalBody"></div>
     <div class="modal-foot">
       <button type="button" class="btn btn-outline" data-close-modal="orderModal">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================ MODAL — PRATINJAU TEMPLATE -->
+<div class="modal-root" id="tplPreviewModal" role="dialog" aria-modal="true" aria-labelledby="tplPreviewTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-head-text">
+        <h3 id="tplPreviewTitle">Template yang aktif sekarang</h3>
+        <p id="tplPreviewSub">Dirender lewat jalur yang sama dengan pengiriman sungguhan. Tidak ada pesan yang dikirim.</p>
+      </div>
+      <button class="modal-close" type="button" data-close-modal="tplPreviewModal" aria-label="Tutup"><svg class="ico"><use href="#i-x"></use></svg></button>
+    </div>
+    <div class="modal-body" id="tplPreviewBody"></div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-outline" data-close-modal="tplPreviewModal">Tutup</button>
     </div>
   </div>
 </div>

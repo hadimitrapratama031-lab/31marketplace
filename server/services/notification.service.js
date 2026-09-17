@@ -97,8 +97,30 @@ async function finish(logDoc, patch) {
 
 /* ---------------------------------------------------------------- logging */
 
-function logDelivery({ orderId, orderCode, event, channel, recipient, status, attempts, error }) {
+/**
+ * Jejak DEBUG opsional: menunjukkan template mana yang dipilih untuk tiap
+ * channel, lengkap dengan potongan awal isinya. Dimatikan secara default dan
+ * dinyalakan lewat env NOTIF_DEBUG=1 — cukup untuk memverifikasi setelah
+ * deploy tanpa membanjiri log produksi selamanya.
+ *
+ * Tidak pernah memuat token, API key, atau kredensial apa pun: hanya identitas
+ * order dan isi pesan yang memang dikirim ke pelanggan.
+ */
+function debugTemplate({ order, event, channel, source, preview }) {
+  if (process.env.NOTIF_DEBUG !== "1") return;
+  logger.info("[Notification][debug] template terpilih", {
+    orderId: String(order._id),
+    orderCode: order.orderCode,
+    type: event,
+    channel,
+    template: source,
+    preview: String(preview || "").slice(0, 120).replace(/\n/g, " | "),
+  });
+}
+
+function logDelivery({ orderId, orderCode, event, channel, recipient, status, attempts, error, templateSource }) {
   const meta = { orderId: String(orderId), orderCode, type: event, channel, recipient, status, attempts };
+  if (templateSource) meta.template = templateSource;
   if (error) meta.error = error;
   // Tidak pernah memuat token/API key — hanya identitas order, tujuan, dan hasil.
   if (status === "SENT") logger.info("[Notification]", meta);
@@ -113,8 +135,9 @@ function logDelivery({ orderId, orderCode, event, channel, recipient, status, at
  * sebenarnya. Tidak pernah mengembalikan sukses kecuali provider benar-benar
  * mengonfirmasinya (spec 31).
  */
-async function deliverChannel({ order, event, channel, recipient, send }) {
+async function deliverChannel({ order, event, channel, recipient, templateSource, send }) {
   const base = { orderId: order._id, orderCode: order.orderCode, event, channel, recipient };
+  const logBase = { ...base, templateSource };
 
   // Validasi tujuan dilakukan SEBELUM slot di-claim: penerima yang tidak valid
   // adalah kesalahan data order, bukan kegagalan pengiriman yang perlu dicatat
@@ -126,7 +149,7 @@ async function deliverChannel({ order, event, channel, recipient, send }) {
     if (claim.claimed) {
       await finish(claim.doc, { status: "failed", permanentFailure: true, error, failedAt: new Date() });
     }
-    logDelivery({ ...base, status: "FAILED", attempts: claim.doc ? claim.doc.attempts : 0, error });
+    logDelivery({ ...logBase, status: "FAILED", attempts: claim.doc ? claim.doc.attempts : 0, error });
     return { channel, status: "FAILED", error };
   }
 
@@ -154,8 +177,9 @@ async function deliverChannel({ order, event, channel, recipient, send }) {
         error: "",
         providerResponse: last.response,
         permanentFailure: false,
+        templateSource: templateSource || "",
       });
-      logDelivery({ ...base, status: "SENT", attempts });
+      logDelivery({ ...logBase, status: "SENT", attempts });
       return { channel, status: "SENT" };
     }
 
@@ -176,11 +200,12 @@ async function deliverChannel({ order, event, channel, recipient, send }) {
     attempts,
     error,
     providerResponse: last && last.response,
+    templateSource: templateSource || "",
     // Channel yang dimatikan admin bukan kegagalan permanen — begitu
     // dinyalakan lagi, retry manual harus bisa jalan.
     permanentFailure: Boolean(last && last.permanent && !last.disabled),
   });
-  logDelivery({ ...base, status: "FAILED", attempts, error });
+  logDelivery({ ...logBase, status: "FAILED", attempts, error });
   return { channel, status: "FAILED", error };
 }
 
@@ -220,14 +245,16 @@ async function notifyOrderEvent(order, eventKey, opts = {}) {
   const results = [];
 
   if (integrationSettings.notifications.whatsappEnabled) {
-    const message = templates.buildWhatsApp(ctx, integrationSettings.templates.whatsapp[eventKey]);
+    const wa = templates.resolveWhatsApp(ctx, integrationSettings.templates.whatsapp[eventKey]);
+    debugTemplate({ order, event: eventKey, channel: "whatsapp", source: wa.source, preview: wa.text });
     results.push(
       await deliverChannel({
         order,
         event: eventKey,
         channel: "whatsapp",
         recipient: ctx.customerWhatsApp,
-        send: () => fonnte.sendWhatsApp(ctx.customerWhatsApp, message),
+        templateSource: wa.source,
+        send: () => fonnte.sendWhatsApp(ctx.customerWhatsApp, wa.text),
       })
     );
   } else {
@@ -236,13 +263,15 @@ async function notifyOrderEvent(order, eventKey, opts = {}) {
   }
 
   if (integrationSettings.notifications.emailEnabled) {
-    const mail = templates.buildEmail(ctx, integrationSettings.templates.email[eventKey]);
+    const mail = templates.resolveEmail(ctx, integrationSettings.templates.email[eventKey]);
+    debugTemplate({ order, event: eventKey, channel: "email", source: mail.source, preview: mail.subject });
     results.push(
       await deliverChannel({
         order,
         event: eventKey,
         channel: "email",
         recipient: ctx.customerEmail,
+        templateSource: mail.source,
         send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html }),
       })
     );
@@ -323,25 +352,33 @@ async function retryLog(logId) {
   const transaction = await Transaction.findOne({ orderId: order._id });
   const ctx = templates.buildContext({ event: log.event, order, transaction, settings: websiteSettings });
 
-  const result =
-    log.channel === "whatsapp"
-      ? await deliverChannel({
-          order,
-          event: log.event,
-          channel: "whatsapp",
-          recipient: ctx.customerWhatsApp,
-          send: () => fonnte.sendWhatsApp(ctx.customerWhatsApp, templates.buildWhatsApp(ctx, settings.templates.whatsapp[log.event])),
-        })
-      : await deliverChannel({
-          order,
-          event: log.event,
-          channel: "email",
-          recipient: ctx.customerEmail,
-          send: () => {
-            const mail = templates.buildEmail(ctx, settings.templates.email[log.event]);
-            return resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html });
-          },
-        });
+  // Template diselesaikan SEKALI di sini, bukan di dalam callback send():
+  // dengan begitu retry ketiga memakai teks yang persis sama dengan percobaan
+  // pertama, dan sumbernya ikut tercatat seperti pengiriman biasa.
+  let result;
+  if (log.channel === "whatsapp") {
+    const wa = templates.resolveWhatsApp(ctx, settings.templates.whatsapp[log.event]);
+    debugTemplate({ order, event: log.event, channel: "whatsapp", source: wa.source, preview: wa.text });
+    result = await deliverChannel({
+      order,
+      event: log.event,
+      channel: "whatsapp",
+      recipient: ctx.customerWhatsApp,
+      templateSource: wa.source,
+      send: () => fonnte.sendWhatsApp(ctx.customerWhatsApp, wa.text),
+    });
+  } else {
+    const mail = templates.resolveEmail(ctx, settings.templates.email[log.event]);
+    debugTemplate({ order, event: log.event, channel: "email", source: mail.source, preview: mail.subject });
+    result = await deliverChannel({
+      order,
+      event: log.event,
+      channel: "email",
+      recipient: ctx.customerEmail,
+      templateSource: mail.source,
+      send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html }),
+    });
+  }
 
   return {
     success: result.status === "SENT",
@@ -356,7 +393,66 @@ async function getOrderDeliveryStatus(orderId) {
   return rows;
 }
 
+/**
+ * Merender keempat event untuk kedua channel memakai jalur resolver yang
+ * PERSIS SAMA dengan pengiriman sungguhan, tanpa menyentuh Fonnte/Resend.
+ *
+ * Ini yang menjawab "buktikan runtime memakai template baru": kalau `source`
+ * di sini "builtin" dan isinya template premium, maka itulah yang akan
+ * dikirim — karena kode yang memilihnya satu dan sama.
+ *
+ * Kalau ada order sungguhan (orderCode diisi), datanya dipakai apa adanya;
+ * kalau tidak, dipakai contoh yang jelas-jelas ditandai sebagai contoh.
+ */
+async function previewTemplates(orderCode) {
+  const Order = require("../models/Order");
+  const [settings, websiteSettings] = await Promise.all([
+    IntegrationSettings.getSingleton(),
+    WebsiteSettings.getSingleton(),
+  ]);
+
+  let order = null;
+  let transaction = null;
+  if (orderCode) {
+    order = await Order.findOne({ orderCode: String(orderCode).trim().toUpperCase() });
+    if (order) transaction = await Transaction.findOne({ orderId: order._id });
+  }
+  const usingSample = !order;
+  if (usingSample) {
+    const now = new Date();
+    order = {
+      _id: "preview",
+      orderCode: "CONTOH-0001",
+      customer: { name: "Nama Pelanggan", email: "pelanggan@contoh.com", whatsapp: "6281234567890" },
+      product: { name: "Nama Produk", price: 150000, image: "" },
+      quantity: 1,
+      total: 150000,
+      createdAt: now,
+    };
+    transaction = {
+      paymentGateway: "KLIKQRIS",
+      totalAmount: 150321,
+      expiredAt: new Date(now.getTime() + 60 * 60 * 1000),
+      paidAt: now,
+    };
+  }
+
+  const events = SUPPORTED_EVENTS.map((event) => {
+    const ctx = templates.buildContext({ event, order, transaction, settings: websiteSettings });
+    const wa = templates.resolveWhatsApp(ctx, settings.templates.whatsapp[event]);
+    const mail = templates.resolveEmail(ctx, settings.templates.email[event]);
+    return {
+      event,
+      whatsapp: { source: wa.source, text: wa.text },
+      email: { source: mail.source, subject: mail.subject, html: mail.html },
+    };
+  });
+
+  return { usingSample, orderCode: order.orderCode, events };
+}
+
 module.exports = {
+  previewTemplates,
   notifyOrderEvent,
   queueOrderEvent,
   listLogs,

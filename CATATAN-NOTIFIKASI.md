@@ -159,3 +159,103 @@ periksa hasilnya di tabel Riwayat pengiriman:
 | Order dengan email sengaja salah | Email `failed` permanen, WhatsApp tetap `sent` |
 | Matikan token Fonnte lalu checkout | WhatsApp `failed` dengan keterangan dari provider, Email tetap `sent` |
 | Ganti logo kontak di Admin Web | Marketplace berubah tanpa reload |
+
+---
+
+# Pembaruan: template baru tidak pernah terpakai di runtime
+
+## Root cause
+
+Skema `IntegrationSettings` menanam teks template versi lama sebagai `default:`
+pada tiap field `templates.whatsapp.*` dan `templates.email.*`. Dokumen
+singleton dibuat otomatis pada boot pertama lewat `getSingleton()`, jadi teks
+default itu **ikut tersimpan ke MongoDB**.
+
+Di sisi lain, `template.service.js` memutuskan template mana yang dipakai
+dengan aturan "kalau field-nya tidak kosong, berarti admin menulis sendiri":
+
+```js
+if (customTemplate && customTemplate.trim()) return renderTemplate(...)  // lama
+return buildWhatsAppMessage(ctx);                                        // baru
+```
+
+Karena field itu tidak pernah kosong, cabang pertama selalu menang. Template
+premium yang baru ada di file, ter-deploy, dan tidak pernah sekali pun
+dieksekusi. Ini bug saya sendiri di perubahan sebelumnya, bukan sisa handler
+lama di project Anda.
+
+## File dan fungsi penyebabnya
+
+| Lokasi | Peran dalam bug |
+|---|---|
+| `server/models/IntegrationSettings.js` — blok `templates` | Menanam teks lama ke database lewat `default:` |
+| `server/services/template.service.js` — `buildWhatsApp()`, `buildEmail()` | Memakai "tidak kosong" sebagai tanda "ditulis admin" |
+
+## Yang sudah diaudit dan bersih
+
+- **Tidak ada notification service duplikat.** Hanya `notification.service.js`
+  yang memanggil Fonnte/Resend; `integration.controller.js` menyentuhnya hanya
+  untuk tombol Test.
+- **Hanya dua pemicu event**, keduanya lewat `queueOrderEvent`:
+  `order.controller.js:117` dan `payment.controller.js:93`.
+- **Tidak ada cache.** `getSingleton()` membaca MongoDB pada setiap pengiriman,
+  jadi tidak ada konfigurasi lama yang menggantung di memori dan tidak ada yang
+  perlu di-invalidate.
+- **Tidak ada listener Socket.IO ganda** di Marketplace maupun Admin Web.
+- **Teks "Pembayaran berhasil" di frontend** (`order-success.js`,
+  `common.js`) adalah label halaman, bukan template notifikasi — tidak
+  berhubungan dan sengaja tidak diubah.
+
+## Yang diubah
+
+1. `IntegrationSettings.templates.*` → `default: ""`. **Kosong berarti pakai
+   template bawaan.**
+2. Resolver baru `resolveWhatsApp()` / `resolveEmail()` mengenali teks default
+   lama sebagai peninggalan skema, bukan karya admin — jadi perbaikannya
+   bekerja bahkan sebelum migrasi dijalankan. Daftarnya ada di
+   `LEGACY_TEMPLATES`.
+3. Resolver mengembalikan `source` (`builtin`/`custom`), yang kini disimpan di
+   `NotificationLog.templateSource` dan ikut masuk log `[Notification]`.
+4. `npm run migrate:templates` mengosongkan field yang isinya persis default
+   lama. Template yang benar-benar Anda tulis tidak disentuh — beda satu
+   karakter pun akan dipertahankan. Ada `--dry-run`.
+5. Admin Web: tombol **Pratinjau template aktif**, tombol **Kembalikan ke
+   bawaan**, kolom **Template** di tabel Riwayat pengiriman, dan placeholder
+   yang menjelaskan bahwa kosong berarti bawaan.
+6. Logging DEBUG opsional lewat `NOTIF_DEBUG=1`: event, orderId, channel,
+   template terpilih, dan 120 karakter pertama isinya. Tidak memuat kredensial.
+
+## Cara memastikan template baru benar-benar aktif
+
+**Sebelum mengirim apa pun** — Admin Web → Integrasi → Template → *Pratinjau
+template aktif*. Modal itu merender keempat event lewat resolver yang sama
+persis dengan pengiriman sungguhan, tanpa menyentuh Fonnte/Resend. Kalau tiap
+channel bertanda **Bawaan** dan isinya template premium, itulah yang akan
+dikirim.
+
+**Setelah mengirim** — Admin Web → Integrasi → Notifikasi → Riwayat pengiriman.
+Kolom **Template** menunjukkan template yang dipakai saat pesan itu benar-benar
+keluar, dibaca dari database, bukan dari form yang sedang tampil.
+
+Isi kolom order code di Riwayat pengiriman sebelum menekan Pratinjau untuk
+merender memakai data order sungguhan.
+
+## Hasil test
+
+Dijalankan lewat resolver produksi, tiga kondisi database, empat event, dua
+channel &mdash; 54 pemeriksaan, semua lulus:
+
+| Kondisi database | Hasil |
+|---|---|
+| Berisi default lama (kondisi Anda sekarang) | Keempat event, kedua channel → `builtin` |
+| Kosong (setelah `migrate:templates`) | Keempat event, kedua channel → `builtin` |
+| Admin menulis sendiri untuk `orderCreated` | `orderCreated` → `custom`, tiga event lain → `builtin` |
+
+Tiap hasil `builtin` juga diverifikasi memuat judul yang benar, Order ID,
+total, tautan admin WhatsApp, tautan Discord, dan email HTML premium (bukan
+`<p>` polos).
+
+**Yang belum diuji:** pengiriman sungguhan lewat Fonnte, Resend, dan KlikQRIS.
+Verifikasi di atas membuktikan template mana yang dipilih runtime; ia tidak
+membuktikan pesannya sampai ke pelanggan. Untuk itu gunakan tabel Riwayat
+pengiriman setelah deploy.

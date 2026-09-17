@@ -1853,6 +1853,14 @@
             esc(NOTIF_EVENT_LABEL[row.event] || row.event) +
             '</td><td class="shrink">' +
             esc(row.channel === "whatsapp" ? "WhatsApp" : "Email") +
+            '</td><td class="shrink">' +
+            // Bukti runtime: inilah template yang benar-benar dipakai saat
+            // pesan itu dikirim, bukan yang sedang tampil di form.
+            (row.templateSource === "custom"
+              ? '<span class="st st-info"><i></i>Kustom</span>'
+              : row.templateSource === "builtin"
+              ? '<span class="st st-brand"><i></i>Bawaan</span>'
+              : "—") +
             "</td><td>" +
             esc(row.recipient || "—") +
             '</td><td class="shrink"><span class="st ' +
@@ -1871,12 +1879,57 @@
           );
         })
         .join("") ||
-      emptyRow(9, "Belum ada notifikasi yang dikirim. Baris akan muncul otomatis setelah ada pesanan.");
+      emptyRow(10, "Belum ada notifikasi yang dikirim. Baris akan muncul otomatis setelah ada pesanan.");
 
     renderPager($("notifLogsPager"), state.notifLogsPagination, (page) => {
       state.notifLogsPagination.page = page;
       loadNotificationLogs().catch((err) => showToast(err.message, "error"));
     });
+  }
+
+  const PREVIEW_EVENTS = {
+    orderCreated: "Pesanan dibuat",
+    paymentSuccess: "Pembayaran berhasil",
+    paymentFailed: "Pembayaran gagal",
+    paymentExpired: "Pembayaran kedaluwarsa",
+  };
+
+  function sourceBadge(source) {
+    return source === "custom"
+      ? '<span class="st st-info"><i></i>Kustom</span>'
+      : '<span class="st st-brand"><i></i>Bawaan</span>';
+  }
+
+  function renderTemplatePreview(data) {
+    $("tplPreviewSub").textContent = data.usingSample
+      ? "Data contoh, dirender lewat jalur yang sama dengan pengiriman sungguhan. Tidak ada pesan yang dikirim."
+      : "Data order " + data.orderCode + ", dirender lewat jalur yang sama dengan pengiriman sungguhan. Tidak ada pesan yang dikirim.";
+
+    $("tplPreviewBody").innerHTML = data.events
+      .map(
+        (ev) =>
+          '<div class="tpl-block"><h4>' +
+          esc(PREVIEW_EVENTS[ev.event] || ev.event) +
+          "</h4>" +
+          '<p class="sub">WhatsApp ' +
+          sourceBadge(ev.whatsapp.source) +
+          "</p>" +
+          '<pre class="code-block">' +
+          esc(ev.whatsapp.text) +
+          "</pre>" +
+          '<p class="sub" style="margin-top:var(--s4)">Email ' +
+          sourceBadge(ev.email.source) +
+          " &mdash; subjek: " +
+          esc(ev.email.subject) +
+          "</p>" +
+          // srcdoc, bukan innerHTML: HTML email punya <style> dan <body>
+          // sendiri yang akan mengacaukan tampilan Admin Web kalau disuntikkan
+          // langsung ke halaman.
+          '<iframe class="tpl-preview-frame" title="Pratinjau email" srcdoc="' +
+          esc(ev.email.html) +
+          '"></iframe></div>'
+      )
+      .join("");
   }
 
   async function retryNotification(id, button) {
@@ -1985,11 +2038,11 @@
         esc(ev[1]) +
         '</h4><label class="field"><span>Subjek</span><input data-tpl-email-subject="' +
         ev[0] +
-        '" value="' +
+        '" placeholder="Kosongkan untuk memakai subjek bawaan." value="' +
         esc(tpl.subject || "") +
         '"></label><label class="field"><span>Isi HTML</span><textarea data-tpl-email-html="' +
         ev[0] +
-        '" rows="6">' +
+        '" rows="6" placeholder="Kosongkan untuk memakai template email bawaan.">' +
         esc(tpl.html || "") +
         "</textarea></label></div>"
       );
@@ -2744,6 +2797,46 @@
         }
       })
     );
+
+    $("tplPreview").addEventListener("click", () =>
+      withBusy($("tplPreview"), "Memuat…", async () => {
+        try {
+          // orderCode opsional: kalau diisi, pratinjau memakai data order
+          // sungguhan sehingga yang terlihat benar-benar apa yang akan/sudah
+          // dikirim untuk order itu.
+          const code = $("notifLogOrder").value.trim();
+          const res = await api("/integrations/notifications/preview" + (code ? "?orderCode=" + encodeURIComponent(code) : ""));
+          renderTemplatePreview(res.data);
+          openModal("tplPreviewModal");
+        } catch (err) {
+          showToast(err.message, "error");
+        }
+      })
+    );
+
+    $("templatesReset").addEventListener("click", async () => {
+      const ok = await confirmAction({
+        title: "Kembalikan ke template bawaan?",
+        text: "Semua template WhatsApp dan email yang Anda tulis akan dikosongkan, dan notifikasi kembali memakai template bawaan.",
+        confirmLabel: "Kembalikan",
+      });
+      if (!ok) return;
+      await withBusy($("templatesReset"), "Mengosongkan…", async () => {
+        const blank = { orderCreated: "", paymentSuccess: "", paymentFailed: "", paymentExpired: "" };
+        const email = {};
+        Object.keys(blank).forEach((ev) => {
+          email[ev] = { subject: "", html: "" };
+        });
+        try {
+          const res = await api("/integrations/templates", { method: "PUT", body: { whatsapp: blank, email } });
+          state.templates = res.data;
+          fillTemplateForms();
+          showToast("Template dikembalikan ke bawaan.", "success");
+        } catch (err) {
+          showToast(err.message, "error");
+        }
+      });
+    });
 
     $("templatesSave").addEventListener("click", () =>
       withBusy($("templatesSave"), "Menyimpan…", async () => {

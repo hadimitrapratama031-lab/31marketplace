@@ -10,7 +10,8 @@
     "seed:admin": "node scripts/seedAdmin.js",
     "check:paths": "node scripts/checkPaths.js",
     "migrate:contact": "node scripts/migrateContactSettings.js",
-    "migrate:notiflog": "node scripts/migrateNotificationLog.js"
+    "migrate:notiflog": "node scripts/migrateNotificationLog.js",
+    "migrate:templates": "node scripts/migrateNotificationTemplates.js"
   },
   "engines": {
     "node": ">=18.0.0"

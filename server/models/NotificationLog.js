@@ -27,6 +27,10 @@ const NotificationLogSchema = new mongoose.Schema(
     status: { type: String, enum: ["pending", "sending", "sent", "failed"], default: "pending", index: true },
 
     recipient: { type: String, default: "" }, // nomor WA / alamat email tujuan
+    // "builtin" = template bawaan template.service.js, "custom" = template
+    // yang ditulis admin. Disimpan supaya pertanyaan "runtime pakai template
+    // yang mana?" bisa dijawab dari data, bukan dari menebak isi pesan.
+    templateSource: { type: String, enum: ["builtin", "custom", ""], default: "" },
     attempts: { type: Number, default: 0 },
     // true = error permanen (nomor/email/kredensial salah). Tidak di-retry,
     // karena mengulanginya hanya menghasilkan kegagalan yang sama (spec 5).
