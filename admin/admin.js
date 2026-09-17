@@ -477,16 +477,8 @@
   const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
   function setImageDropState(state) {
-    // state: "idle" | "uploading" | "success" | "error"
+    // state: "idle" | "uploading" | "error"
     $("imageDrop").dataset.state = state;
-  }
-
-  let productPreviewObjectURL = null;
-  function clearProductPreviewObjectURL() {
-    if (productPreviewObjectURL) {
-      URL.revokeObjectURL(productPreviewObjectURL);
-      productPreviewObjectURL = null;
-    }
   }
 
   function setProductImageFile(file) {
@@ -499,18 +491,10 @@
       showToast("Ukuran gambar maksimal 5MB.", "error");
       return;
     }
-    const ext = file.name.split(".").pop().toLowerCase();
-    const allowedExtensions = ["png", "jpg", "jpeg", "webp"];
-    if (!allowedExtensions.includes(ext)) {
-      showToast("Ekstensi gambar tidak didukung. Gunakan PNG, JPG, atau WEBP.", "error");
-      return;
-    }
     pendingImageFile = file;
     removeExistingImage = false;
-    clearProductPreviewObjectURL();
     setImageDropState("idle");
-    productPreviewObjectURL = URL.createObjectURL(file);
-    $("imagePreview").src = productPreviewObjectURL;
+    $("imagePreview").src = URL.createObjectURL(file);
     $("imageDrop").classList.add("has-image");
   }
 
@@ -523,7 +507,6 @@
     state.editing.productId = id || null;
     pendingImageFile = null;
     removeExistingImage = false;
-    clearProductPreviewObjectURL();
     const p = id ? state.products.find((x) => x._id === id) : null;
 
     $("productModalTitle").textContent = p ? "Edit Produk" : "Tambah Produk";
@@ -563,8 +546,7 @@
     await withBusy($("productSubmit"), "Menyimpan...", async () => {
       try {
         await api(id ? "/products/admin/" + id : "/products/admin", { method: id ? "PUT" : "POST", body: form });
-        setImageDropState(hasImageWork ? "success" : "idle");
-        clearProductPreviewObjectURL();
+        setImageDropState("idle");
         closeModal("productModal");
         showToast(id ? "Produk diperbarui." : "Produk ditambahkan.", "success");
         await loadProducts();
@@ -1579,7 +1561,6 @@
         e.stopPropagation();
         pendingImageFile = null;
         removeExistingImage = true;
-        clearProductPreviewObjectURL();
         $("imageInput").value = "";
         $("imagePreview").src = "";
         imageDrop.classList.remove("has-image");

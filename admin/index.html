@@ -6,7 +6,7 @@
 <title>Admin Panel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="admin.css">
 </head>
 <body>
@@ -15,17 +15,19 @@
     <div class="brand"><span class="brand-mark" id="brandMark">·</span><div><b id="brandName">Admin</b><small>ADMIN PANEL</small></div></div>
     <div class="store-status" id="storeStatus"><span></span> <em id="storeStatusText">Memuat...</em></div>
     <nav>
-      <div class="nav-label">MAIN</div>
+      <div class="nav-label">Overview</div>
       <button class="nav-item active" data-page="dashboard"><i>⌂</i>Dashboard</button>
-      <button class="nav-item" data-page="orders"><i>▣</i>Pesanan <em id="orderBadge" hidden>0</em></button>
+      <div class="nav-label">Catalog</div>
       <button class="nav-item" data-page="products"><i>◈</i>Produk</button>
       <button class="nav-item" data-page="categories"><i>▤</i>Kategori</button>
-      <button class="nav-item" data-page="customers"><i>♙</i>Customer</button>
-      <div class="nav-label">STORE</div>
+      <div class="nav-label">Orders</div>
+      <button class="nav-item" data-page="orders"><i>▣</i>Pesanan <em id="orderBadge" hidden>0</em></button>
+      <button class="nav-item" data-page="customers"><i>◍</i>Customer</button>
+      <div class="nav-label">Website</div>
       <button class="nav-item" data-page="content"><i>✦</i>Konten Marketplace</button>
       <button class="nav-item" data-page="faq"><i>?</i>FAQ</button>
       <button class="nav-item" data-page="reviews"><i>★</i>Rating <em id="ratingBadge" hidden>0</em></button>
-      <div class="nav-label">SYSTEM</div>
+      <div class="nav-label">System</div>
       <button class="nav-item" data-page="integrations"><i>⚡</i>Integrasi</button>
       <button class="nav-item" data-page="settings"><i>⚙</i>Pengaturan</button>
     </nav>
@@ -414,18 +416,15 @@
 <!-- ============ MODAL PRODUK ============ -->
 <div id="productModal" class="modal-backdrop">
   <div class="modal product-modal">
-    <div class="modal-head">
-      <div class="modal-title-wrap"><span class="eyebrow">PRODUCT CATALOG</span><h3 id="productModalTitle">Tambah Produk</h3><p>Kelola informasi, harga, stok, dan media produk marketplace.</p></div>
-      <button class="close" type="button" aria-label="Tutup" data-close-modal="productModal">×</button>
-    </div>
+    <div class="modal-head"><div><span class="eyebrow">PRODUCT CATALOG</span><h3 id="productModalTitle">Tambah Produk</h3></div><button class="close" type="button" data-close-modal="productModal">×</button></div>
     <form id="productForm">
       <div class="modal-body">
 
         <div class="form-block">
           <div class="form-block-head"><i>▤</i><div><b>Informasi Produk</b><small>Nama, kategori, dan deskripsi yang tampil ke pembeli.</small></div></div>
           <div class="form-grid">
-            <label class="wide">Nama Produk<span class="field-required">Wajib</span><input id="pName" required placeholder="Contoh: Voucher Diamond 100"></label>
-            <label>Kategori<span class="field-required">Wajib</span><select id="pCategory" required></select></label>
+            <label class="wide">Nama Produk<input id="pName" required placeholder="Contoh: Voucher Diamond 100"></label>
+            <label>Kategori<select id="pCategory" required></select></label>
             <label>Status<select id="pStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
             <label class="wide">Deskripsi<textarea id="pDesc" placeholder="Deskripsi singkat produk (opsional)"></textarea></label>
           </div>
@@ -442,15 +441,15 @@
 
         <div class="form-block">
           <div class="form-block-head"><i>▧</i><div><b>Media Produk</b><small>PNG, JPG, atau WEBP · Maksimal 5MB.</small></div></div>
-          <div class="image-upload" id="imageDrop" data-state="idle" tabindex="0" aria-label="Upload gambar produk">
-            <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Pilih gambar produk">
+          <div class="image-upload" id="imageDrop" data-state="idle">
+            <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp">
             <div class="upload-placeholder">
-              <div class="upload-icon">↥</div>
+              <div class="upload-icon">＋</div>
               <b>Klik atau seret gambar ke sini</b>
               <small>PNG, JPG, atau WEBP · Maks. 5MB</small>
             </div>
             <div class="upload-preview">
-              <img id="imagePreview" alt="Preview gambar produk">
+              <img id="imagePreview" alt="">
               <div class="upload-overlay">
                 <button type="button" class="img-action" data-replace-image>⟳ Ganti</button>
                 <button type="button" class="img-action danger" data-remove-image>✕ Hapus</button>
@@ -470,16 +469,13 @@
 <!-- ============ MODAL KATEGORI ============ -->
 <div id="categoryModal" class="modal-backdrop">
   <div class="modal category-modal">
-    <div class="modal-head">
-      <div class="modal-title-wrap"><span class="eyebrow">CATALOG</span><h3 id="categoryModalTitle">Tambah Kategori</h3><p>Atur kategori yang digunakan untuk mengelompokkan produk marketplace.</p></div>
-      <button class="close" type="button" aria-label="Tutup" data-close-modal="categoryModal">×</button>
-    </div>
+    <div class="modal-head"><div><span class="eyebrow">CATALOG</span><h3 id="categoryModalTitle">Tambah Kategori</h3></div><button class="close" type="button" data-close-modal="categoryModal">×</button></div>
     <form id="categoryForm">
       <div class="modal-body">
         <div class="form-block">
           <div class="form-block-head"><i>▤</i><div><b>Informasi Kategori</b><small>Nama dan icon yang tampil sebagai section di Marketplace.</small></div></div>
           <div class="form-grid category-grid">
-            <label class="wide">Nama Kategori<span class="field-required">Wajib</span><input id="cName" required placeholder="Contoh: Top Up Game"></label>
+            <label class="wide">Nama Kategori<input id="cName" required placeholder="Contoh: Top Up Game"></label>
             <label class="icon-field">Icon (emoji/teks)<div class="icon-input-row"><span class="icon-preview" id="cIconPreview">🎮</span><input id="cIcon" placeholder="🎮"></div></label>
             <label>Urutan Tampil<input id="cSortOrder" type="number" step="1" value="0"></label>
             <label>Status<select id="cStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
@@ -495,7 +491,7 @@
 <!-- ============ MODAL FAQ ============ -->
 <div id="faqModal" class="modal-backdrop">
   <div class="modal">
-    <div class="modal-head"><div class="modal-title-wrap"><span class="eyebrow">HELP CENTER</span><h3 id="faqModalTitle">Tambah FAQ</h3><p>Buat jawaban bantuan yang tampil di marketplace.</p></div><button class="close" type="button" aria-label="Tutup" data-close-modal="faqModal">×</button></div>
+    <div class="modal-head"><div><span class="eyebrow">HELP CENTER</span><h3 id="faqModalTitle">Tambah FAQ</h3></div><button class="close" type="button" data-close-modal="faqModal">×</button></div>
     <form id="faqForm">
       <div class="form-grid">
         <label class="wide">Pertanyaan<input id="fQuestion" required></label>
@@ -511,7 +507,7 @@
 <!-- ============ MODAL DETAIL ORDER ============ -->
 <div id="orderModal" class="modal-backdrop">
   <div class="modal">
-    <div class="modal-head"><div class="modal-title-wrap"><span class="eyebrow">ORDER DETAIL</span><h3 id="orderModalTitle">Order</h3><p>Detail transaksi dan informasi pesanan.</p></div><button class="close" type="button" aria-label="Tutup" data-close-modal="orderModal">×</button></div>
+    <div class="modal-head"><div><span class="eyebrow">ORDER DETAIL</span><h3 id="orderModalTitle">Order</h3></div><button class="close" type="button" data-close-modal="orderModal">×</button></div>
     <div id="orderModalBody" class="order-detail"></div>
     <div class="modal-foot"><button type="button" class="outline" data-close-modal="orderModal">Tutup</button></div>
   </div>
