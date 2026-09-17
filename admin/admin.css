@@ -3872,3 +3872,99 @@ td.empty-cell {
   font-weight: 600;
   color: var(--text-3);
 }
+
+/* ------------------------------------------------------- gambar tambahan */
+/* Thumbnail kecil dan seragam: blok ini pendamping gambar utama, bukan
+   dropzone kedua. Tingginya tetap supaya modal tidak melompat saat gambar
+   ditambah atau dihapus. */
+.extra-images-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.extra-counter {
+  font-size: var(--fs-12);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.extra-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  min-height: 72px;
+}
+
+.extra-thumb {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  background: var(--surface-3);
+  flex: none;
+}
+
+.extra-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.extra-thumb-x {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: rgba(17, 17, 17, 0.62);
+  color: #fff;
+  padding: 0;
+  line-height: 1;
+}
+
+.extra-thumb-x:hover {
+  background: var(--danger);
+}
+
+.extra-thumb-x .ico {
+  width: 12px;
+  height: 12px;
+}
+
+/* Gambar yang belum tersimpan ditandai, supaya admin tahu mana yang baru akan
+   diunggah saat menekan Simpan dan mana yang sudah ada di R2. */
+.extra-thumb.is-new::after {
+  content: "Baru";
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 5px;
+  border-radius: var(--r-xs, 4px);
+  background: var(--brand, #6d4aff);
+  color: #fff;
+}
+
+.extra-empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 72px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-3);
+  font-size: var(--fs-12);
+}

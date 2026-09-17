@@ -250,7 +250,7 @@
       // Email disamarkan kalau pesanan dibuka hanya dengan Order ID. Yang
       // ditampilkan di sini menjelaskan caranya membuka versi lengkapnya.
       (order.emailMasked
-        ? '<p class="muted" style="font-size:12.5px;margin-top:14px">Email disamarkan. Isi juga kolom email di atas untuk melihatnya lengkap.</p>'
+        ? '<p class="muted" style="font-size:12.5px;margin-top:14px">Email disamarkan karena pesanan ini dibuka dengan Order ID. Cari dengan emailmu untuk melihatnya lengkap.</p>'
         : "") +
       payment +
       contact +
@@ -323,15 +323,15 @@
     $("track-form").addEventListener("submit", function (e) {
       e.preventDefault();
       var query = String($("order-query").value || "").trim();
-      var email = normalizeEmail($("order-email").value);
 
-      if (!query && !email) {
-        setNote("Masukkan Order ID atau email yang kamu pakai saat checkout.", true);
+      if (!query) {
+        setNote("Masukkan Email atau Order ID kamu.", true);
         return;
       }
-      // Kolom email saja sudah cukup: pencarian tetap jalan walau kolom utama
-      // dibiarkan kosong.
-      runSearch({ query: query || email, email: email }, false);
+      // SATU kolom, dua kemungkinan isi. Backend yang menentukan apakah isinya
+      // email atau Order ID — tidak ada kolom kedua yang wajib diisi, dan tidak
+      // ada kombinasi yang dipaksakan.
+      runSearch({ query: query }, false);
     });
 
     // Satu listener untuk seluruh area hasil: daftar boleh dirender ulang
@@ -378,10 +378,10 @@
     var presetEmail = normalizeEmail(params.get("email"));
     var presetOrder = String(params.get("order") || "").trim();
 
-    if (presetEmail) $("order-email").value = presetEmail;
-    if (presetOrder || presetEmail) {
-      $("order-query").value = presetOrder || presetEmail;
-      runSearch({ query: presetOrder || presetEmail, email: presetEmail }, false);
+    var preset = presetOrder || presetEmail;
+    if (preset) {
+      $("order-query").value = preset;
+      runSearch({ query: preset }, false);
     }
   });
 })();

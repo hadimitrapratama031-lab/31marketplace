@@ -44,6 +44,11 @@
     }
   }
 
+  // Countdown SELALU dihitung dari expiredAt milik backend, tidak pernah dari
+  // Date.now() + 10 menit di sisi browser. Karena itu menutup tab, membuka
+  // ulang halaman, atau me-refresh tidak pernah memperpanjang tenggat: yang
+  // ditampilkan hanya selisih terhadap timestamp yang sudah tersimpan di
+  // database sejak transaksi dibuat.
   function startCountdown(expiredAt) {
     stopCountdown();
     var el = $("pay-countdown");
@@ -53,8 +58,14 @@
     var tick = function () {
       var diff = target - Date.now();
       if (diff <= 0) {
-        el.textContent = "Menunggu konfirmasi kedaluwarsa…";
+        el.textContent = "Pembayaran kadaluarsa";
+        el.classList.add("is-expired");
         stopCountdown();
+        // Nol di layar bukan keputusan status. Yang menentukan tetap backend,
+        // jadi begitu menyentuh 00:00 halaman ini langsung meminta server
+        // menutup transaksinya lalu membaca ulang status yang sebenarnya —
+        // bukan menampilkan "expired" versi browser sendiri.
+        expireNow();
         return;
       }
       var m = Math.floor(diff / 60000);
@@ -63,6 +74,34 @@
     };
     tick();
     countdownTimer = setInterval(tick, 1000);
+  }
+
+  // Menonaktifkan alat bayar yang sudah tidak bisa dipakai, sambil menunggu
+  // jawaban backend — supaya tidak ada pembeli yang scan QRIS mati.
+  function disablePaymentSurface() {
+    var main = $("pay-main");
+    if (!main) return;
+    main.classList.add("is-expired");
+    var frame = main.querySelector(".pay-qris-frame");
+    if (frame) frame.classList.add("is-disabled");
+    var direct = main.querySelector('a[target="_blank"]');
+    if (direct) {
+      direct.setAttribute("aria-disabled", "true");
+      direct.classList.add("is-disabled");
+      direct.removeAttribute("href");
+    }
+  }
+
+  async function expireNow() {
+    disablePaymentSurface();
+    try {
+      await MP.get("/payments/" + encodeURIComponent(orderCode) + "/refresh");
+    } catch (err) {
+      // Gagal memanggil refresh bukan alasan untuk menebak status sendiri;
+      // fetchOrder di bawah tetap membaca apa pun yang ada di database.
+      console.error("Gagal memeriksa status setelah waktu habis:", err);
+    }
+    fetchOrder(true);
   }
 
   /* --------------------------------------------------------------- render */

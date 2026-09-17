@@ -14,6 +14,7 @@
   var slug = new URLSearchParams(window.location.search).get("slug");
   var product = null;
   var qty = 1;
+  var activeImage = "";
 
   /* --------------------------------------------------------------- render */
   function renderNotFound(message) {
@@ -27,20 +28,100 @@
       "</div>";
   }
 
+  /* ------------------------------------------------------------ galeri
+     Gambar utama tetap jadi banner; thumbnail di bawahnya hanya memilih gambar
+     mana yang ditampilkan di banner itu. Produk lama tanpa additionalImages
+     dibaca sebagai [] — strip thumbnail-nya tidak muncul sama sekali, dan
+     halamannya persis seperti sebelumnya. */
+  function galleryImages() {
+    var images = [];
+    if (product.image) images.push(product.image);
+    (product.additionalImages || []).forEach(function (img) {
+      if (img && img.url) images.push(img.url);
+    });
+    return images;
+  }
+
+  function setActiveImage(url) {
+    var frame = $("media-frame");
+    var img = frame && frame.querySelector("img");
+    if (!img || img.getAttribute("src") === url) return;
+
+    activeImage = url;
+
+    // Transisi sederhana: banner dipudarkan, gambar ditukar setelah yang baru
+    // benar-benar selesai dimuat, lalu dimunculkan lagi. Tanpa menunggu onload,
+    // banner sempat kosong di koneksi lambat.
+    frame.classList.add("is-swapping");
+    var next = new Image();
+    next.onload = next.onerror = function () {
+      img.src = url;
+      frame.classList.remove("is-swapping");
+    };
+    next.src = url;
+
+    renderThumbs();
+  }
+
+  function renderThumbs() {
+    var strip = $("media-thumbs");
+    if (!strip) return;
+
+    var images = galleryImages();
+    // Satu gambar bukan galeri. Strip-nya disembunyikan daripada menampilkan
+    // satu thumbnail yang tidak bisa dipilih ke mana-mana.
+    if (images.length < 2) {
+      strip.hidden = true;
+      strip.innerHTML = "";
+      return;
+    }
+
+    strip.hidden = false;
+    strip.innerHTML = images
+      .map(function (url, i) {
+        var active = url === activeImage;
+        return (
+          '<button class="media-thumb' +
+          (active ? " is-active" : "") +
+          '" type="button" data-image="' +
+          MP.escapeHTML(url) +
+          '" aria-label="Tampilkan gambar ' +
+          (i + 1) +
+          '" aria-pressed="' +
+          (active ? "true" : "false") +
+          '"><img src="' +
+          MP.escapeHTML(url) +
+          '" alt="" loading="lazy" decoding="async"></button>'
+        );
+      })
+      .join("");
+  }
+
   function renderMedia() {
     var frame = $("media-frame");
     if (!frame) return;
     var categoryName = (product.categoryId && product.categoryId.name) || "";
+    var images = galleryImages();
 
-    if (product.image) {
+    // Gambar yang sedang dipilih dipertahankan selama masih ada di produk —
+    // update realtime dari Admin Web tidak boleh melempar pembeli kembali ke
+    // gambar utama tanpa alasan. Kalau gambarnya baru saja dihapus admin,
+    // baru jatuh ke gambar utama.
+    if (!activeImage || images.indexOf(activeImage) === -1) {
+      activeImage = images[0] || "";
+    }
+
+    if (activeImage) {
       frame.innerHTML =
-        '<img src="' + MP.escapeHTML(product.image) + '" alt="' + MP.escapeHTML(product.name) + '" decoding="async">' +
+        '<img src="' + MP.escapeHTML(activeImage) + '" alt="' + MP.escapeHTML(product.name) + '" decoding="async">' +
         (categoryName ? '<figcaption class="media-flag">' + MP.escapeHTML(categoryName) + "</figcaption>" : "");
     } else {
       frame.innerHTML =
         '<div class="ph">' + MP.escapeHTML(MP.initials(product.name)) + "</div>" +
         (categoryName ? '<figcaption class="media-flag">' + MP.escapeHTML(categoryName) + "</figcaption>" : "");
     }
+
+    renderThumbs();
   }
 
   function renderProduct() {
@@ -173,6 +254,13 @@
       updateQty();
     });
     $("buy-now").addEventListener("click", goToCheckout);
+
+    // Satu listener untuk seluruh strip: isinya boleh dirender ulang berkali-kali
+    // (termasuk oleh update realtime) tanpa pernah menumpuk handler.
+    $("media-thumbs").addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-image]");
+      if (btn) setActiveImage(btn.dataset.image);
+    });
   }
 
   document.addEventListener("DOMContentLoaded", function () {

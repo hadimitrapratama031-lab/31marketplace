@@ -46,19 +46,12 @@
     <div class="track-layout">
       <div class="page-head">
         <h1 class="display">Lacak pesanan kamu</h1>
-        <p class="lede">Masukkan Order ID dari halaman pembayaran, atau email yang kamu pakai saat checkout. Status diperbarui otomatis selama halaman ini terbuka.</p>
+        <p class="lede">Masukkan Email atau Order ID untuk melihat detail pesanan. Statusnya diperbarui otomatis selama halaman ini terbuka.</p>
       </div>
 
       <form class="track-form" id="track-form" novalidate>
-        <span class="track-field">
-          <input class="input" id="order-query" type="text" required placeholder="ORD-20260917-A1B2C3 atau email@kamu.com" aria-label="Order ID atau email" autocomplete="off" spellcheck="false">
-          <span class="track-hint">Mencari dengan email akan menampilkan semua pesanan atas email tersebut.</span>
-        </span>
-        <span class="track-field">
-          <input class="input" id="order-email" type="email" placeholder="Email (opsional)" aria-label="Email pemesan, opsional" autocomplete="email" spellcheck="false" inputmode="email">
-          <span class="track-hint">Isi bersama Order ID untuk melihat email pemesan secara lengkap.</span>
-        </span>
-        <button class="btn btn-primary" type="submit" id="track-submit">Cek pesanan</button>
+        <input class="input" id="order-query" type="text" required placeholder="Masukkan Email atau Order ID" aria-label="Email atau Order ID" autocomplete="off" spellcheck="false">
+        <button class="btn btn-primary" type="submit" id="track-submit">Cek Pesanan</button>
       </form>
       <p class="form-note" id="track-note"></p>
 

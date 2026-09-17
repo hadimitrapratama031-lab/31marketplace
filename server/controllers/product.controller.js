@@ -6,6 +6,66 @@ const { AppError } = require("../middlewares/errorHandler");
 const { emitEvent } = require("../services/socket.service");
 const r2Service = require("../services/r2.service");
 
+/* ---------------------------------------------------------- gambar produk */
+
+const ALLOWED_PRODUCT_MIMES = ["image/png", "image/jpeg", "image/webp"];
+const MAX_ADDITIONAL_IMAGES = 5;
+
+// Route produk sekarang memakai upload.fields() supaya bisa menerima gambar
+// utama DAN gambar tambahan dalam satu submit. Helper ini menjaga controller
+// tetap bekerja untuk keduanya: req.file (single) maupun req.files (fields),
+// sehingga pemanggil lama yang hanya mengirim "image" tidak berubah perilakunya.
+function mainImageFile(req) {
+  if (req.file) return req.file;
+  return (req.files && req.files.image && req.files.image[0]) || null;
+}
+
+function additionalImageFiles(req) {
+  return (req.files && req.files.additionalImages) || [];
+}
+
+function assertProductImage(file) {
+  if (!ALLOWED_PRODUCT_MIMES.includes(file.mimetype)) {
+    throw new AppError("Gambar produk hanya boleh PNG, JPG, atau WEBP.", 400);
+  }
+}
+
+// Mengunggah beberapa file sekaligus. Kalau salah satu gagal, yang sudah
+// terlanjur naik dibersihkan lagi — jangan meninggalkan objek yatim di R2
+// hanya karena file ketiga bermasalah.
+async function uploadAdditional(files) {
+  const uploaded = [];
+  try {
+    for (const file of files) {
+      assertProductImage(file);
+      const result = await r2Service.uploadBuffer(file.buffer, file.originalname, file.mimetype, "products");
+      uploaded.push({ url: result.url, key: result.key });
+    }
+    return uploaded;
+  } catch (err) {
+    await Promise.all(uploaded.map((img) => r2Service.deleteObject(img.key).catch(() => {})));
+    throw err;
+  }
+}
+
+// Daftar gambar tambahan yang MASIH dipertahankan admin, dikirim form sebagai
+// JSON string berisi key-nya. Dicocokkan dengan isi database, bukan dipercaya
+// apa adanya: frontend tidak boleh bisa menyisipkan URL sembarangan ke produk.
+function resolveKeptImages(product, rawKeep) {
+  if (rawKeep === undefined) return product.additionalImages || []; // field tidak dikirim = tidak diubah
+
+  let keys;
+  try {
+    keys = JSON.parse(rawKeep);
+  } catch {
+    throw new AppError("Daftar gambar tambahan tidak valid.", 400);
+  }
+  if (!Array.isArray(keys)) throw new AppError("Daftar gambar tambahan tidak valid.", 400);
+
+  const wanted = new Set(keys.map(String));
+  return (product.additionalImages || []).filter((img) => wanted.has(String(img.key)));
+}
+
 function slugify(text) {
   return String(text)
     .toLowerCase()
@@ -115,19 +175,24 @@ const create = asyncHandler(async (req, res) => {
   let image = "";
   let imageKey = "";
   let uploadedImage = null;
-  if (req.file) {
-    const allowedProductMimes = ["image/png", "image/jpeg", "image/webp"];
-    if (!allowedProductMimes.includes(req.file.mimetype)) {
-      throw new AppError("Gambar produk hanya boleh PNG, JPG, atau WEBP.", 400);
-    }
-    uploadedImage = await r2Service.uploadBuffer(
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype,
-      "products"
-    );
+  const mainFile = mainImageFile(req);
+  if (mainFile) {
+    assertProductImage(mainFile);
+    uploadedImage = await r2Service.uploadBuffer(mainFile.buffer, mainFile.originalname, mainFile.mimetype, "products");
     image = uploadedImage.url;
     imageKey = uploadedImage.key;
+  }
+
+  const extraFiles = additionalImageFiles(req);
+  if (extraFiles.length > MAX_ADDITIONAL_IMAGES) {
+    throw new AppError(`Gambar tambahan maksimal ${MAX_ADDITIONAL_IMAGES}.`, 400);
+  }
+  let additionalImages = [];
+  try {
+    additionalImages = await uploadAdditional(extraFiles);
+  } catch (err) {
+    if (uploadedImage?.key) await r2Service.deleteObject(uploadedImage.key).catch(() => {});
+    throw err;
   }
 
   let product;
@@ -140,6 +205,7 @@ const create = asyncHandler(async (req, res) => {
     shortDescription: shortDescription || "",
     image,
     imageKey,
+    additionalImages,
     price: Number(price),
     stock: Number(stock),
     sold: 0,
@@ -148,7 +214,8 @@ const create = asyncHandler(async (req, res) => {
     });
   } catch (err) {
     // Do not leave an orphaned R2 object when MongoDB rejects the product.
-    if (uploadedImage?.key) await r2Service.deleteObject(uploadedImage.key);
+    if (uploadedImage?.key) await r2Service.deleteObject(uploadedImage.key).catch(() => {});
+    await Promise.all(additionalImages.map((img) => r2Service.deleteObject(img.key).catch(() => {})));
     throw err;
   }
 
@@ -162,7 +229,8 @@ const update = asyncHandler(async (req, res) => {
   const product = await Product.findById(id);
   if (!product) throw new AppError("Produk tidak ditemukan.", 404);
 
-  const { name, categoryId, description, shortDescription, price, stock, status, sortOrder, removeImage } = req.body;
+  const { name, categoryId, description, shortDescription, price, stock, status, sortOrder, removeImage, keepAdditionalImages } =
+    req.body;
   if (categoryId) {
     const category = await Category.findById(categoryId);
     if (!category) throw new AppError("Kategori tidak ditemukan.", 400);
@@ -178,18 +246,11 @@ const update = asyncHandler(async (req, res) => {
 
   let replacementKey = "";
   const oldKey = product.imageKey;
-  if (req.file) {
-    const allowedProductMimes = ["image/png", "image/jpeg", "image/webp"];
-    if (!allowedProductMimes.includes(req.file.mimetype)) {
-      throw new AppError("Gambar produk hanya boleh PNG, JPG, atau WEBP.", 400);
-    }
+  const mainFile = mainImageFile(req);
+  if (mainFile) {
+    assertProductImage(mainFile);
     // Upload first. The old object is kept until MongoDB has saved the new URL.
-    const uploaded = await r2Service.uploadBuffer(
-      req.file.buffer,
-      req.file.originalname,
-      req.file.mimetype,
-      "products"
-    );
+    const uploaded = await r2Service.uploadBuffer(mainFile.buffer, mainFile.originalname, mainFile.mimetype, "products");
     replacementKey = uploaded.key;
     product.image = uploaded.url;
     product.imageKey = uploaded.key;
@@ -199,17 +260,48 @@ const update = asyncHandler(async (req, res) => {
     product.imageKey = "";
   }
 
+  /* ---- gambar tambahan ----
+     Urutannya disengaja: hitung apa yang dipertahankan, unggah yang baru,
+     SIMPAN ke MongoDB, baru hapus objek R2 yang sudah tidak dirujuk. Kalau
+     penghapusan dilakukan lebih dulu dan penyimpanan gagal, produk kehilangan
+     gambar yang sebenarnya masih dipakai — dan file itu tidak bisa dikembalikan. */
+  const keptImages = resolveKeptImages(product, keepAdditionalImages);
+  const newFiles = additionalImageFiles(req);
+
+  if (keptImages.length + newFiles.length > MAX_ADDITIONAL_IMAGES) {
+    if (replacementKey) await r2Service.deleteObject(replacementKey).catch(() => {});
+    throw new AppError(`Gambar tambahan maksimal ${MAX_ADDITIONAL_IMAGES}.`, 400);
+  }
+
+  let uploadedExtra = [];
+  try {
+    uploadedExtra = await uploadAdditional(newFiles);
+  } catch (err) {
+    if (replacementKey) await r2Service.deleteObject(replacementKey).catch(() => {});
+    throw err;
+  }
+
+  // Objek lama yang tidak lagi ada di daftar simpan — dihapus setelah save.
+  const keptKeys = new Set(keptImages.map((img) => String(img.key)));
+  const orphanKeys = (product.additionalImages || [])
+    .map((img) => String(img.key))
+    .filter((key) => key && !keptKeys.has(key));
+
+  product.additionalImages = [...keptImages, ...uploadedExtra];
+
   try {
     await product.save();
   } catch (err) {
-    if (replacementKey) await r2Service.deleteObject(replacementKey);
+    if (replacementKey) await r2Service.deleteObject(replacementKey).catch(() => {});
+    await Promise.all(uploadedExtra.map((img) => r2Service.deleteObject(img.key).catch(() => {})));
     throw err;
   }
 
   // Delete the old object only after the DB points at the replacement.
   if (oldKey && (replacementKey || removeImage === "true" || removeImage === true) && oldKey !== product.imageKey) {
-    await r2Service.deleteObject(oldKey);
+    await r2Service.deleteObject(oldKey).catch(() => {});
   }
+  await Promise.all(orphanKeys.map((key) => r2Service.deleteObject(key).catch(() => {})));
 
   emitEvent("product:updated", { product });
   emitEvent("products:updated", { action: "updated", productId: product._id });
@@ -221,7 +313,10 @@ const remove = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const product = await Product.findByIdAndDelete(id);
   if (!product) throw new AppError("Produk tidak ditemukan.", 404);
-  if (product.imageKey) await r2Service.deleteObject(product.imageKey);
+  if (product.imageKey) await r2Service.deleteObject(product.imageKey).catch(() => {});
+  // Gambar tambahannya ikut dibersihkan — tanpa ini setiap produk yang dihapus
+  // meninggalkan sampai lima objek yatim di R2 yang tidak dirujuk apa pun lagi.
+  await Promise.all((product.additionalImages || []).map((img) => r2Service.deleteObject(img.key).catch(() => {})));
 
   emitEvent("product:deleted", { productId: id });
   emitEvent("products:updated", { action: "deleted", productId: id });

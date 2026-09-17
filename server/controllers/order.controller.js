@@ -14,6 +14,8 @@ const klikqris = require("../services/klikqris.service");
 const notificationService = require("../services/notification.service");
 const orderFeed = require("../services/orderFeed.service");
 const logger = require("../utils/logger");
+const { resolvePaymentExpiry } = require("../utils/paymentWindow");
+const { expireIfOverdue } = require("./payment.controller");
 
 // PUBLIC — Customer checkout.
 // Frontend may only send productId, quantity, name, email, whatsapp.
@@ -114,7 +116,10 @@ const createOrder = asyncHandler(async (req, res) => {
     directUrl: kqData.redirect_url || kqData.direct_url || "",
     signature: kqData.signature || "",
     status: "PENDING",
-    expiredAt: kqData.expired_at ? new Date(kqData.expired_at) : undefined,
+    // Tenggat 10 menit milik toko, atau tenggat gateway kalau gateway lebih
+    // cepat. Tidak pernah undefined — countdown dan sweeper sama-sama
+    // bergantung pada field ini (lihat utils/paymentWindow.js).
+    expiredAt: resolvePaymentExpiry(kqData.expired_at),
     rawCreateResponse: kqData,
   });
 
@@ -146,7 +151,14 @@ const createOrder = asyncHandler(async (req, res) => {
 
 // PUBLIC — Cek Pesanan lookup by orderCode.
 const getByOrderCode = asyncHandler(async (req, res) => {
-  const order = await Order.findOne({ orderCode: req.params.orderCode.trim().toUpperCase() });
+  const code = req.params.orderCode.trim().toUpperCase();
+  // Backend adalah source of truth untuk kedaluwarsa: kalau tenggatnya sudah
+  // lewat, statusnya ditutup SEKARANG, bukan menunggu putaran sweeper
+  // berikutnya. Halaman pembayaran karena itu tidak pernah menampilkan QRIS
+  // hidup untuk transaksi yang sudah mati.
+  await expireIfOverdue(code);
+
+  const order = await Order.findOne({ orderCode: code });
   if (!order) throw new AppError("Order tidak ditemukan. Periksa kembali kode order Anda.", 404);
   const transaction = await Transaction.findOne({ orderId: order._id });
   res.json({
@@ -430,6 +442,8 @@ const searchOrders = asyncHandler(async (req, res) => {
     // bukan pengganti — sehingga kombinasi Order ID + email tetap didukung.
     const filter = { orderCode };
     if (email) filter["customer.email"] = email;
+
+    await expireIfOverdue(orderCode);
 
     const order = await Order.findOne(filter);
     // Pesan yang sama untuk "tidak ada" dan "bukan milik email ini": kalau

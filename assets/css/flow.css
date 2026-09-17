@@ -276,6 +276,27 @@
   color: var(--ok);
 }
 
+/* Waktu habis: warna ambar (peringatan) berubah jadi netral-mati, bukan merah
+   menyala — ini akhir yang wajar dari sebuah tenggat, bukan kegagalan pembeli. */
+.pay-countdown.is-expired {
+  background: var(--surface-2, rgba(0, 0, 0, 0.04));
+  color: var(--text-mute);
+}
+
+/* QRIS dan tombol bayar dimatikan saat tenggat lewat, sambil menunggu backend
+   mengonfirmasi status finalnya. Tetap terlihat (jadi halaman tidak berkedip
+   kosong), tapi jelas tidak bisa dipakai lagi. */
+.pay-qris-frame.is-disabled {
+  opacity: 0.35;
+  filter: grayscale(1);
+  pointer-events: none;
+}
+
+.pay-main .btn.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .pay-instructions {
   text-align: left;
   display: grid;

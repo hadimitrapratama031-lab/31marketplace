@@ -1347,6 +1347,103 @@
     $("imageDrop").classList.add("has-image");
   }
 
+  /* --- gambar tambahan ---
+     Dua daftar terpisah yang sengaja tidak digabung:
+       extraExisting : gambar yang SUDAH ada di R2 + MongoDB ({url, key})
+       extraNew      : File yang baru dipilih dan belum diunggah ke mana pun
+     Saat submit, yang dikirim adalah daftar `key` yang dipertahankan plus
+     file-file baru. Backend yang memutuskan apa yang dihapus dari R2 — browser
+     tidak pernah menghapus objek storage. */
+  let extraExisting = [];
+  let extraNew = [];
+  const MAX_EXTRA_IMAGES = 5;
+
+  function extraCount() {
+    return extraExisting.length + extraNew.length;
+  }
+
+  function renderExtraImages() {
+    const count = extraCount();
+    $("extraCounter").textContent = "Gambar Tambahan " + count + "/" + MAX_EXTRA_IMAGES;
+
+    // Tombol tambah dimatikan, bukan disembunyikan: admin tetap melihat batasnya
+    // dan tahu kenapa tidak bisa menambah lagi.
+    const addBtn = $("extraAddBtn");
+    addBtn.disabled = count >= MAX_EXTRA_IMAGES;
+    addBtn.title = count >= MAX_EXTRA_IMAGES ? "Maksimal " + MAX_EXTRA_IMAGES + " gambar tambahan" : "";
+
+    const thumbs = $("extraThumbs");
+    if (!count) {
+      thumbs.innerHTML = '<div class="extra-empty">Belum ada gambar tambahan</div>';
+      return;
+    }
+
+    const existing = extraExisting
+      .map(
+        (img, i) =>
+          '<div class="extra-thumb"><img src="' +
+          esc(img.url) +
+          '" alt=""><button type="button" class="extra-thumb-x" data-remove-extra="' +
+          i +
+          '" aria-label="Hapus gambar tambahan">' +
+          ico("x") +
+          "</button></div>"
+      )
+      .join("");
+
+    const fresh = extraNew
+      .map(
+        (item, i) =>
+          '<div class="extra-thumb is-new"><img src="' +
+          esc(item.preview) +
+          '" alt=""><button type="button" class="extra-thumb-x" data-remove-new-extra="' +
+          i +
+          '" aria-label="Hapus gambar tambahan">' +
+          ico("x") +
+          "</button></div>"
+      )
+      .join("");
+
+    thumbs.innerHTML = existing + fresh;
+  }
+
+  function addExtraImageFiles(files) {
+    const list = Array.from(files || []);
+    if (!list.length) return;
+
+    let rejectedType = 0;
+    let rejectedSize = 0;
+
+    for (const file of list) {
+      if (extraCount() >= MAX_EXTRA_IMAGES) {
+        showToast("Gambar tambahan maksimal " + MAX_EXTRA_IMAGES + ". Sisanya tidak ditambahkan.", "error");
+        break;
+      }
+      // Validasi yang sama dengan gambar utama. Backend memvalidasi ulang —
+      // pemeriksaan di sini hanya supaya admin tahu lebih cepat.
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        rejectedType += 1;
+        continue;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        rejectedSize += 1;
+        continue;
+      }
+      extraNew.push({ file, preview: URL.createObjectURL(file) });
+    }
+
+    if (rejectedType) showToast(rejectedType + " file dilewati: format harus PNG, JPG, atau WEBP.", "error");
+    if (rejectedSize) showToast(rejectedSize + " file dilewati: ukurannya melebihi 5 MB.", "error");
+
+    renderExtraImages();
+  }
+
+  // Objek URL preview dilepas saat thumbnail dibuang, supaya blob-nya tidak
+  // menumpuk di memori selama modal dibuka berkali-kali.
+  function releaseExtraPreviews() {
+    extraNew.forEach((item) => URL.revokeObjectURL(item.preview));
+  }
+
   function openProductModal(id) {
     if (!state.categories.length) {
       showToast("Buat minimal satu kategori sebelum menambah produk.", "error");
@@ -1356,6 +1453,9 @@
     state.editing.productId = id || null;
     pendingImageFile = null;
     removeExistingImage = false;
+    releaseExtraPreviews();
+    extraNew = [];
+    extraExisting = [];
     setAlert("productAlert", "");
 
     const p = id ? state.products.find((x) => x._id === id) : null;
@@ -1379,6 +1479,13 @@
     $("imageInput").value = "";
     $("imagePreview").src = p && p.image ? p.image : "";
     drop.classList.toggle("has-image", Boolean(p && p.image));
+
+    // Produk lama tidak punya field ini sama sekali — dibaca sebagai [] tanpa
+    // perlu migrasi, jadi form tetap terbuka normal.
+    extraExisting = ((p && p.additionalImages) || []).filter((img) => img && img.url).map((img) => ({ url: img.url, key: img.key }));
+    $("extraInput").value = "";
+    renderExtraImages();
+
     openModal("productModal");
   }
 
@@ -1399,13 +1506,22 @@
     else if (removeExistingImage) form.append("removeImage", "true");
 
     const id = state.editing.productId;
-    const hasImageWork = Boolean(pendingImageFile);
+
+    // Daftar key yang dipertahankan: yang tidak ada di sini akan dibersihkan
+    // backend dari R2 SETELAH dokumen tersimpan. Hanya dikirim saat edit —
+    // pada produk baru belum ada gambar lama yang bisa dipertahankan.
+    if (id) form.append("keepAdditionalImages", JSON.stringify(extraExisting.map((img) => img.key)));
+    extraNew.forEach((item) => form.append("additionalImages", item.file));
+
+    const hasImageWork = Boolean(pendingImageFile) || extraNew.length > 0;
     if (hasImageWork) setDropState("uploading");
 
     await withBusy($("productSubmit"), "Menyimpan…", async () => {
       try {
         await api(id ? "/products/admin/" + id : "/products/admin", { method: id ? "PUT" : "POST", body: form });
         setDropState("idle");
+        releaseExtraPreviews();
+        extraNew = [];
         closeModal("productModal");
         showToast(id ? "Produk diperbarui." : "Produk ditambahkan.", "success");
         await loadProducts();
@@ -3802,6 +3918,28 @@
       imageDrop.classList.remove("drag-over");
       setProductImageFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
     });
+    // Gambar tambahan
+    $("extraAddBtn").addEventListener("click", () => $("extraInput").click());
+    $("extraInput").addEventListener("change", (e) => {
+      addExtraImageFiles(e.target.files);
+      // Dikosongkan supaya memilih file yang sama dua kali tetap memicu change.
+      e.target.value = "";
+    });
+    $("extraThumbs").addEventListener("click", (e) => {
+      const removeExisting = e.target.closest("[data-remove-extra]");
+      if (removeExisting) {
+        extraExisting.splice(Number(removeExisting.dataset.removeExtra), 1);
+        return renderExtraImages();
+      }
+      const removeNew = e.target.closest("[data-remove-new-extra]");
+      if (removeNew) {
+        const index = Number(removeNew.dataset.removeNewExtra);
+        URL.revokeObjectURL(extraNew[index].preview);
+        extraNew.splice(index, 1);
+        return renderExtraImages();
+      }
+    });
+
     qsa("[data-replace-image]").forEach((btn) =>
       btn.addEventListener("click", (e) => {
         e.preventDefault();

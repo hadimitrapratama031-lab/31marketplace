@@ -9,6 +9,7 @@ const klikqris = require("../services/klikqris.service");
 const notificationService = require("../services/notification.service");
 const orderFeed = require("../services/orderFeed.service");
 const logger = require("../utils/logger");
+const { PAYMENT_WINDOW_MINUTES, isExpired } = require("../utils/paymentWindow");
 
 // Maps KlikQRIS transaction status -> our internal Order/Transaction status.
 function mapKlikQrisStatus(kqStatus) {
@@ -116,6 +117,33 @@ async function applyPaymentStatus({ orderCode, newStatus, paidAt }) {
   return { handled: true, order, transaction, duplicate: false };
 }
 
+/**
+ * Menutup SATU transaksi yang tenggatnya sudah lewat, saat itu juga.
+ *
+ * Sweeper berkala saja tidak cukup: di antara dua putaran sweeper, pembeli yang
+ * membuka Cek Pesanan atau halaman pembayaran akan melihat "Menunggu
+ * pembayaran" untuk transaksi yang menurut jam server sudah mati. Fungsi ini
+ * dipanggil di jalur BACA (track / search / refresh), jadi status yang tampil
+ * selalu status yang sebenarnya berlaku, bukan status yang kebetulan belum
+ * sempat diperbarui.
+ *
+ * Aman dipanggil sesering apa pun: applyPaymentStatus() menolak menurunkan
+ * transaksi yang sudah SUCCESS dan mengabaikan status yang tidak berubah, jadi
+ * pembayaran yang berhasil tepat sebelum tenggat tidak pernah berubah jadi
+ * EXPIRED.
+ *
+ * @returns {boolean} true kalau fungsi ini benar-benar mengubah status
+ */
+async function expireIfOverdue(orderCode) {
+  const transaction = await Transaction.findOne({ transactionId: orderCode }).select("status expiredAt");
+  if (!transaction || transaction.status !== "PENDING") return false;
+  if (!isExpired(transaction.expiredAt)) return false;
+
+  await applyPaymentStatus({ orderCode, newStatus: "EXPIRED" });
+  logger.info("Transaksi kedaluwarsa ditutup saat dibaca", { orderCode });
+  return true;
+}
+
 // KlikQRIS webhook — fires on SUCCESS(PAID) or EXPIRED. Must respond 200 OK.
 const klikqrisWebhook = asyncHandler(async (req, res) => {
   const payload = req.body || {};
@@ -163,6 +191,13 @@ const refreshStatus = asyncHandler(async (req, res) => {
     return res.json({ status: true, data: { status: transaction.status } });
   }
 
+  // Tenggat toko diperiksa lebih dulu, sebelum memanggil gateway: kalau sudah
+  // lewat 10 menit, jawabannya sudah pasti dan tidak perlu satu panggilan
+  // jaringan lagi untuk memastikannya.
+  if (await expireIfOverdue(orderCode)) {
+    return res.json({ status: true, data: { status: "EXPIRED" } });
+  }
+
   const kqData = await klikqris.checkStatus(orderCode);
   const newStatus = mapKlikQrisStatus(kqData.status);
   if (newStatus !== "PENDING") {
@@ -204,7 +239,10 @@ async function sweepExpiredPayments() {
 
 // Interval, bukan cron eksternal, supaya tidak ada layanan baru yang harus
 // di-deploy. `unref()` menjaga proses tetap bisa keluar dengan bersih.
-function startExpirySweeper(intervalMs = 5 * 60 * 1000) {
+// Satu menit, bukan lima: dengan tenggat 10 menit, jeda lima menit berarti
+// sebuah order bisa tetap PENDING sampai ~15 menit setelah dibuat — pembeli
+// melihat angka "10 menit" yang tidak ditepati sistemnya sendiri.
+function startExpirySweeper(intervalMs = 60 * 1000) {
   const timer = setInterval(() => {
     sweepExpiredPayments().catch((err) => logger.error("Expiry sweeper gagal", { message: err.message }));
   }, intervalMs);
@@ -279,6 +317,8 @@ const resetPaymentsAdmin = asyncHandler(async (req, res) => {
 
 module.exports = {
   klikqrisWebhook,
+  expireIfOverdue,
+  PAYMENT_WINDOW_MINUTES,
   refreshStatus,
   sweepExpiredPayments,
   startExpirySweeper,

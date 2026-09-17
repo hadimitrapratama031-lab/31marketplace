@@ -2308,8 +2308,7 @@ h3.display {
    jarak huruf lebar dari .track-form .input akan merusak alamat email, jadi
    dikembalikan ke normal — Order ID tetap dicocokkan case-insensitive di
    backend, jadi tidak ada yang hilang dengan menampilkannya apa adanya. */
-.track-form #order-query,
-.track-form #order-email {
+.track-form #order-query {
   text-transform: none;
   letter-spacing: normal;
   font-family: inherit;
