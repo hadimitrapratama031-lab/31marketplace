@@ -68,6 +68,20 @@
     return ((parts[0][0] || "") + (parts[1] ? parts[1][0] : "")).toUpperCase();
   }
 
+  // Word-boundary excerpt for surfaces with limited room (e.g. the buy panel
+  // on the product detail page). The full text always lives elsewhere on the
+  // page — this never touches product.description itself, only how much of
+  // it a given element renders.
+  function excerpt(text, maxLength) {
+    var clean = String(text || "").trim().replace(/\s+/g, " ");
+    maxLength = maxLength || 160;
+    if (clean.length <= maxLength) return clean;
+    var cut = clean.slice(0, maxLength);
+    var lastSpace = cut.lastIndexOf(" ");
+    if (lastSpace > 0) cut = cut.slice(0, lastSpace);
+    return cut.replace(/[.,;:!?\-–—]+$/, "") + "…";
+  }
+
   function debounce(fn, delay) {
     var t = null;
     return function () {
@@ -444,6 +458,7 @@
     formatIDR: formatIDR,
     formatNumber: formatNumber,
     formatDate: formatDate,
+    excerpt: excerpt,
     escapeHTML: escapeHTML,
     initials: initials,
     productCard: productCard,

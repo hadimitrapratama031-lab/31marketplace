@@ -52,7 +52,11 @@
 
     $("crumb-name").textContent = product.name;
     $("product-name").textContent = product.name;
-    $("product-desc").textContent = product.description || "";
+    // The buy panel only ever gets a short excerpt — the full description
+    // is rendered once, in "Tentang produk" below. Keeping the full text
+    // out of both places at once is what used to make this column so long
+    // and duplicate the copy already shown further down the page.
+    $("product-desc").textContent = MP.excerpt(product.description, 140);
     $("product-desc").hidden = !product.description;
     $("product-price").textContent = MP.formatIDR(product.price);
     $("product-sold").textContent = MP.formatNumber(product.sold) + " terjual";
