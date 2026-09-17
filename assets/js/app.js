@@ -61,74 +61,104 @@
     lastBoard = next;
   }
 
-  /* ------------------------------------------------------------ products */
+  /* ------------------------------------------------- products, by category */
+  // "Kategori" is no longer a standalone section — it's the grouping used to
+  // lay out "Produk tersedia". Every group still comes straight from the
+  // existing /products + /categories data; a category with no active product
+  // simply never gets a group, so the layout never shows an empty grid.
+  function categoryGlyph(icon, name) {
+    return /^https?:\/\//i.test(icon || "")
+      ? '<img src="' + MP.escapeHTML(icon) + '" alt="" loading="lazy">'
+      : MP.escapeHTML(icon || MP.initials(name));
+  }
+
   function renderProducts() {
-    var grid = $("product-grid");
+    var wrap = $("product-groups");
     var note = $("product-note");
-    if (!grid) return;
+    if (!wrap) return;
 
     if (!state.products.length) {
-      grid.innerHTML = '<div class="notice" style="grid-column:1/-1"><b>Belum ada produk</b>Produk yang ditambahkan lewat panel admin akan langsung muncul di sini.</div>';
+      wrap.innerHTML = '<div class="notice"><b>Belum ada produk</b>Produk yang ditambahkan lewat panel admin akan langsung muncul di sini.</div>';
       if (note) note.textContent = "Belum ada produk aktif.";
       return;
     }
 
-    grid.innerHTML = state.products
-      .slice(0, GRID_LIMIT)
-      .map(function (p) {
-        return MP.productCard(p);
+    // Group active products by their category, keeping the same order the
+    // admin has set for categories (categories API is already sorted by
+    // sortOrder). Products without a matching active category fall into a
+    // trailing "Lainnya" group so nothing from the backend ever disappears.
+    var byCategory = new Map();
+    var others = [];
+    state.products.forEach(function (p) {
+      var id = String((p.categoryId && p.categoryId._id) || p.categoryId || "");
+      if (id) {
+        if (!byCategory.has(id)) byCategory.set(id, []);
+        byCategory.get(id).push(p);
+      } else {
+        others.push(p);
+      }
+    });
+
+    var groups = state.categories
+      .filter(function (c) {
+        return byCategory.has(String(c._id));
+      })
+      .map(function (c) {
+        return { name: c.name, slug: c.slug, icon: c.icon, items: byCategory.get(String(c._id)) };
+      });
+
+    // Any product whose categoryId no longer resolves to an active category
+    // (deleted/renamed category, etc.) still needs somewhere to render.
+    state.products.forEach(function (p) {
+      var id = String((p.categoryId && p.categoryId._id) || p.categoryId || "");
+      if (id && !state.categories.some(function (c) { return String(c._id) === id; })) {
+        others.push(p);
+      }
+    });
+    if (others.length) groups.push({ name: "Produk lainnya", slug: "", icon: "", items: others });
+
+    if (!groups.length) {
+      wrap.innerHTML = '<div class="notice"><b>Belum ada produk</b>Produk yang ditambahkan lewat panel admin akan langsung muncul di sini.</div>';
+      if (note) note.textContent = "Belum ada produk aktif.";
+      return;
+    }
+
+    var shownTotal = 0;
+    wrap.innerHTML = groups
+      .map(function (g) {
+        var items = g.items.slice(0, GRID_LIMIT);
+        shownTotal += items.length;
+        var link = g.slug
+          ? '<a class="sec-link product-group-link" href="products.html?category=' + encodeURIComponent(g.slug) + '">Lihat semua</a>'
+          : "";
+
+        return (
+          '<div class="product-group">' +
+          '<div class="product-group-head">' +
+          '<span class="cat-glyph cat-glyph-sm">' + categoryGlyph(g.icon, g.name) + "</span>" +
+          '<h3 class="product-group-title">' + MP.escapeHTML(g.name) + "</h3>" +
+          '<span class="product-group-count">' + MP.formatNumber(g.items.length) + " produk</span>" +
+          link +
+          "</div>" +
+          '<div class="grid-products">' +
+          items
+            .map(function (p) {
+              return MP.productCard(p);
+            })
+            .join("") +
+          "</div>" +
+          "</div>"
+        );
       })
       .join("");
 
     if (note) {
+      var totalActive = state.products.length;
       note.textContent =
-        state.products.length > GRID_LIMIT
-          ? "Menampilkan " + GRID_LIMIT + " dari " + MP.formatNumber(state.products.length) + " produk aktif."
-          : MP.formatNumber(state.products.length) + " produk aktif, harga dan stok terkini.";
+        shownTotal < totalActive
+          ? "Menampilkan " + MP.formatNumber(shownTotal) + " dari " + MP.formatNumber(totalActive) + " produk aktif, dikelompokkan per kategori."
+          : MP.formatNumber(totalActive) + " produk aktif di " + MP.formatNumber(groups.length) + " kategori.";
     }
-  }
-
-  /* ---------------------------------------------------------- categories */
-  function renderCategories() {
-    var rail = $("category-rail");
-    var note = $("category-note");
-    if (!rail) return;
-
-    var counts = new Map();
-    state.products.forEach(function (p) {
-      var id = String((p.categoryId && p.categoryId._id) || p.categoryId || "");
-      if (!id) return;
-      counts.set(id, (counts.get(id) || 0) + 1);
-    });
-
-    var visible = state.categories.filter(function (c) {
-      return counts.has(String(c._id));
-    });
-
-    if (!visible.length) {
-      rail.innerHTML = '<div class="notice" style="grid-column:1/-1">Kategori akan muncul setelah ada produk aktif di dalamnya.</div>';
-      if (note) note.textContent = "Belum ada kategori dengan produk aktif.";
-      return;
-    }
-
-    if (note) note.textContent = visible.length + " kategori dengan produk aktif saat ini.";
-
-    rail.innerHTML = visible
-      .map(function (c) {
-        var n = counts.get(String(c._id)) || 0;
-        var icon = c.icon || "";
-        var glyph = /^https?:\/\//i.test(icon)
-          ? '<img src="' + MP.escapeHTML(icon) + '" alt="" loading="lazy">'
-          : MP.escapeHTML(icon || MP.initials(c.name));
-
-        return (
-          '<a class="cat-card" href="products.html?category=' + encodeURIComponent(c.slug) + '">' +
-          '<span class="cat-glyph">' + glyph + "</span>" +
-          '<span class="cat-text"><b>' + MP.escapeHTML(c.name) + "</b><small>" + n + " produk</small></span>" +
-          "</a>"
-        );
-      })
-      .join("");
   }
 
   /* ----------------------------------------------------------------- faq */
@@ -261,7 +291,6 @@
     });
     renderBoard();
     renderProducts();
-    renderCategories();
   }
 
   async function loadFAQ() {

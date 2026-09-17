@@ -986,28 +986,39 @@ h3.display {
   margin-top: 4px;
 }
 
-.cat-rail {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
-  gap: 14px;
+/* Category is a grouping inside "Produk tersedia", not its own section —
+   each group gets a compact subheading (icon + name + count) above its own
+   product grid. Kept intentionally light so it never reads as a section. */
+.product-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
 }
 
-.cat-card {
+.product-group-head {
   display: flex;
   align-items: center;
-  gap: 13px;
-  padding: 16px;
-  border: 1px solid var(--edge);
-  border-radius: var(--r-md);
-  background: rgba(255, 255, 255, 0.025);
-  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
-  min-width: 0;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
-.cat-card:hover {
-  border-color: var(--edge-strong);
-  background: var(--violet-wash);
-  transform: translateY(-2px);
+.product-group-title {
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-right: auto;
+}
+
+.product-group-count {
+  font-size: 12.5px;
+  color: var(--text-mute);
+  white-space: nowrap;
+}
+
+.product-group-link {
+  font-size: 13px;
 }
 
 .cat-glyph {
@@ -1027,6 +1038,14 @@ h3.display {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.cat-glyph-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 13px;
+  flex: none;
 }
 
 .cat-text {
@@ -1726,6 +1745,13 @@ h3.display {
   border-bottom: 1px solid rgba(174, 150, 236, 0.07);
 }
 
+.skel-group-head {
+  width: 180px;
+  height: 28px;
+  border-radius: var(--r-md);
+  margin-bottom: 16px;
+}
+
 .notice {
   padding: 34px;
   border: 1px dashed var(--edge-strong);
@@ -1888,6 +1914,28 @@ h3.display {
   .grid-products {
     grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
     gap: 12px;
+  }
+
+  .product-groups {
+    gap: 30px;
+  }
+
+  .product-group-head {
+    gap: 9px;
+    margin-bottom: 12px;
+  }
+
+  .product-group-title {
+    font-size: 15px;
+  }
+
+  .product-group-count {
+    margin-right: auto;
+  }
+
+  .product-group-link {
+    flex-basis: 100%;
+    order: 3;
   }
 
   .pcard-body {
