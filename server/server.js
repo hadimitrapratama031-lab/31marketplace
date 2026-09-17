@@ -81,7 +81,19 @@ app.use(
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(cookieParser());
-app.use(express.json({ limit: "2mb" }));
+// `verify` menyimpan body mentah di req.rawBody SEBELUM di-parse jadi objek.
+// Webhook Resend menandatangani byte mentah persis seperti yang dikirim
+// (format Svix) — memverifikasi ulang JSON.stringify(req.body) tidak pernah
+// cocok karena urutan key/whitespace bisa berubah. Tidak memengaruhi route
+// lain: req.body tetap objek biasa seperti sebelumnya.
+app.use(
+  express.json({
+    limit: "2mb",
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 

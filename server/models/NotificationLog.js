@@ -37,6 +37,20 @@ const NotificationLogSchema = new mongoose.Schema(
     permanentFailure: { type: Boolean, default: false },
     error: { type: String, default: "" },
     providerResponse: { type: mongoose.Schema.Types.Mixed },
+    // ID pesan dari Resend (channel "email"), diambil dari providerResponse.id
+    // saat status jadi "sent". Dipakai webhook Resend (routes/webhook.routes.js)
+    // untuk mencocokkan event delivered/bounced/complained ke baris log yang
+    // benar, tanpa perlu menyimpan payload penuh untuk itu.
+    resendMessageId: { type: String, index: true },
+    // Status pengiriman SEBENARNYA dari sisi penerima, dilaporkan Resend lewat
+    // webhook — terpisah dari `status` di atas (yang hanya berarti "API
+    // menerima permintaan"). "accepted" ≠ "delivered": lihat spec 12/6.
+    deliveryStatus: {
+      type: String,
+      enum: ["unknown", "delivered", "bounced", "complained", "delayed"],
+      default: "unknown",
+    },
+    deliveryStatusAt: { type: Date },
     claimedAt: { type: Date },
     sentAt: { type: Date },
     failedAt: { type: Date },

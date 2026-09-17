@@ -1,6 +1,7 @@
 const axios = require("axios");
 const { getResendConfig } = require("./integration.service");
 const { isValidEmail } = require("../utils/phone");
+const { isFreemailAddress } = require("../utils/email");
 const logger = require("../utils/logger");
 
 // Resend API: POST https://api.resend.com/emails
@@ -43,12 +44,19 @@ function classifyTransportError(err) {
 
 // Pengirim level bawah: hanya butuh apiKey/fromEmail. Toggle Enabled diurus
 // sendEmail() di bawah, supaya tombol Test Email tetap bisa dipakai lebih dulu.
-async function sendEmailRaw({ apiKey, fromEmail, fromName, to, subject, html }) {
+async function sendEmailRaw({ apiKey, fromEmail, fromName, to, subject, html, text }) {
   // Validasi sebelum menyentuh jaringan — recipient kosong tidak boleh
   // membuat server melempar exception (spec 25).
   if (!apiKey) return { success: false, permanent: true, message: "API key Resend belum dikonfigurasi." };
   if (!fromEmail || !isValidEmail(fromEmail)) {
     return { success: false, permanent: true, message: `Alamat pengirim Resend tidak valid: ${fromEmail || "(kosong)"}` };
+  }
+  if (isFreemailAddress(fromEmail)) {
+    return {
+      success: false,
+      permanent: true,
+      message: `Alamat pengirim "${fromEmail}" memakai domain email gratisan dan tidak bisa diautentikasi (SPF/DKIM/DMARC) atas nama domain toko. Gunakan alamat di domain toko yang sudah diverifikasi di Resend, mis. noreply@namatoko.com.`,
+    };
   }
   if (!isValidEmail(to)) {
     return { success: false, permanent: true, message: `Alamat email tujuan tidak valid: ${to || "(kosong)"}` };
@@ -59,7 +67,18 @@ async function sendEmailRaw({ apiKey, fromEmail, fromName, to, subject, html }) 
   try {
     const response = await axios.post(
       "https://api.resend.com/emails",
-      { from: `${fromName || "Store"} <${fromEmail}>`, to: [to], subject, html },
+      {
+        from: `${fromName || "Store"} <${fromEmail}>`,
+        to: [to],
+        subject,
+        html,
+        // text/plain wajib disertakan (multipart/alternative) — HTML tanpa
+        // padanan plain-text adalah salah satu sinyal spam paling umum di
+        // Gmail (spec 8). Kalau pemanggil belum mengirim `text` (mis. kode
+        // lama yang belum diperbarui), turunkan versi minimal dari HTML
+        // apa adanya supaya bagian ini tidak pernah kosong.
+        text: text && String(text).trim() ? text : String(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+      },
       {
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         timeout: TIMEOUT_MS,
@@ -90,12 +109,12 @@ async function sendEmailRaw({ apiKey, fromEmail, fromName, to, subject, html }) 
 }
 
 // Dipakai untuk notifikasi order sungguhan — menghormati toggle Enabled.
-async function sendEmail({ to, subject, html }) {
+async function sendEmail({ to, subject, html, text }) {
   const cfg = await getResendConfig();
   if (!cfg.enabled) {
     return { success: false, permanent: true, disabled: true, message: "Resend belum diaktifkan/dikonfigurasi." };
   }
-  return sendEmailRaw({ apiKey: cfg.apiKey, fromEmail: cfg.fromEmail, fromName: cfg.fromName, to, subject, html });
+  return sendEmailRaw({ apiKey: cfg.apiKey, fromEmail: cfg.fromEmail, fromName: cfg.fromName, to, subject, html, text });
 }
 
 // Dipakai tombol "Test Email".
@@ -114,10 +133,73 @@ async function testConnection(testTo) {
     to: testTo,
     subject: "Test koneksi Resend",
     html: "<p>Test koneksi Resend dari Admin Web berhasil.</p>",
+    text: "Test koneksi Resend dari Admin Web berhasil.",
   });
   return result.success
     ? { success: true, message: "Email test berhasil dikirim." }
     : { success: false, message: result.message || "Gagal mengirim email test." };
 }
 
-module.exports = { sendEmail, sendEmailRaw, testConnection };
+/**
+ * Mengambil status verifikasi domain langsung dari Resend (GET /domains),
+ * bukan dengan mengarang record DNS (spec 9). Dipakai Admin Web untuk
+ * menampilkan status SPF/DKIM/DMARC yang SEBENARNYA terpasang di Resend
+ * untuk domain pengirim yang sedang dipakai, supaya "kenapa masuk Spam?"
+ * bisa dijawab dari data, bukan dugaan.
+ */
+async function getDomainStatus() {
+  const cfg = await getResendConfig();
+  if (!cfg.apiKey) {
+    return { success: false, message: "API key Resend belum dikonfigurasi.", domains: [] };
+  }
+  try {
+    const response = await axios.get("https://api.resend.com/domains", {
+      headers: { Authorization: `Bearer ${cfg.apiKey}` },
+      timeout: TIMEOUT_MS,
+    });
+    const list = (response.data && response.data.data) || [];
+    const fromDomain = String(cfg.fromEmail || "").split("@")[1] || "";
+
+    // Detail per-record (SPF/DKIM/DMARC) hanya tersedia lewat GET /domains/:id.
+    const detailed = await Promise.all(
+      list.map(async (d) => {
+        try {
+          const detail = await axios.get(`https://api.resend.com/domains/${d.id}`, {
+            headers: { Authorization: `Bearer ${cfg.apiKey}` },
+            timeout: TIMEOUT_MS,
+          });
+          return detail.data;
+        } catch {
+          return d; // tetap tampilkan ringkasan kalau detail gagal diambil
+        }
+      })
+    );
+
+    return {
+      success: true,
+      fromEmail: cfg.fromEmail,
+      fromDomain,
+      domains: detailed.map((d) => ({
+        id: d.id,
+        name: d.name,
+        status: d.status, // "verified" | "pending" | "failed" | ...
+        region: d.region,
+        isSendingDomain: d.name === fromDomain,
+        records: (d.records || []).map((r) => ({
+          record: r.record, // "SPF" | "DKIM" | "DMARC"
+          type: r.type,
+          name: r.name,
+          value: r.value,
+          status: r.status,
+          priority: r.priority,
+        })),
+      })),
+    };
+  } catch (err) {
+    const classified = classifyTransportError(err);
+    logger.error("Resend get domain status failed", { httpStatus: classified.httpStatus, reason: classified.message });
+    return { success: false, message: classified.message, domains: [] };
+  }
+}
+
+module.exports = { sendEmail, sendEmailRaw, testConnection, getDomainStatus };

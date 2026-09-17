@@ -2017,6 +2017,7 @@
     });
 
     $("webhookUrlHint").textContent = window.location.origin + "/api/payments/klikqris/webhook";
+    $("resendWebhookUrlHint").textContent = window.location.origin + "/api/webhooks/resend";
   }
 
   const EMAIL_EVENTS = [
@@ -2076,6 +2077,69 @@
         showToast("Pengujian tidak bisa dijalankan: " + err.message, "error");
       } finally {
         await loadIntegrations().catch(() => {});
+      }
+    });
+  }
+
+  // Mengambil status verifikasi domain Resend (SPF/DKIM/DMARC) apa adanya
+  // dari API Resend dan menampilkannya — dipakai untuk menjawab "kenapa
+  // email masih masuk Spam?" dengan data asli, bukan tebakan.
+  async function checkResendDomain(button) {
+    await withBusy(button, "Memeriksa…", async () => {
+      const box = $("rsDomainStatus");
+      try {
+        const res = await api("/integrations/resend/domain-status");
+        const data = res.data || {};
+        if (!data.success) {
+          box.innerHTML =
+            '<div class="st st-danger"><i></i>' + esc(data.message || "Gagal memeriksa status domain.") + "</div>";
+          return;
+        }
+        if (!data.domains || !data.domains.length) {
+          box.innerHTML = '<div class="st st-pending"><i></i>Belum ada domain terdaftar di akun Resend ini.</div>';
+          return;
+        }
+        box.innerHTML = data.domains
+          .map((d) => {
+            const verified = d.status === "verified";
+            const badge = d.isSendingDomain ? ' <span class="st st-info"><i></i>Domain pengirim aktif</span>' : "";
+            const records = (d.records || [])
+              .map(
+                (r) =>
+                  "<tr><td>" +
+                  esc(r.record || r.type || "") +
+                  "</td><td>" +
+                  esc(r.name || "") +
+                  "</td><td>" +
+                  ('<span class="st ' +
+                    (r.status === "verified" ? "st-success" : "st-pending") +
+                    '"><i></i>' +
+                    esc(r.status || "unknown") +
+                    "</span>") +
+                  "</td></tr>"
+              )
+              .join("");
+            return (
+              '<div class="domain-status-card"><b>' +
+              esc(d.name) +
+              "</b>" +
+              badge +
+              ' <span class="st ' +
+              (verified ? "st-success" : "st-pending") +
+              '"><i></i>' +
+              esc(d.status) +
+              "</span>" +
+              (records
+                ? '<table class="table-mini"><thead><tr><th>Record</th><th>Nama</th><th>Status</th></tr></thead><tbody>' +
+                  records +
+                  "</tbody></table>"
+                : "") +
+              "</div>"
+            );
+          })
+          .join("");
+      } catch (err) {
+        box.innerHTML = '<div class="st st-danger"><i></i>' + esc(err.message) + "</div>";
       }
     });
   }
@@ -2753,6 +2817,7 @@
       if (!to) return showToast("Isi dulu email tujuan pengujian.", "error");
       testIntegration("resend", $("rsTest"), { testTo: to });
     });
+    $("rsCheckDomain").addEventListener("click", () => checkResendDomain($("rsCheckDomain")));
 
     $("r2Test").addEventListener("click", () => testIntegration("r2", $("r2Test")));
 

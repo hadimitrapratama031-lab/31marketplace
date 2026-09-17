@@ -14,5 +14,6 @@ router.use("/ratings", require("./rating.routes"));
 router.use("/statistics", require("./statistics.routes"));
 router.use("/integrations", require("./integration.routes"));
 router.use("/admins", require("./admin.routes"));
+router.use("/webhooks", require("./webhook.routes"));
 
 module.exports = router;

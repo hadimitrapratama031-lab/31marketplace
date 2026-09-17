@@ -170,6 +170,10 @@ async function deliverChannel({ order, event, channel, recipient, templateSource
 
     if (last.success) {
       const attempts = startingAttempts + attempt - 1;
+      // Resend mengembalikan { id } saat email diterima antrean — dipakai
+      // webhook (routes/webhook.routes.js) untuk mencocokkan event
+      // delivered/bounced/complained ke baris log ini nantinya.
+      const resendMessageId = channel === "email" && last.response && last.response.id ? last.response.id : undefined;
       await finish(logDoc, {
         status: "sent",
         sentAt: new Date(),
@@ -178,6 +182,7 @@ async function deliverChannel({ order, event, channel, recipient, templateSource
         providerResponse: last.response,
         permanentFailure: false,
         templateSource: templateSource || "",
+        ...(resendMessageId ? { resendMessageId } : {}),
       });
       logDelivery({ ...logBase, status: "SENT", attempts });
       return { channel, status: "SENT" };
@@ -272,7 +277,7 @@ async function notifyOrderEvent(order, eventKey, opts = {}) {
         channel: "email",
         recipient: ctx.customerEmail,
         templateSource: mail.source,
-        send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html }),
+        send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html, text: mail.text }),
       })
     );
   } else {
@@ -376,7 +381,7 @@ async function retryLog(logId) {
       channel: "email",
       recipient: ctx.customerEmail,
       templateSource: mail.source,
-      send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html }),
+      send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html, text: mail.text }),
     });
   }
 
@@ -444,7 +449,7 @@ async function previewTemplates(orderCode) {
     return {
       event,
       whatsapp: { source: wa.source, text: wa.text },
-      email: { source: mail.source, subject: mail.subject, html: mail.html },
+      email: { source: mail.source, subject: mail.subject, html: mail.html, text: mail.text },
     };
   });
 

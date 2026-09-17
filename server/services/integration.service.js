@@ -1,5 +1,8 @@
 const IntegrationSettings = require("../models/IntegrationSettings");
 const { encrypt, decrypt, maskSecret } = require("../utils/crypto");
+const { isValidEmail } = require("../utils/phone");
+const { isFreemailAddress } = require("../utils/email");
+const { AppError } = require("../middlewares/errorHandler");
 
 // Credentials can either be configured from Admin Web (stored encrypted in
 // MongoDB) or via Railway ENV variables. DB value wins when present,
@@ -89,10 +92,27 @@ async function updateFonnteCredentials({ token, enabled }) {
 }
 
 async function updateResendCredentials({ apiKey, fromEmail, fromName, enabled }) {
+  if (fromEmail) {
+    const cleaned = cleanCredential(fromEmail);
+    // Ditolak di titik penyimpanan, bukan hanya di titik pengiriman: admin
+    // harus tahu SEKARANG bahwa alamat gratisan tidak akan pernah bisa
+    // diautentikasi atas nama domain toko, bukan menemukannya nanti lewat
+    // NotificationLog yang gagal terus (spec 2 & 3).
+    if (!isValidEmail(cleaned)) {
+      throw new AppError(`Alamat "From" tidak valid: ${cleaned || "(kosong)"}`, 400);
+    }
+    if (isFreemailAddress(cleaned)) {
+      throw new AppError(
+        `Alamat "From" tidak boleh memakai domain email gratisan (${cleaned}). Gunakan alamat di domain toko yang sudah diverifikasi di Resend.`,
+        400
+      );
+    }
+  }
+
   const settings = await IntegrationSettings.getSingleton();
-  if (apiKey) settings.resend.apiKeyEncrypted = encrypt(apiKey);
-  if (fromEmail) settings.resend.fromEmail = fromEmail;
-  if (fromName) settings.resend.fromName = fromName;
+  if (apiKey) settings.resend.apiKeyEncrypted = encrypt(cleanCredential(apiKey));
+  if (fromEmail) settings.resend.fromEmail = cleanCredential(fromEmail);
+  if (fromName) settings.resend.fromName = cleanCredential(fromName);
   if (typeof enabled === "boolean") settings.resend.enabled = enabled;
   await settings.save();
   return settings;

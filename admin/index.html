@@ -1164,9 +1164,15 @@
                   <label class="field"><span>Nama pengirim</span><input id="rsFromName" placeholder="Nama Store"></label>
                   <label class="field span-full"><span>Email tujuan untuk uji kirim</span><input id="rsTestTo" type="email" placeholder="kamu@email.com"></label>
                 </div>
+                <div id="rsDomainStatus" class="domain-status" style="margin-top:var(--s5)"></div>
+                <div class="notice" style="margin-top:var(--s3)">
+                  <svg class="ico ico-sm"><use href="#i-info"></use></svg>
+                  <div><b>Webhook status pengiriman</b>Daftarkan alamat ini di Resend &rarr; Webhooks agar status delivered/bounced/complained tercatat: <code id="resendWebhookUrlHint">—</code>. Salin signing secret-nya ke <code>RESEND_WEBHOOK_SECRET</code> di environment variables server.</div>
+                </div>
               </div>
               <div class="panel-foot split">
                 <button class="btn btn-outline" type="button" id="rsTest"><svg class="ico"><use href="#i-play"></use></svg>Kirim email uji</button>
+                <button class="btn btn-outline" type="button" id="rsCheckDomain"><svg class="ico"><use href="#i-check"></use></svg>Cek status domain (SPF/DKIM/DMARC)</button>
                 <button class="btn btn-primary" type="button" id="rsSave">Simpan Resend</button>
               </div>
             </div>

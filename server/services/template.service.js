@@ -81,7 +81,11 @@ const EVENT_COPY = {
     waTitle: "Pesanan Berhasil Dibuat",
     emailTitle: "Pesanan berhasil dibuat",
     subtitle: "Pesanan sudah kami catat dan menunggu pembayaran.",
-    subject: (ctx) => `Pesanan ${ctx.orderCode} menunggu pembayaran`,
+    // Subject profesional & konsisten dengan nama toko (bukan hardcoded "31
+    // STORE") — mengikuti pola "Judul Event — Nama Toko" yang tidak terlihat
+    // seperti spam (tanpa emoji/ALL CAPS/klaim berlebihan), plus Order ID di
+    // akhir supaya pelanggan/inbox tetap bisa membedakan pesanan yang mana.
+    subject: (ctx) => `Pesanan Anda Berhasil Dibuat — ${ctx.storeName} (${ctx.orderCode})`,
     lead: (ctx) =>
       `Pesanan Anda untuk ${ctx.productName} sudah kami catat. Pesanan akan kami proses segera setelah pembayaran diterima.`,
     statusLabel: "Menunggu pembayaran",
@@ -92,7 +96,7 @@ const EVENT_COPY = {
     waTitle: "Pembayaran Berhasil",
     emailTitle: "Pembayaran berhasil",
     subtitle: "Dana sudah kami terima dan pesanan sedang diproses.",
-    subject: (ctx) => `Pembayaran ${ctx.orderCode} berhasil`,
+    subject: (ctx) => `Pembayaran Berhasil — ${ctx.storeName} (${ctx.orderCode})`,
     lead: (ctx) =>
       `Pembayaran untuk ${ctx.productName} sudah kami terima. Pesanan Anda sedang kami proses dan akan dikirimkan melalui kontak yang Anda daftarkan.`,
     statusLabel: "Berhasil",
@@ -103,7 +107,7 @@ const EVENT_COPY = {
     waTitle: "Pembayaran Gagal",
     emailTitle: "Pembayaran gagal",
     subtitle: "Pembayaran tidak dapat diselesaikan.",
-    subject: (ctx) => `Pembayaran ${ctx.orderCode} gagal`,
+    subject: (ctx) => `Pembayaran Gagal — ${ctx.storeName} (${ctx.orderCode})`,
     lead: (ctx) =>
       `Pembayaran untuk ${ctx.productName} tidak berhasil diproses, sehingga pesanan ini tidak dapat dilanjutkan. Anda dapat membuat pesanan baru atau menghubungi admin untuk bantuan.`,
     statusLabel: "Gagal",
@@ -114,7 +118,7 @@ const EVENT_COPY = {
     waTitle: "Pembayaran Kedaluwarsa",
     emailTitle: "Pembayaran kedaluwarsa",
     subtitle: "Batas waktu pembayaran sudah terlewat.",
-    subject: (ctx) => `Pembayaran ${ctx.orderCode} kedaluwarsa`,
+    subject: (ctx) => `Pembayaran Kedaluwarsa — ${ctx.storeName} (${ctx.orderCode})`,
     lead: (ctx) =>
       `Batas waktu pembayaran untuk ${ctx.productName} sudah terlewat, sehingga pesanan ini ditutup tanpa pembayaran. Silakan buat pesanan baru jika masih ingin melanjutkan.`,
     statusLabel: "Kedaluwarsa",
@@ -477,6 +481,71 @@ Balasan ke alamat ini tidak terbaca &mdash; gunakan kontak admin di atas.
 </body></html>`;
 }
 
+// Baris "Label: Nilai" untuk versi plain-text — padanan `row()` tapi tanpa HTML.
+function textLine(label, value) {
+  if (value === undefined || value === null || value === "") return null;
+  return `${label}: ${value}`;
+}
+
+/**
+ * Versi plain-text dari email. WAJIB dikirim berdampingan dengan HTML
+ * (multipart/alternative) — email yang HANYA berisi HTML, tanpa bagian
+ * text/plain, adalah salah satu sinyal paling umum yang membuat provider
+ * penerima (termasuk Gmail) menilai email sebagai kurang tepercaya dan lebih
+ * mudah diarahkan ke Spam (spec 8 & 2). Dibangun langsung dari `ctx` — bukan
+ * dari HTML admin yang mungkin dikustomisasi — supaya isi intinya (Order ID,
+ * total, status, kontak admin) selalu ikut update kalau data order berubah,
+ * apa pun sumber template HTML-nya.
+ */
+function buildEmailText(ctx) {
+  const copy = EVENT_COPY[ctx.event];
+  if (!copy) return "";
+
+  const lines = [];
+  lines.push(ctx.storeName);
+  if (ctx.storeTagline) lines.push(ctx.storeTagline);
+  lines.push("");
+  lines.push(copy.emailTitle.toUpperCase());
+  lines.push("");
+  lines.push(`Halo, ${ctx.customerName}.`);
+  lines.push(copy.lead(ctx));
+  lines.push("");
+  lines.push("Detail pesanan");
+  lines.push("--------------");
+
+  const details = [
+    textLine("Produk", ctx.quantity > 1 ? `${ctx.productName} x${ctx.quantity}` : ctx.productName),
+    textLine("Order ID", ctx.orderCode),
+    textLine("Harga satuan", ctx.price),
+    textLine("Pembayaran", ctx.paymentMethod),
+    textLine("Status", ctx.statusLabel),
+    textLine("Waktu pesanan", ctx.orderedAt),
+    ctx.event === "paymentSuccess" ? textLine("Waktu pembayaran", ctx.paidAt) : null,
+    ctx.event === "orderCreated" ? textLine("Batas pembayaran", ctx.expiredAt) : null,
+    ctx.event === "paymentExpired" ? textLine("Kedaluwarsa pada", ctx.expiredAt) : null,
+    textLine("Total", ctx.total),
+  ].filter(Boolean);
+  lines.push(...details);
+
+  if (ctx.event === "orderCreated" && ctx.payUrl) {
+    lines.push("");
+    lines.push(`Bayar sekarang: ${ctx.payUrl}`);
+  }
+
+  if (ctx.waEnabled || ctx.discordEnabled) {
+    lines.push("");
+    lines.push(`Butuh bantuan? Sebutkan Order ID ${ctx.orderCode} ke admin.`);
+    if (ctx.waEnabled) lines.push(`WhatsApp: ${ctx.waHref}`);
+    if (ctx.discordEnabled) lines.push(`Discord: ${ctx.discordHref}`);
+  }
+
+  lines.push("");
+  lines.push(`Email ini dikirim otomatis untuk pesanan ${ctx.orderCode} ke ${ctx.customerEmail}.`);
+  lines.push(`© ${new Date().getFullYear()} ${ctx.storeName}`);
+
+  return lines.join("\n");
+}
+
 /**
  * Menghasilkan isi final tiap channel. Template custom dari Admin Web selalu
  * menang kalau admin benar-benar sudah mengisinya; kalau tidak, dipakai
@@ -538,6 +607,10 @@ function resolveEmail(ctx, customTemplate) {
     source: htmlIsCustom ? "custom" : "builtin",
     subject: subjectIsCustom ? renderTemplate(tpl.subject, data) : ctx.subject,
     html: htmlIsCustom ? renderTemplate(tpl.html, data) : buildEmailHtml(ctx),
+    // Selalu diturunkan dari `ctx`, bukan dari HTML admin (yang bisa berisi
+    // markup tak beraturan kalau ditelanjangi tag-nya). Ini bagian
+    // text/plain wajib untuk email multipart — lihat buildEmailText().
+    text: buildEmailText(ctx),
   };
 }
 
@@ -549,7 +622,7 @@ function buildWhatsApp(ctx, customTemplate) {
 
 function buildEmail(ctx, customTemplate) {
   const resolved = resolveEmail(ctx, customTemplate);
-  return { subject: resolved.subject, html: resolved.html };
+  return { subject: resolved.subject, html: resolved.html, text: resolved.text };
 }
 
 module.exports = {
@@ -566,5 +639,6 @@ module.exports = {
   buildEmail,
   buildWhatsAppMessage,
   buildEmailHtml,
+  buildEmailText,
   EVENT_COPY,
 };

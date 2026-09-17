@@ -73,6 +73,14 @@ const testResend = asyncHandler(async (req, res) => {
   res.json({ status: result.success, message: result.message });
 });
 
+// ADMIN — status verifikasi domain Resend (SPF/DKIM/DMARC) apa adanya dari
+// Resend, untuk menjawab "kenapa masih masuk Spam?" dengan data asli, bukan
+// dugaan (spec 3 & 9). Tidak pernah mengarang record DNS.
+const getResendDomainStatus = asyncHandler(async (req, res) => {
+  const result = await resendService.getDomainStatus();
+  res.json({ status: result.success, message: result.message, data: result });
+});
+
 const testR2 = asyncHandler(async (req, res) => {
   const result = await r2Service.testConnection();
   const settings = await IntegrationSettings.getSingleton();
@@ -150,6 +158,7 @@ module.exports = {
   testKlikQris,
   testFonnte,
   testResend,
+  getResendDomainStatus,
   testR2,
   updateNotifications,
   getTemplates,

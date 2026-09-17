@@ -15,6 +15,7 @@ router.post("/fonnte/test", ctrl.testFonnte);
 
 router.put("/resend", requireRole("superadmin", "admin"), ctrl.updateResend);
 router.post("/resend/test", ctrl.testResend);
+router.get("/resend/domain-status", ctrl.getResendDomainStatus);
 
 router.post("/r2/test", ctrl.testR2);
 

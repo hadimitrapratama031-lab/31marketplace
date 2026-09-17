@@ -3307,3 +3307,34 @@ td.empty-cell {
   border-radius: var(--r-md);
   background: #f4f3f7;
 }
+
+/* Status verifikasi domain Resend (SPF/DKIM/DMARC) — lihat checkResendDomain() */
+.domain-status-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  margin-bottom: var(--s3);
+}
+.domain-status-card > b {
+  font-size: 14px;
+}
+.table-mini {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  margin-top: var(--s2);
+}
+.table-mini th,
+.table-mini td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.table-mini th {
+  color: var(--text-3);
+  font-weight: 600;
+}
