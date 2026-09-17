@@ -41,6 +41,85 @@ function publicBase() {
   return String(base).trim().replace(/\/+$/, "");
 }
 
+/**
+ * Domain yang dilihat Gmail/Discord saat mengambil gambar untuk notifikasi.
+ *
+ * KENAPA INI ADA
+ * --------------
+ * URL R2 langsung ("pub-xxxxxxxx.r2.dev") berbeda dari URL yang dibuka lewat
+ * browser: proxy gambar Gmail dan bot Discord mengambil gambar dari SERVER
+ * MEREKA, bukan dari perangkat pengguna. Domain gratis "*.r2.dev" milik
+ * Cloudflare sering kena bot-protection/anti-abuse yang menolak permintaan
+ * dari proxy penyedia email/chat — hasilnya gambar tetap tampil sempurna
+ * kalau link-nya dibuka manual di browser, tapi selalu gagal di Gmail/Discord.
+ * Ini menjelaskan kenapa perbaikan URL saja (dari relatif/http ke https R2)
+ * tidak cukup kalau domain R2-nya sendiri yang diblokir di sisi penerima.
+ *
+ * Solusinya: server toko sendiri yang mengambil gambar dari R2 (server-to-
+ * server, tidak pernah diblokir bot-protection yang menyasar proxy publik),
+ * lalu meneruskannya di bawah domain toko yang sudah diverifikasi Resend.
+ * Gmail/Discord tidak pernah menyentuh R2 sama sekali.
+ */
+function emailAssetBase() {
+  const candidates = [process.env.CLIENT_URL, process.env.SERVER_PUBLIC_URL];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    try {
+      // .origin membuang path — SERVER_PUBLIC_URL yang tertulis salah
+      // ("https://host/4000") tetap menghasilkan origin yang benar.
+      return new URL(String(raw).trim()).origin;
+    } catch {
+      continue;
+    }
+  }
+  return "";
+}
+
+// Host yang BOLEH diambil ulang lewat proxy. Tanpa allowlist ini, endpoint
+// proxy jadi open proxy: siapa pun bisa menyuruh server memanggil URL
+// sembarang (SSRF). Hanya domain penyimpanan aset toko sendiri yang diizinkan.
+function allowedProxyHosts() {
+  const hosts = new Set();
+  const add = (raw) => {
+    if (!raw) return;
+    try {
+      hosts.add(new URL(withScheme(String(raw).trim())).hostname.toLowerCase());
+    } catch {
+      /* abaikan nilai yang tidak bisa diparse */
+    }
+  };
+  add(process.env.R2_PUBLIC_URL);
+  String(process.env.ASSET_PROXY_ALLOWED_HOSTS || "")
+    .split(",")
+    .map((h) => h.trim())
+    .filter(Boolean)
+    .forEach(add);
+  return hosts;
+}
+
+function isAllowedProxyTarget(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return allowedProxyHosts().has(host);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Membungkus URL aset yang sudah valid (https, bukan localhost) menjadi URL
+ * di domain toko sendiri. Kalau base domain belum bisa ditentukan atau host
+ * aslinya bukan storage toko sendiri (mis. link Discord yang sudah bukan
+ * gambar R2), dikembalikan APA ADANYA — tidak ada yang dipaksa lewat proxy.
+ */
+function toEmailSafeUrl(url) {
+  if (!url) return "";
+  if (!isAllowedProxyTarget(url)) return url;
+  const base = emailAssetBase();
+  if (!base) return url;
+  return `${base}/api/assets/proxy?src=${encodeURIComponent(url)}`;
+}
+
 function withScheme(value) {
   if (/^https?:\/\//i.test(value)) return value;
   if (value.startsWith("//")) return `https:${value}`;
@@ -162,6 +241,10 @@ function isEmailRenderable(url) {
 module.exports = {
   inspectAssetUrl,
   resolveAssetUrl,
+  toEmailSafeUrl,
+  isAllowedProxyTarget,
+  allowedProxyHosts,
+  emailAssetBase,
   isEmailRenderable,
   extensionOf,
   EMAIL_UNSUPPORTED_EXT,

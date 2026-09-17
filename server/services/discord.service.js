@@ -18,7 +18,6 @@
 
 const axios = require("axios");
 const logger = require("../utils/logger");
-const { resolveAssetUrl } = require("../utils/assetUrl");
 
 const TIMEOUT_MS = 15000;
 const API_BASE = "https://discord.com/api/v10";
@@ -99,8 +98,11 @@ function field(name, value, inline = true) {
  */
 function buildPaymentSuccessEmbed(ctx) {
   const storeName = clamp(ctx.storeName || "Store", 256);
-  const logoUrl = resolveAssetUrl(ctx.logoUrl, "discord: general.logo");
-  const productImage = resolveAssetUrl(ctx.productImage, "discord: order.product.image");
+  // Sudah lewat proxy domain toko sendiri (lihat template.service.buildContext)
+  // — tidak diproses ulang di sini supaya tidak ada dua tempat yang menentukan
+  // URL final.
+  const logoUrl = ctx.logoUrl || "";
+  const productImage = ctx.productImage || "";
 
   const fields = [
     field("Customer", ctx.customerName),

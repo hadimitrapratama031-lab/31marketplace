@@ -8,7 +8,7 @@
  * buildEmail) yang dipakai kalau admin BELUM menulis template sendiri.
  */
 
-const { resolveAssetUrl } = require("../utils/assetUrl");
+const { resolveAssetUrl, toEmailSafeUrl } = require("../utils/assetUrl");
 
 /* ------------------------------------------------------------ primitives */
 
@@ -160,7 +160,10 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
     storeTagline: general.description || "",
     // Logo Store: yang dipakai adalah logo aktif dari Admin Web > Branding.
     // footer.logo hanya cadangan kalau field branding memang kosong.
-    logoUrl: safeRemoteUrl(general.logo || (settings && settings.footer && settings.footer.logo), "general.logo"),
+    // toEmailSafeUrl() membungkusnya lewat domain toko sendiri — lihat
+    // utils/assetUrl.js untuk alasannya (domain R2 gratis sering diblokir
+    // proxy gambar Gmail/Discord walau linknya valid).
+    logoUrl: toEmailSafeUrl(safeRemoteUrl(general.logo || (settings && settings.footer && settings.footer.logo), "general.logo")),
 
     customerName: (order.customer && order.customer.name) || "Pelanggan",
     customerEmail: (order.customer && order.customer.email) || "",
@@ -171,9 +174,10 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
     // Gambar produk diambil dari snapshot order. `productImageFallback` diisi
     // notification.service dengan Product.image yang hidup sekarang, untuk
     // order lama yang snapshot-nya tersimpan sebelum URL R2-nya dibetulkan.
-    productImage:
+    productImage: toEmailSafeUrl(
       safeRemoteUrl(order.product && order.product.image, "order.product.image") ||
-      safeRemoteUrl(productImageFallback, "product.image (live)"),
+        safeRemoteUrl(productImageFallback, "product.image (live)")
+    ),
     quantity: order.quantity,
     price: formatIDR(order.product && order.product.price),
     // Yang ditagihkan gateway adalah totalAmount (total + kode unik). Kalau
@@ -189,10 +193,12 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
     payUrl: safeRemoteUrl(transaction && (transaction.directUrl || transaction.qrisUrl), "transaction.payUrl"),
 
     waHref,
-    waIcon: safeRemoteUrl(wa.icon, "contact.whatsapp.icon"),
+    // Ikon dibungkus proxy (gambar); href tautan dibiarkan apa adanya (bukan
+    // gambar, tidak perlu dan tidak boleh diproxy).
+    waIcon: toEmailSafeUrl(safeRemoteUrl(wa.icon, "contact.whatsapp.icon")),
     waEnabled: wa.enabled !== false && Boolean(waHref),
     discordHref: safeRemoteUrl(discord.url, "contact.discord.url") || (discord.url && /^https?:\/\//i.test(discord.url) ? discord.url : ""),
-    discordIcon: safeRemoteUrl(discord.icon, "contact.discord.icon"),
+    discordIcon: toEmailSafeUrl(safeRemoteUrl(discord.icon, "contact.discord.icon")),
     discordEnabled: discord.enabled !== false && Boolean(discord.url),
 
     accent: copy ? copy.accent : theme.primary || "#6d3bee",
