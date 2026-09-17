@@ -165,6 +165,17 @@ if (frontendDir) {
   // Asset Admin Web (admin.css, admin.js, login.js) — harus dimount sebelum
   // route halaman /admin agar CSS/JS-nya tidak ditelan handler HTML.
   app.use("/admin", express.static(ADMIN_DIR, assetOptions));
+
+  // Bug lama: "/rating/*" dan "/cek-pesanan/*" di bawah adalah catch-all yang
+  // SELALU membalas index.html halaman itu, termasuk untuk request asetnya
+  // sendiri (rating.js, cek-pesanan.js) — browser jadi menerima HTML dengan
+  // Content-Type text/html untuk file yang diminta sebagai <script src>, lalu
+  // ditolak browser karena MIME mismatch (Rating jadi tidak bisa memuat atau
+  // mengirim apa pun). Sama seperti /admin di atas, aset folder ini harus
+  // dimount sebagai static SEBELUM route halamannya supaya rating.js dan
+  // cek-pesanan.js benar-benar dilayani sebagai file JS, bukan ditelan HTML.
+  app.use("/rating", express.static(path.join(frontendDir, "rating"), assetOptions));
+  app.use("/cek-pesanan", express.static(path.join(frontendDir, "cek-pesanan"), assetOptions));
 }
 
 // ---- 4. Halaman frontend ----
