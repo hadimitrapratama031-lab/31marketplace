@@ -28,7 +28,7 @@ const createOrder = asyncHandler(async (req, res) => {
   if (!isValidWhatsApp(whatsapp)) throw new AppError("Format nomor WhatsApp tidak valid.", 400);
   const normalizedWhatsApp = normalizeWhatsApp(whatsapp);
 
-  const product = await Product.findById(productId);
+  const product = await Product.findById(productId).populate("categoryId", "name");
   if (!product || product.status !== "active") {
     throw new AppError("Produk tidak tersedia.", 404);
   }
@@ -56,7 +56,14 @@ const createOrder = asyncHandler(async (req, res) => {
     orderCode,
     customer: { name: name || "", email: email.toLowerCase().trim(), whatsapp: normalizedWhatsApp },
     customerId: customer._id,
-    product: { productId: product._id, name: product.name, price, image: product.image },
+    product: {
+      productId: product._id,
+      name: product.name,
+      price,
+      image: product.image,
+      category: (product.categoryId && product.categoryId.name) || "",
+      slug: product.slug || "",
+    },
     quantity: qty,
     total,
     status: "PENDING",
@@ -144,6 +151,9 @@ const getByOrderCode = asyncHandler(async (req, res) => {
             directUrl: transaction.directUrl,
             expiredAt: transaction.expiredAt,
             totalAmount: transaction.totalAmount,
+            status: transaction.status,
+            method: transaction.paymentGateway === "KLIKQRIS" ? "QRIS" : transaction.paymentGateway,
+            paidAt: transaction.paidAt,
           }
         : null,
     },

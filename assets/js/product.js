@@ -15,10 +15,6 @@
   var product = null;
   var qty = 1;
 
-  var pollTimer = null;
-  var paymentHandler = null; // detached on close so watchers never pile up
-  var watchedOrder = null;
-
   /* --------------------------------------------------------------- render */
   function renderNotFound(message) {
     var root = $("detail-root");
@@ -145,162 +141,20 @@
     }
   }
 
-  /* ---------------------------------------------------------------- modal */
-  function closeModal() {
-    $("modal-root").innerHTML = "";
-    document.removeEventListener("keydown", onEsc);
-    stopPaymentWatch();
-  }
-
-  function onEsc(e) {
-    if (e.key === "Escape") closeModal();
-  }
-
-  function openModal(inner) {
-    $("modal-root").innerHTML =
-      '<div class="overlay" id="overlay"><div class="modal" role="dialog" aria-modal="true">' +
-      '<button class="modal-close" type="button" id="modal-close" aria-label="Tutup">✕</button>' +
-      inner +
-      "</div></div>";
-
-    $("overlay").addEventListener("click", function (e) {
-      if (e.target.id === "overlay") closeModal();
-    });
-    $("modal-close").addEventListener("click", closeModal);
-    document.addEventListener("keydown", onEsc);
-  }
-
-  function openCheckout() {
+  /* ------------------------------------------------------ go to checkout */
+  // Checkout re-reads price/stock/category itself, so this is only a display
+  // hint that survives the navigation — never trusted for the order total.
+  function goToCheckout() {
     if (!product || Number(product.stock) <= 0) return;
-
-    openModal(
-      "<h3>" + MP.escapeHTML(product.name) + "</h3>" +
-        '<p class="modal-sub">' + qty + " item · Total " + MP.formatIDR(product.price * qty) + "</p>" +
-        '<form id="checkout-form" novalidate>' +
-        '<label class="field"><span>Nama</span><input class="input" id="ck-name" placeholder="Nama kamu" autocomplete="name"></label>' +
-        '<label class="field"><span>Email</span><input class="input" id="ck-email" type="email" required placeholder="nama@email.com" autocomplete="email"></label>' +
-        '<label class="field"><span>Nomor WhatsApp</span><input class="input" id="ck-wa" required placeholder="08xxxxxxxxxx" inputmode="tel" autocomplete="tel"></label>' +
-        '<p class="form-note" id="ck-note">Detail pesanan dikirim ke email dan WhatsApp di atas.</p>' +
-        '<button class="btn btn-primary btn-block btn-lg" type="submit" id="ck-submit">Buat pesanan</button>' +
-        "</form>"
-    );
-
-    $("checkout-form").addEventListener("submit", submitCheckout);
-  }
-
-  async function submitCheckout(e) {
-    e.preventDefault();
-    var submit = $("ck-submit");
-    var note = $("ck-note");
-
-    var email = $("ck-email").value.trim();
-    var wa = $("ck-wa").value.trim();
-
-    if (!email || !wa) {
-      note.className = "form-note is-error";
-      note.textContent = "Email dan nomor WhatsApp wajib diisi.";
-      return;
-    }
-
-    note.className = "form-note";
-    note.textContent = "Membuat pesanan…";
-    submit.disabled = true;
-    submit.textContent = "Memproses…";
-
     try {
-      var res = await MP.post("/orders", {
-        productId: product._id,
-        quantity: qty,
-        name: $("ck-name").value.trim(),
-        email: email,
-        whatsapp: wa,
-      });
-      renderPayment(res.data.order, res.data.payment);
+      sessionStorage.setItem(
+        MP.CHECKOUT_KEY,
+        JSON.stringify({ slug: product.slug, productId: product._id, quantity: qty })
+      );
     } catch (err) {
-      note.className = "form-note is-error";
-      note.textContent = err.message || "Pesanan gagal dibuat. Coba lagi.";
-      submit.disabled = false;
-      submit.textContent = "Buat pesanan";
+      console.error("Gagal menyimpan draf checkout:", err);
     }
-  }
-
-  function renderPayment(order, payment) {
-    openModal(
-      "<h3>Pesanan " + MP.escapeHTML(order.orderCode) + "</h3>" +
-        '<p class="modal-sub">Total ' + MP.formatIDR(payment.totalAmount || payment.amount) + "</p>" +
-        (payment.qrisUrl ? '<img class="qris" src="' + MP.escapeHTML(payment.qrisUrl) + '" alt="Kode QRIS pembayaran">' : "") +
-        (payment.directUrl
-          ? '<a class="btn btn-ghost btn-block" style="margin-bottom:12px" href="' +
-            MP.escapeHTML(payment.directUrl) +
-            '" target="_blank" rel="noopener">Buka halaman pembayaran</a>'
-          : "") +
-        '<div class="pay-status" id="pay-status">Menunggu pembayaran…</div>' +
-        '<p class="buy-fine">Simpan kode pesanan ini. Status diperbarui otomatis, dan bisa dicek kapan saja di <a href="cek-pesanan/?order=' +
-        encodeURIComponent(order.orderCode) +
-        '" style="color:var(--violet-soft)">Cek Pesanan</a>.</p>'
-    );
-
-    startPaymentWatch(order.orderCode);
-  }
-
-  /* -------------------------------------------------------- payment watch */
-  function stopPaymentWatch() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-    if (paymentHandler) {
-      var socket = MP.getSocket();
-      if (socket) {
-        socket.off("payment:updated", paymentHandler);
-        socket.off("order:updated", paymentHandler);
-      }
-      paymentHandler = null;
-    }
-    watchedOrder = null;
-  }
-
-  function startPaymentWatch(orderCode) {
-    stopPaymentWatch();
-    watchedOrder = orderCode;
-
-    var check = async function () {
-      try {
-        var res = await MP.get("/payments/" + encodeURIComponent(orderCode) + "/refresh");
-        applyStatus(res.data.status);
-      } catch (err) {
-        console.error("Gagal memeriksa status pembayaran:", err);
-      }
-    };
-
-    pollTimer = setInterval(check, 10000);
-    check();
-
-    var socket = MP.getSocket();
-    if (socket) {
-      paymentHandler = function (payload) {
-        if (payload && payload.orderCode === watchedOrder) applyStatus(payload.paymentStatus || payload.status);
-      };
-      socket.on("payment:updated", paymentHandler);
-      socket.on("order:updated", paymentHandler);
-    }
-  }
-
-  function applyStatus(status) {
-    var el = $("pay-status");
-    if (!el) return;
-
-    var tone = MP.STATUS_TONE[status] || "pending";
-    el.textContent = MP.STATUS_LABEL[status] || status;
-    el.className = "pay-status" + (tone === "ok" ? " is-ok" : tone === "bad" ? " is-bad" : "");
-
-    if (status === "PAID" || status === "SUCCESS") {
-      stopPaymentWatch();
-      MP.toast("Pembayaran diterima. Terima kasih!", "ok");
-      loadProduct(true);
-    } else if (["FAILED", "EXPIRED", "CANCELLED"].indexOf(status) !== -1) {
-      stopPaymentWatch();
-    }
+    window.location.href = "checkout.html";
   }
 
   /* ----------------------------------------------------------------- bind */
@@ -313,7 +167,7 @@
       qty -= 1;
       updateQty();
     });
-    $("buy-now").addEventListener("click", openCheckout);
+    $("buy-now").addEventListener("click", goToCheckout);
   }
 
   document.addEventListener("DOMContentLoaded", function () {

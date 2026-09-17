@@ -351,6 +351,7 @@
   }
 
   window.MP = {
+    CHECKOUT_KEY: "mp_checkout_draft",
     get: function (path) {
       return request(path);
     },

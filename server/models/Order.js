@@ -14,6 +14,8 @@ const OrderSchema = new mongoose.Schema(
       name: { type: String, required: true },
       price: { type: Number, required: true }, // snapshot at order time, from DB
       image: { type: String, default: "" },
+      category: { type: String, default: "" }, // snapshot of Category.name at order time
+      slug: { type: String, default: "" }, // snapshot of Product.slug, so old orders can still link back to the product page
     },
     quantity: { type: Number, required: true, min: 1 },
     total: { type: Number, required: true }, // price * quantity, computed server-side

@@ -190,6 +190,11 @@ app.get(["/products", "/products.html"], (req, res, next) => sendPage(res, next,
 // Halaman detail produk
 app.get(["/product", "/product.html"], (req, res, next) => sendPage(res, next, "product.html"));
 
+// Alur pembayaran: Checkout -> Payment (QRIS) -> Order Success
+app.get(["/checkout", "/checkout.html"], (req, res, next) => sendPage(res, next, "checkout.html"));
+app.get(["/payment", "/payment.html"], (req, res, next) => sendPage(res, next, "payment.html"));
+app.get(["/order-success", "/order-success.html"], (req, res, next) => sendPage(res, next, "order-success.html"));
+
 // Cek Pesanan
 app.get(["/cek-pesanan", "/cek-pesanan/", "/cek-pesanan/*"], (req, res, next) => {
   if (req.path === "/cek-pesanan") return res.redirect(301, "/cek-pesanan/");

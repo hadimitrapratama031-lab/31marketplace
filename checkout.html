@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Checkout pesanan: periksa produk, harga, dan data pesanan sebelum lanjut ke pembayaran QRIS.">
+  <meta name="theme-color" content="#0e0a17">
+  <title>Checkout — 31 Store</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/flow.css">
+</head>
+<body data-title-suffix="Checkout">
+
+  <div class="maintenance-bar" data-maintenance hidden>Toko sedang dalam pemeliharaan. Beberapa produk mungkin belum bisa dipesan.</div>
+
+  <header class="site-header">
+    <div class="shell">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" data-brand-mark><span data-store-initials>31</span></span>
+        <span data-store-name>31 Store</span>
+      </a>
+      <nav class="nav" aria-label="Navigasi utama">
+        <a href="index.html">Home</a>
+        <a href="products.html">Product</a>
+        <a href="index.html#faq">FAQ</a>
+        <a href="index.html#contact">Contact</a>
+        <a href="rating/">Rating</a>
+      </nav>
+      <div class="header-actions">
+        <a class="btn btn-ghost btn-sm" href="cek-pesanan/"><span data-cek-label>Cek Pesanan</span></a>
+        <button class="nav-toggle" type="button" aria-label="Buka menu" aria-expanded="false"><span></span></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell flow-page" id="checkout-root">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="index.html">Home</a><span>/</span><a href="products.html">Katalog</a><span>/</span><strong>Checkout</strong>
+    </nav>
+
+    <div class="flow-nav" aria-label="Tahap pembayaran">
+      <span class="flow-nav-item is-active"><i>1</i><span>Checkout</span></span>
+      <span class="flow-nav-sep"></span>
+      <span class="flow-nav-item"><i>2</i><span>Payment</span></span>
+      <span class="flow-nav-sep"></span>
+      <span class="flow-nav-item"><i>3</i><span>Selesai</span></span>
+    </div>
+
+    <div class="flow-head">
+      <h1>Checkout</h1>
+      <p>Periksa kembali produk dan lengkapi data pesanan sebelum lanjut ke pembayaran.</p>
+    </div>
+
+    <div id="checkout-body">
+      <div class="flow-loading">
+        <div class="skel skel-card" style="height:120px"></div>
+        <div class="skel skel-card" style="height:220px"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell">
+      <div class="footer-grid">
+        <div>
+          <a class="brand" href="index.html">
+            <span class="brand-mark" data-brand-mark><span data-store-initials>31</span></span>
+            <span data-store-name>31 Store</span>
+          </a>
+          <p data-footer-description>Marketplace produk digital dengan harga transparan dan pesanan yang bisa dilacak.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Navigasi</h4>
+          <a href="index.html">Home</a>
+          <a href="products.html">Product</a>
+          <a href="index.html#faq">FAQ</a>
+          <a href="rating/">Rating</a>
+        </div>
+        <div class="footer-col">
+          <h4>Bantuan</h4>
+          <a href="cek-pesanan/"><span data-cek-label>Cek Pesanan</span></a>
+          <a href="index.html#contact">Contact</a>
+        </div>
+        <div class="footer-col footer-col-last">
+          <h4>Hubungi kami</h4>
+          <a data-wa-link target="_blank" rel="noopener" href="#" hidden>WhatsApp</a>
+          <a data-discord-link target="_blank" rel="noopener" href="#" hidden>Discord</a>
+          <span>Balasan admin pada jam operasional toko.</span>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span data-copyright>© <span data-year>2026</span> 31 Store</span>
+        <span>Dibuat untuk pembeli yang tidak suka menunggu.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/checkout.js"></script>
+</body>
+</html>
