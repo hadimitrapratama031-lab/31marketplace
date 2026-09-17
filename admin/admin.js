@@ -1150,11 +1150,31 @@
     applyBranding(state.settings);
   }
 
+  // Reads a possibly-nested value, e.g. getPath(settings.contact, "whatsapp.icon").
+  // Plain (non-dotted) fields keep working exactly as before — this is a
+  // superset of the old flat `section[field]` lookup, not a replacement for it.
+  function getPath(obj, path) {
+    return path.split(".").reduce((cur, key) => (cur === undefined || cur === null ? undefined : cur[key]), obj);
+  }
+
+  function setPath(obj, path, value) {
+    const keys = path.split(".");
+    let cur = obj;
+    keys.forEach((key, i) => {
+      if (i === keys.length - 1) {
+        cur[key] = value;
+      } else {
+        cur[key] = cur[key] && typeof cur[key] === "object" ? cur[key] : {};
+        cur = cur[key];
+      }
+    });
+  }
+
   function fillSettingsForm(s) {
     qsa("[data-section][data-field]").forEach((el) => {
       const section = s[el.dataset.section];
       if (!section) return;
-      const value = section[el.dataset.field];
+      const value = getPath(section, el.dataset.field);
       if (el.type === "checkbox") el.checked = Boolean(value);
       else if (el.type === "color") el.value = /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : "#000000";
       else el.value = value === undefined || value === null ? "" : value;
@@ -1162,7 +1182,8 @@
 
     setPreview("preview-general-logo", s.general.logo);
     setPreview("preview-general-favicon", s.general.favicon);
-    setPreview("preview-contact-logo", s.contact.logo);
+    setPreview("preview-contact-whatsapp-icon", s.contact.whatsapp && s.contact.whatsapp.icon);
+    setPreview("preview-contact-discord-icon", s.contact.discord && s.contact.discord.icon);
     setPreview("preview-footer-logo", s.footer.logo);
     setPreview("preview-background-image", s.background.image);
 
@@ -1328,7 +1349,8 @@
   function collectSectionFields(section) {
     const data = {};
     qsa('[data-section="' + section + '"][data-field]').forEach((el) => {
-      data[el.dataset.field] = el.type === "checkbox" ? el.checked : el.value;
+      const value = el.type === "checkbox" ? el.checked : el.value;
+      setPath(data, el.dataset.field, value);
     });
     return data;
   }
@@ -1386,10 +1408,45 @@
     });
   }
 
+  // Same allow-list and size limit as server/middlewares/upload.js — checked
+  // here too so a bad file is rejected instantly instead of after a round
+  // trip to the API, and so the person gets an immediate, specific message.
+  const UPLOAD_ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "image/x-icon"];
+  const UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+
   async function uploadAsset(input) {
     const file = input.files && input.files[0];
     if (!file) return;
-    const [section, fieldName] = input.dataset.uploadTarget.split(".");
+
+    // uploadTarget can be "section.field" (e.g. "general.logo") or a nested
+    // path "section.field.subfield" (e.g. "contact.whatsapp.icon") — first
+    // segment is always the settings section, the rest is the field path.
+    const targetParts = input.dataset.uploadTarget.split(".");
+    const section = targetParts.shift();
+    const fieldName = targetParts.join(".");
+    const previewId = "preview-" + section + "-" + fieldName.replace(/\./g, "-");
+    // Read the last-known-good value from app state, not the <img> DOM src —
+    // reading back an empty img.src returns the page's own URL (a DOM
+    // quirk), which would show a broken image instead of an empty preview
+    // if we rolled back to it after a failed upload.
+    const previousValue = (state.settings && getPath(state.settings[section] || {}, fieldName)) || "";
+
+    if (!UPLOAD_ALLOWED_MIME.includes(file.type)) {
+      showToast("Tipe file tidak didukung. Gunakan JPG, PNG, WEBP, GIF, atau SVG.", "error");
+      input.value = "";
+      return;
+    }
+    if (file.size > UPLOAD_MAX_BYTES) {
+      showToast("Ukuran file maksimal 5MB.", "error");
+      input.value = "";
+      return;
+    }
+
+    // Preview before upload finishes (local blob URL), so the admin sees
+    // feedback immediately instead of a blank box while R2 is still working.
+    const blobUrl = URL.createObjectURL(file);
+    setPreview(previewId, blobUrl);
+
     const form = new FormData();
     form.append("file", file);
     form.append("folder", input.dataset.uploadFolder || "settings");
@@ -1398,13 +1455,17 @@
     if (box) box.classList.add("uploading");
     try {
       const res = await api("/settings/admin/upload", { method: "POST", body: form });
+      if (!res.data || !res.data.url) throw new Error("Upload gagal: server tidak mengembalikan URL gambar.");
       const hidden = document.querySelector('[data-section="' + section + '"][data-field="' + fieldName + '"]');
       if (hidden) hidden.value = res.data.url;
-      setPreview("preview-" + section + "-" + fieldName, res.data.url);
+      // Swap to the real R2 URL now that it's confirmed saved server-side.
+      setPreview(previewId, res.data.url);
       showToast("File terunggah. Tekan tombol simpan untuk menerapkannya.", "success");
     } catch (err) {
+      setPreview(previewId, previousValue);
       showToast(err.message, "error");
     } finally {
+      URL.revokeObjectURL(blobUrl);
       if (box) box.classList.remove("uploading");
       input.value = "";
     }

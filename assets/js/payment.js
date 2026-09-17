@@ -30,13 +30,10 @@
 
   function contactButtonsHTML() {
     var settings = MP.getSettings();
-    var contact = (settings && settings.contact) || {};
-    var waDigits = String(contact.whatsapp || "").replace(/\D/g, "");
-    var waHref = waDigits ? "https://wa.me/" + waDigits : "";
-    var dcHref = contact.discordUrl || "";
+    var channels = MP.contactChannels(settings);
     var out = "";
-    if (waHref) out += '<a class="btn btn-primary" href="' + MP.escapeHTML(waHref) + '" target="_blank" rel="noopener">Hubungi via WhatsApp</a>';
-    if (dcHref) out += '<a class="btn btn-ghost" href="' + MP.escapeHTML(dcHref) + '" target="_blank" rel="noopener">Hubungi via Discord</a>';
+    if (channels.whatsapp.href) out += '<a class="btn btn-primary" href="' + MP.escapeHTML(channels.whatsapp.href) + '" target="_blank" rel="noopener">Hubungi via WhatsApp</a>';
+    if (channels.discord.href) out += '<a class="btn btn-ghost" href="' + MP.escapeHTML(channels.discord.href) + '" target="_blank" rel="noopener">Hubungi via Discord</a>';
     return out;
   }
 

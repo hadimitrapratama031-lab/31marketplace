@@ -60,10 +60,23 @@ const WebsiteSettingsSchema = new mongoose.Schema(
       },
     ],
 
+    // WhatsApp and Discord are two independent contact channels, each with
+    // its own admin-uploaded icon — NOT a shared `logo` field. Keeping them
+    // as nested objects (rather than flat `whatsapp`/`discordUrl` strings)
+    // is what lets Order Success and the Marketplace contact section render
+    // each channel's own logo instead of a hardcoded "WA"/"DC" badge.
+    // Legacy flat documents are normalized by
+    // server/scripts/migrateContactSettings.js — run it once after deploying
+    // this schema change if the local/production DB already has contact data.
     contact: {
-      whatsapp: { type: String, default: "" },
-      discordUrl: { type: String, default: "" },
-      logo: { type: String, default: "" },
+      whatsapp: {
+        number: { type: String, default: "" }, // digits only; wa.me link is built from this
+        icon: { type: String, default: "" }, // R2 URL of the admin-uploaded WhatsApp logo
+      },
+      discord: {
+        url: { type: String, default: "" },
+        icon: { type: String, default: "" }, // R2 URL of the admin-uploaded Discord logo
+      },
       title: { type: String, default: "Butuh Bantuan?" },
       description: { type: String, default: "" },
       buttonText: { type: String, default: "Hubungi Kami" },

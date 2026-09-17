@@ -527,6 +527,13 @@
   font-size: 11.5px;
   font-weight: 700;
   flex: none;
+  overflow: hidden;
+}
+
+.admin-btn i img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .admin-btn.is-wa i {

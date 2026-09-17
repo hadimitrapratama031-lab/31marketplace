@@ -25,23 +25,32 @@
 
   function adminButtonsHTML() {
     var settings = MP.getSettings();
-    var contact = (settings && settings.contact) || {};
-    var waDigits = String(contact.whatsapp || "").replace(/\D/g, "");
-    var waHref = waDigits ? "https://wa.me/" + waDigits : "";
-    var dcHref = contact.discordUrl || "";
+    var channels = MP.contactChannels(settings);
     var out = "";
-    if (waHref) {
+    if (channels.whatsapp.href) {
       out +=
-        '<a class="admin-btn is-wa" href="' + MP.escapeHTML(waHref) + '" target="_blank" rel="noopener"><i>WA</i>WhatsApp</a>';
+        '<a class="admin-btn is-wa" href="' + MP.escapeHTML(channels.whatsapp.href) + '" target="_blank" rel="noopener">' +
+        channelGlyph(channels.whatsapp.icon, "WA") +
+        "WhatsApp</a>";
     }
-    if (dcHref) {
+    if (channels.discord.href) {
       out +=
-        '<a class="admin-btn is-discord" href="' + MP.escapeHTML(dcHref) + '" target="_blank" rel="noopener"><i>DC</i>Discord</a>';
+        '<a class="admin-btn is-discord" href="' + MP.escapeHTML(channels.discord.href) + '" target="_blank" rel="noopener">' +
+        channelGlyph(channels.discord.icon, "DC") +
+        "Discord</a>";
     }
     if (!out) {
       out = '<p class="muted-line" style="margin:0">Kontak admin belum diatur di Admin Web.</p>';
     }
     return out;
+  }
+
+  // Renders the admin-uploaded logo when one exists; otherwise keeps the
+  // existing text-badge fallback so the button never looks broken/empty.
+  function channelGlyph(iconUrl, fallbackText) {
+    return iconUrl
+      ? "<i><img src=\"" + MP.escapeHTML(iconUrl) + "\" alt=\"\"></i>"
+      : "<i>" + fallbackText + "</i>";
   }
 
   function refreshAdminButtons() {
@@ -82,8 +91,8 @@
       "</section>" +
 
       '<section class="panel admin-help">' +
-      "<h2>Butuh bantuan?</h2>" +
-      "<p>Pembayaran berhasil. Silakan hubungi admin jika membutuhkan bantuan terkait pesanan Anda.</p>" +
+      "<h2>Perlu bantuan?</h2>" +
+      "<p>Silakan hubungi admin melalui salah satu kontak berikut.</p>" +
       '<div class="admin-btn-row" id="admin-btn-row">' + adminButtonsHTML() + "</div>" +
       "</section>" +
 

@@ -317,12 +317,41 @@
     setText("[data-footer-description]", footer.description || general.description);
     setText("[data-cek-label]", (s.navbar || {}).cekPesananLabel);
 
-    bindLinks("[data-wa-link]", waHref(contact.whatsapp));
-    bindLinks("[data-discord-link]", contact.discordUrl || "");
+    var channels = contactChannels(s);
+    bindLinks("[data-wa-link]", channels.whatsapp.href);
+    bindLinks("[data-discord-link]", channels.discord.href);
+    // Admin-uploaded icons for the homepage contact cards. If no icon has
+    // been uploaded yet, leave the existing "WA"/"DC" text glyph in place
+    // (set in the HTML) as a safe fallback rather than an empty box.
+    setGlyphImage("#contact-card-whatsapp .cat-glyph", channels.whatsapp.icon);
+    setGlyphImage("#contact-card-discord .cat-glyph", channels.discord.icon);
 
     document.querySelectorAll("[data-maintenance]").forEach(function (el) {
       el.hidden = general.websiteStatus !== "maintenance";
     });
+  }
+
+  // Derives the two contact channels (href + admin-uploaded icon) from
+  // WebsiteSettings.contact in one place, so Order Success, Payment, and the
+  // homepage contact section all read the exact same fields instead of each
+  // re-implementing the wa.me/discord logic — one source of truth per #6.
+  function contactChannels(s) {
+    var contact = (s && s.contact) || {};
+    var wa = contact.whatsapp || {};
+    var discord = contact.discord || {};
+    return {
+      whatsapp: { href: waHref(wa.number), icon: wa.icon || "" },
+      discord: { href: discord.url || "", icon: discord.icon || "" },
+    };
+  }
+
+  // Swaps a glyph box's content for an admin-uploaded icon <img>, or leaves
+  // whatever fallback markup is already in the HTML (text badge) untouched
+  // when no icon has been set — never breaks the layout either way.
+  function setGlyphImage(selector, iconUrl) {
+    var el = document.querySelector(selector);
+    if (!el || !iconUrl) return;
+    el.innerHTML = '<img src="' + escapeHTML(iconUrl) + '" alt="">';
   }
 
   /* -------------------------------------------------------- page chrome */
@@ -375,6 +404,7 @@
     observeReveals: observeReveals,
     onSettings: onSettings,
     loadSettings: loadSettings,
+    contactChannels: contactChannels,
     getSettings: function () {
       return settings;
     },
