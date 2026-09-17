@@ -24,6 +24,7 @@ const discord = require("./discord.service");
 const { getResendConfig } = require("./integration.service");
 const { inspectAssetUrl, isEmailRenderable, extensionOf } = require("../utils/assetUrl");
 const { isFreemailAddress } = require("../utils/email");
+const { fetchImageBuffer } = require("./emailInlineImages.service");
 
 const PROBE_TIMEOUT_MS = 8000;
 
@@ -166,8 +167,10 @@ async function auditEmailAssets(orderCode) {
   // sungguhan, lalu baca URL gambar dari hasilnya.
   const perEvent = [];
   const allUrls = new Set();
+  let ctxForEmbedProbe = null;
   for (const event of ["orderCreated", "paymentSuccess", "paymentFailed", "paymentExpired"]) {
     const ctx = templates.buildContext({ event, order, transaction, settings: websiteSettings });
+    if (!ctxForEmbedProbe) ctxForEmbedProbe = ctx; // *Raw fields sama untuk keempat event (aset toko/produk tidak berubah per event)
     const mail = templates.resolveEmail(ctx, integrationSettings.templates.email[event]);
     const images = extractImageSources(mail.html);
     images.forEach((u) => allUrls.add(u));
@@ -177,6 +180,37 @@ async function auditEmailAssets(orderCode) {
   const probes = await Promise.all([...allUrls].map((url) => probeImage(url)));
   const broken = probes.filter((p) => !p.reachable || p.problems.length > 0);
 
+  // Pengiriman SUNGGUHAN (notification.service.js) tidak lagi bergantung
+  // pada Gmail memuat `probes` di atas — sejak lampiran CID ditambahkan,
+  // gambar diambil server-to-server dan disertakan langsung di payload
+  // Resend (lihat emailInlineImages.service.js). Jadi pertanyaan yang
+  // sebenarnya menentukan "tampil atau tidak" bukan lagi "apakah URL proxy
+  // bisa dimuat dari internet", melainkan "apakah SERVER TOKO SENDIRI bisa
+  // mengambil byte-nya dari storage". Bagian ini menguji jalur itu — persis
+  // fungsi yang dipanggil saat order sungguhan dikirim — supaya admin bisa
+  // membuktikan sebelum satu pelanggan pun menerima email yang gambarnya
+  // gagal dilampirkan.
+  const embeddableAssets = [
+    { asset: "logoUrl", label: "Logo toko", rawUrl: ctxForEmbedProbe.logoUrlRaw },
+    { asset: "productImage", label: "Gambar produk", rawUrl: ctxForEmbedProbe.productImageRaw },
+    { asset: "waIcon", label: "Ikon WhatsApp", rawUrl: ctxForEmbedProbe.waIconRaw },
+    { asset: "discordIcon", label: "Ikon Discord", rawUrl: ctxForEmbedProbe.discordIconRaw },
+  ];
+  const embedding = await Promise.all(
+    embeddableAssets.map(async (a) => {
+      if (!a.rawUrl) return { ...a, configured: false, embeddable: false, reason: "aset tidak diset di Admin Web" };
+      const result = await fetchImageBuffer(a.rawUrl, a.label);
+      return {
+        ...a,
+        configured: true,
+        embeddable: result.ok,
+        sizeBytes: result.ok ? result.size : null,
+        contentType: result.ok ? result.contentType : null,
+        reason: result.ok ? null : result.reason,
+      };
+    })
+  );
+
   return {
     usingSample,
     orderCode: order.orderCode,
@@ -185,6 +219,11 @@ async function auditEmailAssets(orderCode) {
     // URL yang benar-benar masuk ke HTML email, per event.
     renderedImages: perEvent,
     probes,
+    // Hasil nyata dari jalur lampiran CID yang benar-benar dipakai saat
+    // pengiriman order sungguhan — inilah yang membuktikan gambar akan
+    // (atau tidak akan) ikut terkirim sebagai bagian dari email, bukan lagi
+    // sekadar "URL-nya bisa dibuka".
+    embedding,
     summary: {
       totalImageUrls: allUrls.size,
       ok: probes.length - broken.length,
@@ -193,6 +232,8 @@ async function auditEmailAssets(orderCode) {
       // gejala "logo tidak tampil" yang paling sering: URL-nya dibuang di
       // tahap resolver, jadi <img>-nya memang tidak pernah ada.
       configuredButDropped: storedReport.filter((r) => r.configured && !r.usable).map((r) => r.asset),
+      embeddableCount: embedding.filter((e) => e.embeddable).length,
+      embeddingWillFallback: embedding.filter((e) => e.configured && !e.embeddable).map((e) => e.asset),
     },
   };
 }

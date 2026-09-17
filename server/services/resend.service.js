@@ -44,7 +44,7 @@ function classifyTransportError(err) {
 
 // Pengirim level bawah: hanya butuh apiKey/fromEmail. Toggle Enabled diurus
 // sendEmail() di bawah, supaya tombol Test Email tetap bisa dipakai lebih dulu.
-async function sendEmailRaw({ apiKey, fromEmail, fromName, replyTo, to, subject, html, text, entityRef }) {
+async function sendEmailRaw({ apiKey, fromEmail, fromName, replyTo, to, subject, html, text, entityRef, attachments }) {
   // Validasi sebelum menyentuh jaringan — recipient kosong tidak boleh
   // membuat server melempar exception (spec 25).
   if (!apiKey) return { success: false, permanent: true, message: "API key Resend belum dikonfigurasi." };
@@ -90,6 +90,13 @@ async function sendEmailRaw({ apiKey, fromEmail, fromName, replyTo, to, subject,
         // transaksional berdiri sendiri, bukan terlihat sebagai pengiriman
         // massal berulang. Tidak mengubah apa pun yang dilihat pelanggan.
         ...(entityRef ? { headers: { "X-Entity-Ref-ID": String(entityRef) } } : {}),
+        // Lampiran inline CID (logo/produk/ikon WhatsApp/ikon Discord) — lihat
+        // emailInlineImages.service.js. `content` sudah base64, `content_id`
+        // dicocokkan dengan "cid:<content_id>" di dalam `html`. Field ini
+        // sengaja hanya disertakan kalau memang ada isinya: mengirim
+        // `attachments: []` tidak salah di Resend, tapi menghilangkannya sama
+        // sekali saat kosong membuat payload lebih mudah dibaca di log/debug.
+        ...(Array.isArray(attachments) && attachments.length ? { attachments } : {}),
       },
       {
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -121,7 +128,7 @@ async function sendEmailRaw({ apiKey, fromEmail, fromName, replyTo, to, subject,
 }
 
 // Dipakai untuk notifikasi order sungguhan — menghormati toggle Enabled.
-async function sendEmail({ to, subject, html, text, entityRef }) {
+async function sendEmail({ to, subject, html, text, entityRef, attachments }) {
   const cfg = await getResendConfig();
   if (!cfg.enabled) {
     return { success: false, permanent: true, disabled: true, message: "Resend belum diaktifkan/dikonfigurasi." };
@@ -136,6 +143,7 @@ async function sendEmail({ to, subject, html, text, entityRef }) {
     html,
     text,
     entityRef,
+    attachments,
   });
 }
 

@@ -9,6 +9,7 @@ const discord = require("./discord.service");
 const { inspectAssetUrl } = require("../utils/assetUrl");
 const { emitEvent } = require("./socket.service");
 const templates = require("./template.service");
+const { embedContextImages } = require("./emailInlineImages.service");
 const { isValidWhatsApp, isValidEmail } = require("../utils/phone");
 const logger = require("../utils/logger");
 
@@ -259,6 +260,29 @@ async function resolveProductImageFallback(order) {
   }
 }
 
+/**
+ * Menyiapkan payload email SIAP KIRIM: subject/html/text dari resolver
+ * template (tidak berubah), plus lampiran CID untuk gambar (lihat
+ * emailInlineImages.service.js).
+ *
+ * PENTING: `ctx` di sini SELALU salinan dangkal dari ctx asli, bukan ctx
+ * yang sama dengan yang dipakai WhatsApp/Discord. embedContextImages()
+ * menulis ulang ctx.logoUrl / ctx.productImage / ctx.waIcon / ctx.discordIcon
+ * menjadi "cid:..." SUPAYA HTML email merujuk ke lampirannya — tapi
+ * discord.service.js membaca ctx.logoUrl dan ctx.productImage yang SAMA
+ * untuk embed Discord, dan Discord butuh URL asli (bot Discord yang
+ * mengambil gambarnya sendiri dari internet, bukan lampiran email). Kalau
+ * fungsi ini menulis ke ctx asli, notifikasi Discord akan ikut rusak
+ * (icon_url/thumbnail jadi string "cid:..." yang bukan URL). Cloning di sini
+ * membuat itu mustahil terjadi secara struktural, bukan sekadar "diingat".
+ */
+async function buildEmailPayload(baseCtx, customTemplate, orderCode) {
+  const emailCtx = { ...baseCtx };
+  const attachments = await embedContextImages(emailCtx, { orderCode });
+  const mail = templates.resolveEmail(emailCtx, customTemplate);
+  return { mail, attachments };
+}
+
 /* ------------------------------------------------------------------ entry */
 
 /**
@@ -314,7 +338,7 @@ async function notifyOrderEvent(order, eventKey, opts = {}) {
   }
 
   if (integrationSettings.notifications.emailEnabled) {
-    const mail = templates.resolveEmail(ctx, integrationSettings.templates.email[eventKey]);
+    const { mail, attachments } = await buildEmailPayload(ctx, integrationSettings.templates.email[eventKey], order.orderCode);
     debugTemplate({ order, event: eventKey, channel: "email", source: mail.source, preview: mail.subject });
     results.push(
       await deliverChannel({
@@ -323,7 +347,15 @@ async function notifyOrderEvent(order, eventKey, opts = {}) {
         channel: "email",
         recipient: ctx.customerEmail,
         templateSource: mail.source,
-        send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html, text: mail.text, entityRef: order.orderCode }),
+        send: () =>
+          resend.sendEmail({
+            to: ctx.customerEmail,
+            subject: mail.subject,
+            html: mail.html,
+            text: mail.text,
+            entityRef: order.orderCode,
+            attachments,
+          }),
       })
     );
   } else {
@@ -454,7 +486,7 @@ async function retryLog(logId) {
       send: () => discord.sendPaymentSuccess(ctx),
     });
   } else {
-    const mail = templates.resolveEmail(ctx, settings.templates.email[log.event]);
+    const { mail, attachments } = await buildEmailPayload(ctx, settings.templates.email[log.event], order.orderCode);
     debugTemplate({ order, event: log.event, channel: "email", source: mail.source, preview: mail.subject });
     result = await deliverChannel({
       order,
@@ -462,7 +494,15 @@ async function retryLog(logId) {
       channel: "email",
       recipient: ctx.customerEmail,
       templateSource: mail.source,
-      send: () => resend.sendEmail({ to: ctx.customerEmail, subject: mail.subject, html: mail.html, text: mail.text, entityRef: order.orderCode }),
+      send: () =>
+        resend.sendEmail({
+          to: ctx.customerEmail,
+          subject: mail.subject,
+          html: mail.html,
+          text: mail.text,
+          entityRef: order.orderCode,
+          attachments,
+        }),
     });
   }
 

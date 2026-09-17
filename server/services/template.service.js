@@ -154,6 +154,22 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
   const copy = EVENT_COPY[event];
   const paymentMethod = transaction && transaction.paymentGateway === "KLIKQRIS" ? "QRIS" : (transaction && transaction.paymentGateway) || "";
 
+  // URL asli (belum dibungkus proxy domain toko) untuk tiap gambar. Disimpan
+  // terpisah di ...Raw supaya emailInlineImages.service.js bisa mengambil
+  // byte gambarnya LANGSUNG dari storage (server-to-server, sama seperti
+  // asset.controller.proxyAsset) dan melampirkannya ke email sebagai CID —
+  // tidak lagi bergantung pada Gmail mau memuat https://.../api/assets/proxy
+  // dari internet. ctx.logoUrl dkk (URL proxy) tetap dihitung apa adanya dan
+  // dipakai sebagai fallback kalau pengambilan untuk lampiran gagal, dan
+  // tetap satu-satunya sumber yang dipakai Discord (lihat discord.service.js
+  // buildPaymentSuccessEmbed) — channel itu memang butuh URL asli, bukan CID.
+  const logoRaw = safeRemoteUrl(general.logo || (settings && settings.footer && settings.footer.logo), "general.logo");
+  const productImageRaw =
+    safeRemoteUrl(order.product && order.product.image, "order.product.image") ||
+    safeRemoteUrl(productImageFallback, "product.image (live)");
+  const waIconRaw = safeRemoteUrl(wa.icon, "contact.whatsapp.icon");
+  const discordIconRaw = safeRemoteUrl(discord.icon, "contact.discord.icon");
+
   const ctx = {
     event,
     storeName: general.storeName || "Store",
@@ -162,8 +178,10 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
     // footer.logo hanya cadangan kalau field branding memang kosong.
     // toEmailSafeUrl() membungkusnya lewat domain toko sendiri — lihat
     // utils/assetUrl.js untuk alasannya (domain R2 gratis sering diblokir
-    // proxy gambar Gmail/Discord walau linknya valid).
-    logoUrl: toEmailSafeUrl(safeRemoteUrl(general.logo || (settings && settings.footer && settings.footer.logo), "general.logo")),
+    // proxy gambar Gmail/Discord walau linknya valid). Untuk EMAIL, URL ini
+    // hanya dipakai sebagai fallback — lihat logoUrlRaw di atas.
+    logoUrl: toEmailSafeUrl(logoRaw),
+    logoUrlRaw: logoRaw,
 
     customerName: (order.customer && order.customer.name) || "Pelanggan",
     customerEmail: (order.customer && order.customer.email) || "",
@@ -174,10 +192,8 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
     // Gambar produk diambil dari snapshot order. `productImageFallback` diisi
     // notification.service dengan Product.image yang hidup sekarang, untuk
     // order lama yang snapshot-nya tersimpan sebelum URL R2-nya dibetulkan.
-    productImage: toEmailSafeUrl(
-      safeRemoteUrl(order.product && order.product.image, "order.product.image") ||
-        safeRemoteUrl(productImageFallback, "product.image (live)")
-    ),
+    productImage: toEmailSafeUrl(productImageRaw),
+    productImageRaw,
     quantity: order.quantity,
     price: formatIDR(order.product && order.product.price),
     // Yang ditagihkan gateway adalah totalAmount (total + kode unik). Kalau
@@ -195,10 +211,12 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
     waHref,
     // Ikon dibungkus proxy (gambar); href tautan dibiarkan apa adanya (bukan
     // gambar, tidak perlu dan tidak boleh diproxy).
-    waIcon: toEmailSafeUrl(safeRemoteUrl(wa.icon, "contact.whatsapp.icon")),
+    waIcon: toEmailSafeUrl(waIconRaw),
+    waIconRaw,
     waEnabled: wa.enabled !== false && Boolean(waHref),
     discordHref: safeRemoteUrl(discord.url, "contact.discord.url") || (discord.url && /^https?:\/\//i.test(discord.url) ? discord.url : ""),
-    discordIcon: toEmailSafeUrl(safeRemoteUrl(discord.icon, "contact.discord.icon")),
+    discordIcon: toEmailSafeUrl(discordIconRaw),
+    discordIconRaw,
     discordEnabled: discord.enabled !== false && Boolean(discord.url),
 
     accent: copy ? copy.accent : theme.primary || "#6d3bee",
