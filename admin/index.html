@@ -3,513 +3,1429 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin Panel</title>
+<meta name="robots" content="noindex,nofollow">
+<title>Admin Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="admin.css">
 </head>
 <body>
-<div class="app-shell" id="appShell" hidden>
+
+<!-- =====================================================================
+     ICON SPRITE — satu set ikon SVG untuk seluruh Admin Web.
+     Dipakai lewat <svg class="ico"><use href="#i-nama"></use></svg>
+     ===================================================================== -->
+<svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+  <symbol id="i-package" viewBox="0 0 24 24"><path d="m7.5 4.3 9 5.1"/><path d="M21 8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.8 2.2a2 2 0 0 0-1.6 0L2.6 6.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.6 0l8.6-3.9a1 1 0 0 0 0-1.8Z"/><path d="m6 9.5-3.4 1.6a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.6 0l8.6-3.9a1 1 0 0 0 0-1.8L18 9.5"/><path d="m6 14.5-3.4 1.6a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.6 0l8.6-3.9a1 1 0 0 0 0-1.8L18 14.5"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2 2h2l2.7 12.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 1.9-1.6L22 6H5.1"/></symbol>
+  <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 9h-5.5a1.75 1.75 0 0 0 0 3.5h3a1.75 1.75 0 0 1 0 3.5H8"/><path d="M12 17.5v-11"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M11.5 3.9a.55.55 0 0 1 1 0l2.1 4.2a.55.55 0 0 0 .4.3l4.7.7a.55.55 0 0 1 .3.94l-3.4 3.3a.55.55 0 0 0-.16.49l.8 4.68a.55.55 0 0 1-.79.58l-4.2-2.2a.55.55 0 0 0-.51 0l-4.2 2.2a.55.55 0 0 1-.8-.58l.8-4.68a.55.55 0 0 0-.15-.49L4 10.04a.55.55 0 0 1 .3-.94l4.7-.7a.55.55 0 0 0 .42-.3Z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24"><path d="m2 7 1.2-3.6A2 2 0 0 1 5.1 2h13.8a2 2 0 0 1 1.9 1.4L22 7"/><path d="M2 7h20v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0Z"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 21v-7h6v7"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></symbol>
+  <symbol id="i-track" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h7"/><path d="M14 2v5h5"/><circle cx="16.5" cy="16.5" r="3.5"/><path d="m21.5 21.5-2.4-2.4"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4.1 12.8a1 1 0 0 0 .8 1.7h6.3l-1.2 7.5 8.9-10.8a1 1 0 0 0-.8-1.7h-6.3Z"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M20.9 18.4A5 5 0 0 0 18 9h-1.3A8 8 0 1 0 3 16.3"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.6-4.6a2 2 0 0 0-2.8 0L3 21"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m10.3 3.7-8.1 13.5A2 2 0 0 0 3.9 20h16.2a2 2 0 0 0 1.7-2.8L13.7 3.7a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 9-9"/><path d="m16 5 3 3"/><path d="m13.5 7.5 3 3"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-9 5.7a2 2 0 0 1-2 0L2 7"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9Z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1 1 0 0 1 1.5 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1Z"/></symbol>
+  <symbol id="i-server" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01"/><path d="M6 18h.01"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="i-trend-up" viewBox="0 0 24 24"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></symbol>
+  <symbol id="i-trend-down" viewBox="0 0 24 24"><path d="M16 17h6v-6"/><path d="m22 17-8.5-8.5-5 5L2 7"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M21 11h-5a2.5 2.5 0 0 0 0 5h5a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1Z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 1 0 0 20 2 2 0 0 0 2-2v-1a2 2 0 0 1 2-2h2a4 4 0 0 0 4-4 10 10 0 0 0-10-9Z"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4"/><path d="m15.4 6.5-6.8 4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="7" rx="1"/><rect x="12.5" y="7" width="3" height="11" rx="1"/><rect x="18" y="4" width="3" height="14" rx="1"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="m12 3 1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z"/></symbol>
+  <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15h18"/></symbol>
+  <symbol id="i-droplet" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-4-7-13-7-13S5 11 5 15a7 7 0 0 0 7 7Z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="m6 3 14 9-14 9Z"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1Z"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.8 8.8a2 2 0 0 0 2.8 0l7.2-7.2a2 2 0 0 0 0-2.8Z"/><circle cx="7.5" cy="7.5" r="1.5"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></symbol>
+  <symbol id="i-qr" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></symbol>
+  <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-rows" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></symbol>
+</svg>
+
+<!-- Boot screen: tampil sampai sesi admin terverifikasi -->
+<div id="bootScreen" class="boot">
+  <span class="boot-spin"></span>
+  <span id="bootText">Menyiapkan Admin Console…</span>
+</div>
+
+<div class="app" id="appShell" data-rail="false" data-drawer="false" hidden>
+
+  <!-- ================================================================ SIDEBAR -->
   <aside class="sidebar">
-    <div class="brand"><span class="brand-mark" id="brandMark">·</span><div><b id="brandName">Admin</b><small>ADMIN PANEL</small></div></div>
-    <div class="store-status" id="storeStatus"><span></span> <em id="storeStatusText">Memuat...</em></div>
-    <nav>
-      <div class="nav-label">Overview</div>
-      <button class="nav-item active" data-page="dashboard"><i>⌂</i>Dashboard</button>
-      <div class="nav-label">Catalog</div>
-      <button class="nav-item" data-page="products"><i>◈</i>Produk</button>
-      <button class="nav-item" data-page="categories"><i>▤</i>Kategori</button>
-      <div class="nav-label">Orders</div>
-      <button class="nav-item" data-page="orders"><i>▣</i>Pesanan <em id="orderBadge" hidden>0</em></button>
-      <button class="nav-item" data-page="customers"><i>◍</i>Customer</button>
-      <div class="nav-label">Website</div>
-      <button class="nav-item" data-page="content"><i>✦</i>Konten Marketplace</button>
-      <button class="nav-item" data-page="faq"><i>?</i>FAQ</button>
-      <button class="nav-item" data-page="reviews"><i>★</i>Rating <em id="ratingBadge" hidden>0</em></button>
-      <div class="nav-label">System</div>
-      <button class="nav-item" data-page="integrations"><i>⚡</i>Integrasi</button>
-      <button class="nav-item" data-page="settings"><i>⚙</i>Pengaturan</button>
+    <div class="rail-brand">
+      <span class="rail-mark" id="brandMark">·</span>
+      <span class="rail-brand-text">
+        <b id="brandName">Store</b>
+        <span>Admin Console</span>
+      </span>
+    </div>
+
+    <div class="rail-store" id="storeStatus" data-state="offline">
+      <span class="dot"></span>
+      <em id="storeStatusText">Memuat status…</em>
+    </div>
+
+    <nav class="rail-nav" aria-label="Navigasi utama">
+      <div class="rail-group">Overview</div>
+      <button class="rail-item active" type="button" data-page="dashboard">
+        <svg class="ico"><use href="#i-dashboard"></use></svg><span>Dashboard</span>
+      </button>
+
+      <div class="rail-group">Katalog</div>
+      <button class="rail-item" type="button" data-page="products">
+        <svg class="ico"><use href="#i-package"></use></svg><span>Produk</span>
+      </button>
+      <button class="rail-item" type="button" data-page="categories">
+        <svg class="ico"><use href="#i-layers"></use></svg><span>Kategori</span>
+      </button>
+      <button class="rail-item" type="button" data-page="faq">
+        <svg class="ico"><use href="#i-help"></use></svg><span>FAQ</span>
+      </button>
+
+      <div class="rail-group">Transaksi</div>
+      <button class="rail-item" type="button" data-page="orders">
+        <svg class="ico"><use href="#i-cart"></use></svg><span>Pesanan</span><em class="count" id="orderBadge" hidden>0</em>
+      </button>
+      <button class="rail-item" type="button" data-page="transactions">
+        <svg class="ico"><use href="#i-receipt"></use></svg><span>Pembayaran</span>
+      </button>
+      <button class="rail-item" type="button" data-page="reviews">
+        <svg class="ico"><use href="#i-star"></use></svg><span>Rating</span><em class="count" id="ratingBadge" hidden>0</em>
+      </button>
+      <button class="rail-item" type="button" data-page="customers">
+        <svg class="ico"><use href="#i-users"></use></svg><span>Customer</span>
+      </button>
+
+      <div class="rail-group">Website</div>
+      <button class="rail-item" type="button" data-page="content">
+        <svg class="ico"><use href="#i-store"></use></svg><span>Marketplace</span>
+      </button>
+      <a class="rail-item" href="../" target="_blank" rel="noopener">
+        <svg class="ico"><use href="#i-home"></use></svg><span>Halaman Depan</span><svg class="ico ext"><use href="#i-external"></use></svg>
+      </a>
+      <a class="rail-item" href="../#kontak" target="_blank" rel="noopener">
+        <svg class="ico"><use href="#i-message"></use></svg><span>Kontak</span><svg class="ico ext"><use href="#i-external"></use></svg>
+      </a>
+      <a class="rail-item" href="../rating/" target="_blank" rel="noopener">
+        <svg class="ico"><use href="#i-star"></use></svg><span>Form Rating</span><svg class="ico ext"><use href="#i-external"></use></svg>
+      </a>
+      <a class="rail-item" href="../cek-pesanan/" target="_blank" rel="noopener">
+        <svg class="ico"><use href="#i-track"></use></svg><span>Cek Pesanan</span><svg class="ico ext"><use href="#i-external"></use></svg>
+      </a>
+
+      <div class="rail-group">Sistem</div>
+      <button class="rail-item" type="button" data-page="integrations">
+        <svg class="ico"><use href="#i-zap"></use></svg><span>Integrasi</span>
+      </button>
+      <button class="rail-item" type="button" data-page="settings">
+        <svg class="ico"><use href="#i-settings"></use></svg><span>Pengaturan</span>
+      </button>
     </nav>
-    <a class="view-store" href="../" target="_blank" rel="noopener">Lihat Marketplace <span>↗</span></a>
-    <div class="admin-profile">
-      <div class="avatar" id="adminInitials">··</div>
-      <div><b id="adminName">—</b><small id="adminRole">—</small></div>
-      <button title="Logout" id="logoutBtn">⏻</button>
+
+    <div class="rail-foot">
+      <div class="rail-user">
+        <span class="rail-avatar" id="adminInitials">··</span>
+        <span class="rail-user-text">
+          <b id="adminName">—</b>
+          <small id="adminRole">—</small>
+        </span>
+        <button class="rail-logout" type="button" id="logoutBtn" title="Keluar" aria-label="Keluar">
+          <svg class="ico ico-sm"><use href="#i-power"></use></svg>
+        </button>
+      </div>
     </div>
   </aside>
 
+  <div class="scrim" id="drawerScrim"></div>
+
+  <!-- =================================================================== MAIN -->
   <main class="main">
+
     <header class="topbar">
-      <div><div class="crumb"><span id="crumbStore">STORE</span> / <span id="crumb">DASHBOARD</span></div><h1 id="pageTitle">Dashboard</h1></div>
-      <div class="top-actions">
-        <span class="conn-pill" id="connPill" data-state="offline">Realtime: offline</span>
-        <button class="store-btn" id="viewMarketplaceBtn">Marketplace ↗</button>
+      <button class="rail-toggle" type="button" id="railToggle" aria-label="Tampilkan atau sembunyikan menu">
+        <svg class="ico"><use href="#i-panel"></use></svg>
+      </button>
+
+      <div class="topbar-id">
+        <div class="crumbs">
+          <b id="crumbStore">Store</b><span class="sep">/</span><b id="crumb">Dashboard</b>
+        </div>
+        <h1 id="pageTitle">Dashboard</h1>
+      </div>
+
+      <div class="topbar-tools">
+        <div class="quick-search pop-wrap">
+          <svg class="ico ico-sm"><use href="#i-search"></use></svg>
+          <input id="globalSearch" type="search" placeholder="Cari produk atau order…" autocomplete="off" aria-label="Pencarian cepat">
+          <div class="pop" id="globalResults" role="listbox"></div>
+        </div>
+
+        <span class="conn" id="connPill" data-state="offline"><i></i><span>Realtime</span></span>
+
+        <div class="pop-wrap">
+          <button class="icon-action" type="button" id="notifBtn" aria-label="Notifikasi">
+            <svg class="ico ico-sm"><use href="#i-bell"></use></svg>
+            <em class="pip" id="notifPip" hidden>0</em>
+          </button>
+          <div class="pop" id="notifPop">
+            <div class="pop-head">
+              <b>Aktivitas terbaru</b>
+              <button class="btn-link" type="button" id="notifClear">Tandai terbaca</button>
+            </div>
+            <div class="pop-body" id="notifList"></div>
+          </div>
+        </div>
+
+        <div class="pop-wrap">
+          <button class="icon-action" type="button" id="profileBtn" aria-label="Menu akun">
+            <svg class="ico ico-sm"><use href="#i-user"></use></svg>
+          </button>
+          <div class="pop menu" id="profilePop">
+            <div class="menu-user">
+              <b id="menuAdminName">—</b>
+              <small id="menuAdminEmail">—</small>
+            </div>
+            <button class="menu-item" type="button" data-page="settings">
+              <svg class="ico ico-sm"><use href="#i-user"></use></svg>Akun saya
+            </button>
+            <button class="menu-item" type="button" data-page="integrations">
+              <svg class="ico ico-sm"><use href="#i-zap"></use></svg>Integrasi
+            </button>
+            <a class="menu-item" href="../" target="_blank" rel="noopener">
+              <svg class="ico ico-sm"><use href="#i-external"></use></svg>Buka Marketplace
+            </a>
+            <div class="menu-sep"></div>
+            <button class="menu-item danger" type="button" id="logoutBtn2">
+              <svg class="ico ico-sm"><use href="#i-power"></use></svg>Keluar
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
-    <!-- ============ DASHBOARD ============ -->
+    <!-- ============================================================ DASHBOARD -->
     <section id="dashboard" class="page active">
-      <div class="welcome"><div><span class="eyebrow">OVERVIEW</span><h2>Selamat datang kembali.</h2><p>Kelola marketplace, produk, pesanan, dan seluruh konten store dari satu tempat.</p></div><button class="primary" data-open-product>＋ Tambah Produk</button></div>
-      <div class="stats-grid">
-        <div class="stat-card"><span>Total Penjualan</span><strong id="statRevenue">—</strong><small id="statRevenueDelta" class="neutral">—</small><div class="mini-chart" id="revenueChart"></div></div>
-        <div class="stat-card"><span>Pesanan</span><strong id="statOrders">—</strong><small id="statOrdersDelta" class="neutral">—</small><div class="stat-icon">▣</div></div>
-        <div class="stat-card"><span>Customer</span><strong id="statCustomers">—</strong><small class="neutral" id="statCustomersSub">—</small><div class="stat-icon">♙</div></div>
-        <div class="stat-card"><span>Rating</span><strong id="statRating">—</strong><small class="neutral" id="statRatingSub">—</small><div class="rating-stars" id="statRatingStars"></div></div>
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2 id="greeting">Ringkasan hari ini</h2>
+          <p id="greetingSub">Semua angka dihitung langsung dari database, bukan perkiraan.</p>
+        </div>
+        <div class="page-head-actions">
+          <button class="btn btn-outline" type="button" id="dashRefresh">
+            <svg class="ico"><use href="#i-refresh"></use></svg>Muat ulang
+          </button>
+          <button class="btn btn-primary" type="button" data-open-product>
+            <svg class="ico"><use href="#i-plus"></use></svg>Tambah produk
+          </button>
+        </div>
       </div>
-      <div class="two-col">
-        <div class="panel"><div class="panel-head"><div><h3>Pesanan Terbaru</h3><p>Aktivitas transaksi terbaru di store.</p></div><button class="text-btn" data-page="orders">Lihat semua →</button></div><div class="table-wrap"><table><thead><tr><th>ORDER</th><th>CUSTOMER</th><th>PRODUK</th><th>TOTAL</th><th>STATUS</th></tr></thead><tbody id="recentOrders"></tbody></table></div></div>
-        <div class="panel"><div class="panel-head"><div><h3>Produk Terlaris</h3><p>Berdasarkan jumlah terjual di database.</p></div><button class="text-btn" data-page="products">Kelola →</button></div><div id="bestProducts" class="best-products"></div></div>
+
+      <div class="stat-row">
+        <div class="stat stat-feature">
+          <div class="stat-top">
+            <span class="stat-label">Pendapatan terverifikasi</span>
+            <span class="stat-mark"><svg class="ico ico-sm"><use href="#i-wallet"></use></svg></span>
+          </div>
+          <div class="stat-value" id="statRevenue">—</div>
+          <div class="stat-note" id="statRevenueDelta">—</div>
+          <div class="spark" id="revenueChart" title="Pendapatan 7 hari terakhir"></div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-top">
+            <span class="stat-label">Pesanan masuk</span>
+            <span class="stat-mark"><svg class="ico ico-sm"><use href="#i-cart"></use></svg></span>
+          </div>
+          <div class="stat-value" id="statOrders">—</div>
+          <div class="stat-note" id="statOrdersDelta">—</div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-top">
+            <span class="stat-label">Customer membayar</span>
+            <span class="stat-mark"><svg class="ico ico-sm"><use href="#i-users"></use></svg></span>
+          </div>
+          <div class="stat-value" id="statCustomers">—</div>
+          <div class="stat-note" id="statCustomersSub">—</div>
+        </div>
+
+        <div class="stat">
+          <div class="stat-top">
+            <span class="stat-label">Rating rata-rata</span>
+            <span class="stat-mark"><svg class="ico ico-sm"><use href="#i-star"></use></svg></span>
+          </div>
+          <div class="stat-value" id="statRating">—</div>
+          <div class="stat-note"><span class="stars" id="statRatingStars"></span><span id="statRatingSub">—</span></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-head-text">
+              <h3>Pesanan terbaru</h3>
+              <p>Lima transaksi terakhir yang tercatat.</p>
+            </div>
+            <button class="btn btn-sm btn-outline" type="button" data-page="orders">Lihat semua</button>
+          </div>
+          <div class="panel-body flush">
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Customer</th>
+                    <th>Produk</th>
+                    <th class="num">Total</th>
+                    <th class="shrink">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="recentOrders"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-head-text">
+                <h3>Status pesanan</h3>
+                <p>Sebaran seluruh order.</p>
+              </div>
+            </div>
+            <div class="panel-body" id="statusBreakdown"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-head-text">
+                <h3>Produk terlaris</h3>
+                <p>Diurutkan dari jumlah terjual.</p>
+              </div>
+              <button class="btn btn-sm btn-outline" type="button" data-page="products">Kelola</button>
+            </div>
+            <div class="panel-body flush">
+              <div class="table-scroll">
+                <table>
+                  <tbody id="bestProducts"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- ============ ORDERS ============ -->
+    <!-- =============================================================== ORDERS -->
     <section id="orders" class="page">
-      <div class="page-head"><div><span class="eyebrow">TRANSACTIONS</span><h2>Pesanan.</h2><p>Data order dan pembayaran langsung dari MongoDB, update realtime.</p></div></div>
-      <div class="toolbar">
-        <div class="search"><span>⌕</span><input id="orderSearch" placeholder="Cari order code, customer, email, atau produk..."></div>
-        <select id="orderStatusFilter"><option value="">Semua Order Status</option><option value="PENDING">PENDING</option><option value="PAID">PAID</option><option value="FAILED">FAILED</option><option value="EXPIRED">EXPIRED</option><option value="CANCELLED">CANCELLED</option><option value="COMPLETED">COMPLETED</option></select>
-        <select id="paymentStatusFilter"><option value="">Semua Payment Status</option><option value="PENDING">PENDING</option><option value="SUCCESS">SUCCESS</option><option value="FAILED">FAILED</option><option value="EXPIRED">EXPIRED</option><option value="CANCELLED">CANCELLED</option></select>
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>Pesanan</h2>
+          <p>Seluruh order beserta status pembayarannya, diperbarui realtime lewat Socket.IO.</p>
+        </div>
       </div>
-      <div class="panel"><div class="table-wrap"><table class="full"><thead><tr><th>ORDER CODE</th><th>CUSTOMER</th><th>PRODUK</th><th>QTY</th><th>TANGGAL</th><th>TOTAL</th><th>PAYMENT</th><th>ORDER STATUS</th><th></th></tr></thead><tbody id="ordersTable"></tbody></table></div></div>
+
+      <div class="toolbar">
+        <label class="search">
+          <svg class="ico ico-sm"><use href="#i-search"></use></svg>
+          <input id="orderSearch" type="search" placeholder="Cari order code, customer, email, atau produk" aria-label="Cari pesanan">
+        </label>
+        <span class="spacer"></span>
+        <select id="orderStatusFilter" aria-label="Filter status order">
+          <option value="">Semua status order</option>
+          <option value="PENDING">Pending</option>
+          <option value="PAID">Paid</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="FAILED">Failed</option>
+          <option value="EXPIRED">Expired</option>
+          <option value="CANCELLED">Cancelled</option>
+        </select>
+        <select id="paymentStatusFilter" aria-label="Filter status pembayaran">
+          <option value="">Semua status bayar</option>
+          <option value="PENDING">Pending</option>
+          <option value="SUCCESS">Success</option>
+          <option value="FAILED">Failed</option>
+          <option value="EXPIRED">Expired</option>
+          <option value="CANCELLED">Cancelled</option>
+        </select>
+      </div>
+
+      <div class="panel">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Order code</th>
+                <th>Customer</th>
+                <th>Produk</th>
+                <th class="num shrink">Qty</th>
+                <th class="num">Total</th>
+                <th class="shrink">Pembayaran</th>
+                <th class="shrink">Status order</th>
+                <th>Tanggal</th>
+                <th class="shrink"></th>
+              </tr>
+            </thead>
+            <tbody id="ordersTable"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="pager" id="ordersPager"></div>
     </section>
 
-    <!-- ============ PRODUCTS ============ -->
-    <section id="products" class="page">
-      <div class="page-head"><div><span class="eyebrow">CATALOG</span><h2>Produk.</h2><p>Tambah, edit, atur stok, harga, gambar (upload ke Cloudflare R2), dan status produk.</p></div><button class="primary" data-open-product>＋ Tambah Produk</button></div>
-      <div class="toolbar">
-        <div class="search"><span>⌕</span><input id="productSearch" placeholder="Cari nama produk..."></div>
-        <select id="categoryFilter"><option value="">Semua Kategori</option></select>
-        <select id="productStatusFilter"><option value="">Semua Status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+    <!-- ========================================================= TRANSACTIONS -->
+    <section id="transactions" class="page">
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>Pembayaran</h2>
+          <p>Sudut pandang pembayaran dari data order yang sama. Detail transaksi gateway ada di dalam setiap baris.</p>
+        </div>
       </div>
-      <div id="productGrid" class="product-admin-grid"></div>
+
+      <div class="toolbar">
+        <label class="search">
+          <svg class="ico ico-sm"><use href="#i-search"></use></svg>
+          <input id="txSearch" type="search" placeholder="Cari order code, customer, atau produk" aria-label="Cari pembayaran">
+        </label>
+        <span class="spacer"></span>
+        <div class="seg" id="txSeg">
+          <button type="button" class="active" data-tx-status="">Semua</button>
+          <button type="button" data-tx-status="PENDING">Pending</button>
+          <button type="button" data-tx-status="SUCCESS">Berhasil</button>
+          <button type="button" data-tx-status="FAILED">Gagal</button>
+          <button type="button" data-tx-status="EXPIRED">Kedaluwarsa</button>
+          <button type="button" data-tx-status="CANCELLED">Dibatalkan</button>
+        </div>
+      </div>
+
+      <div class="stat-row" id="txStats"></div>
+
+      <div class="panel">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Referensi</th>
+                <th>Customer</th>
+                <th>Produk</th>
+                <th class="num">Nominal</th>
+                <th class="shrink">Status bayar</th>
+                <th class="shrink">Status order</th>
+                <th>Dibuat</th>
+                <th class="shrink"></th>
+              </tr>
+            </thead>
+            <tbody id="txTable"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="pager" id="txPager"></div>
     </section>
 
-    <!-- ============ CATEGORIES ============ -->
+    <!-- ============================================================= PRODUCTS -->
+    <section id="products" class="page">
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>Produk</h2>
+          <p>Kelola harga, stok, gambar, dan status tayang. Gambar diunggah ke Cloudflare R2.</p>
+        </div>
+        <div class="page-head-actions">
+          <div class="seg" id="productView">
+            <button type="button" class="active" data-view="grid" title="Tampilan kartu"><svg class="ico ico-sm"><use href="#i-grid"></use></svg></button>
+            <button type="button" data-view="table" title="Tampilan tabel"><svg class="ico ico-sm"><use href="#i-rows"></use></svg></button>
+          </div>
+          <button class="btn btn-primary" type="button" data-open-product>
+            <svg class="ico"><use href="#i-plus"></use></svg>Tambah produk
+          </button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <label class="search">
+          <svg class="ico ico-sm"><use href="#i-search"></use></svg>
+          <input id="productSearch" type="search" placeholder="Cari nama produk" aria-label="Cari produk">
+        </label>
+        <span class="spacer"></span>
+        <select id="categoryFilter" aria-label="Filter kategori"><option value="">Semua kategori</option></select>
+        <select id="productStatusFilter" aria-label="Filter status produk">
+          <option value="">Semua status</option>
+          <option value="active">Aktif</option>
+          <option value="inactive">Nonaktif</option>
+        </select>
+      </div>
+
+      <div id="productGrid" class="product-grid"></div>
+
+      <div class="panel" id="productTableWrap" hidden>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Produk</th>
+                <th>Kategori</th>
+                <th class="num">Harga</th>
+                <th class="num shrink">Stok</th>
+                <th class="num shrink">Terjual</th>
+                <th class="shrink">Status</th>
+                <th class="shrink"></th>
+              </tr>
+            </thead>
+            <tbody id="productTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================== CATEGORIES -->
     <section id="categories" class="page">
-      <div class="page-head"><div><span class="eyebrow">CATALOG</span><h2>Kategori.</h2><p>Kategori yang dipakai produk dan ditampilkan sebagai section di Marketplace.</p></div><button class="primary" data-open-category>＋ Tambah Kategori</button></div>
-      <div class="panel"><div class="table-wrap"><table class="full"><thead><tr><th>NAMA</th><th>SLUG</th><th>ICON</th><th>DESKRIPSI</th><th>URUTAN</th><th>STATUS</th><th></th></tr></thead><tbody id="categoriesTable"></tbody></table></div></div>
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>Kategori</h2>
+          <p>Kategori menentukan pengelompokan produk dan section yang tampil di Marketplace.</p>
+        </div>
+        <div class="page-head-actions">
+          <button class="btn btn-primary" type="button" data-open-category>
+            <svg class="ico"><use href="#i-plus"></use></svg>Tambah kategori
+          </button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <label class="search">
+          <svg class="ico ico-sm"><use href="#i-search"></use></svg>
+          <input id="categorySearch" type="search" placeholder="Cari nama kategori" aria-label="Cari kategori">
+        </label>
+      </div>
+
+      <div class="panel">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Kategori</th>
+                <th>Slug</th>
+                <th>Deskripsi</th>
+                <th class="num shrink">Produk</th>
+                <th class="num shrink">Urutan</th>
+                <th class="shrink">Status</th>
+                <th class="shrink"></th>
+              </tr>
+            </thead>
+            <tbody id="categoriesTable"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
-    <!-- ============ CUSTOMERS ============ -->
+    <!-- ============================================================ CUSTOMERS -->
     <section id="customers" class="page">
-      <div class="page-head"><div><span class="eyebrow">CUSTOMERS</span><h2>Customer.</h2><p>Jumlah order dan total belanja dihitung dari order yang benar-benar PAID.</p></div></div>
-      <div class="toolbar"><div class="search"><span>⌕</span><input id="customerSearch" placeholder="Cari nama, email, atau nomor WhatsApp..."></div></div>
-      <div class="panel"><div class="table-wrap"><table class="full"><thead><tr><th>CUSTOMER</th><th>EMAIL</th><th>WHATSAPP</th><th>ORDER</th><th>ORDER PAID</th><th>TOTAL BELANJA</th><th>ORDER TERAKHIR</th></tr></thead><tbody id="customersTable"></tbody></table></div></div>
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>Customer</h2>
+          <p>Jumlah order dan total belanja dihitung dari order yang benar-benar dibayar.</p>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <label class="search">
+          <svg class="ico ico-sm"><use href="#i-search"></use></svg>
+          <input id="customerSearch" type="search" placeholder="Cari nama, email, atau nomor WhatsApp" aria-label="Cari customer">
+        </label>
+      </div>
+
+      <div class="panel">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Kontak</th>
+                <th class="num shrink">Order</th>
+                <th class="num shrink">Dibayar</th>
+                <th class="num">Total belanja</th>
+                <th>Order terakhir</th>
+              </tr>
+            </thead>
+            <tbody id="customersTable"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="pager" id="customersPager"></div>
     </section>
 
-    <!-- ============ CONTENT (WebsiteSettings, 10 section) ============ -->
+    <!-- ================================================= MARKETPLACE CONTENT -->
     <section id="content" class="page">
-      <div class="page-head"><div><span class="eyebrow">MARKETPLACE CONTENT</span><h2>Konten Marketplace.</h2><p>Setiap tab disimpan terpisah ke section-nya masing-masing dan langsung dikirim ke Marketplace via Socket.IO.</p></div></div>
-      <div class="settings-layout">
-        <div class="settings-nav">
-          <button class="setting-tab active" data-tab="general">General</button>
-          <button class="setting-tab" data-tab="navbar">Navbar</button>
-          <button class="setting-tab" data-tab="home">Home</button>
-          <button class="setting-tab" data-tab="statistics">Statistics</button>
-          <button class="setting-tab" data-tab="highlights">Highlights</button>
-          <button class="setting-tab" data-tab="contact">Contact</button>
-          <button class="setting-tab" data-tab="footer">Footer</button>
-          <button class="setting-tab" data-tab="background">Background</button>
-          <button class="setting-tab" data-tab="theme">Theme</button>
-          <button class="setting-tab" data-tab="typography">Typography</button>
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>Marketplace</h2>
+          <p>Setiap section disimpan terpisah dan langsung dikirim ke Marketplace lewat Socket.IO tanpa perlu refresh.</p>
         </div>
-        <div class="setting-content">
+        <div class="page-head-actions">
+          <a class="btn btn-outline" href="../" target="_blank" rel="noopener">
+            <svg class="ico"><use href="#i-external"></use></svg>Pratinjau
+          </a>
+        </div>
+      </div>
 
-          <div class="setting-pane active" id="tab-general">
-            <div class="form-section"><h3>Informasi Store</h3><p>Identitas utama yang dipakai Marketplace, email, dan WhatsApp.</p>
-              <div class="form-grid">
-                <label>Nama Store<input data-section="general" data-field="storeName"></label>
-                <label>Website Status<select data-section="general" data-field="websiteStatus"><option value="online">online</option><option value="maintenance">maintenance</option></select></label>
-                <label class="wide">Deskripsi<textarea data-section="general" data-field="description"></textarea></label>
-                <label class="wide">Copyright<input data-section="general" data-field="copyright"></label>
+      <div class="split-layout" data-split="content">
+        <nav class="split-nav">
+          <div class="split-nav-label">Section</div>
+          <button class="split-tab active" type="button" data-tab="general"><svg class="ico"><use href="#i-store"></use></svg><span>Identitas</span></button>
+          <button class="split-tab" type="button" data-tab="navbar"><svg class="ico"><use href="#i-list"></use></svg><span>Navbar</span></button>
+          <button class="split-tab" type="button" data-tab="home"><svg class="ico"><use href="#i-home"></use></svg><span>Halaman depan</span></button>
+          <button class="split-tab" type="button" data-tab="statistics"><svg class="ico"><use href="#i-chart"></use></svg><span>Statistik</span></button>
+          <button class="split-tab" type="button" data-tab="highlights"><svg class="ico"><use href="#i-sparkle"></use></svg><span>Highlight</span></button>
+          <button class="split-tab" type="button" data-tab="contact"><svg class="ico"><use href="#i-message"></use></svg><span>Kontak</span></button>
+          <button class="split-tab" type="button" data-tab="footer"><svg class="ico"><use href="#i-layout"></use></svg><span>Footer</span></button>
+          <button class="split-tab" type="button" data-tab="background"><svg class="ico"><use href="#i-droplet"></use></svg><span>Background</span></button>
+          <button class="split-tab" type="button" data-tab="theme"><svg class="ico"><use href="#i-palette"></use></svg><span>Warna</span></button>
+          <button class="split-tab" type="button" data-tab="typography"><svg class="ico"><use href="#i-type"></use></svg><span>Tipografi</span></button>
+        </nav>
+
+        <div class="split-panes">
+
+          <!-- general -->
+          <div class="pane active" id="tab-general">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Identitas store</h3><p>Nama dan deskripsi ini dipakai di Marketplace, email, dan pesan WhatsApp.</p></div></div>
+              <div class="panel-body">
+                <div class="form-grid">
+                  <label class="field"><span>Nama store</span><input data-section="general" data-field="storeName" placeholder="Nama yang tampil ke pembeli"></label>
+                  <label class="field"><span>Status website</span>
+                    <select data-section="general" data-field="websiteStatus">
+                      <option value="online">Online</option>
+                      <option value="maintenance">Maintenance</option>
+                    </select>
+                  </label>
+                  <label class="field span-full"><span>Deskripsi</span><textarea data-section="general" data-field="description" placeholder="Satu atau dua kalimat tentang store"></textarea></label>
+                  <label class="field span-full"><span>Teks copyright</span><input data-section="general" data-field="copyright" placeholder="© 2026 Nama Store"></label>
+                </div>
+
+                <div class="fieldset">
+                  <div class="fieldset-head"><h4>Logo &amp; favicon</h4><p>File diunggah ke Cloudflare R2; database hanya menyimpan URL-nya.</p></div>
+                  <div class="asset-row">
+                    <label class="asset">
+                      <span>Logo</span>
+                      <span class="asset-box"><img id="preview-general-logo" alt=""><svg class="ico"><use href="#i-image"></use></svg></span>
+                      <small>Klik untuk mengunggah</small>
+                      <input type="file" accept="image/*" data-upload-target="general.logo" data-upload-folder="branding">
+                    </label>
+                    <label class="asset">
+                      <span>Favicon</span>
+                      <span class="asset-box"><img id="preview-general-favicon" alt=""><svg class="ico"><use href="#i-image"></use></svg></span>
+                      <small>Klik untuk mengunggah</small>
+                      <input type="file" accept="image/*" data-upload-target="general.favicon" data-upload-folder="branding">
+                    </label>
+                  </div>
+                  <input type="hidden" data-section="general" data-field="logo">
+                  <input type="hidden" data-section="general" data-field="favicon">
+                </div>
               </div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="general">Simpan identitas</button></div>
             </div>
-            <div class="form-section"><h3>Logo &amp; Favicon</h3><p>File diupload ke Cloudflare R2, MongoDB hanya menyimpan URL-nya.</p>
-              <div class="asset-row">
-                <label class="asset-box"><span>Logo</span><img id="preview-general-logo" alt=""><input type="file" accept="image/*" data-upload-target="general.logo" data-upload-folder="branding"><small>Klik untuk upload</small></label>
-                <label class="asset-box"><span>Favicon</span><img id="preview-general-favicon" alt=""><input type="file" accept="image/*" data-upload-target="general.favicon" data-upload-folder="branding"><small>Klik untuk upload</small></label>
-              </div>
-              <input type="hidden" data-section="general" data-field="logo">
-              <input type="hidden" data-section="general" data-field="favicon">
-            </div>
-            <div class="pane-foot"><button class="primary" data-save-section="general">Simpan General</button></div>
           </div>
 
-          <div class="setting-pane" id="tab-navbar">
-            <div class="form-section"><h3>Navbar</h3><p>Urutan, label, route, icon, dan enable/disable tiap menu.</p>
-              <div class="form-grid"><label>Label Cek Pesanan<input data-section="navbar" data-field="cekPesananLabel"></label></div>
-              <div id="navbarItems" class="repeat-list"></div>
-              <button class="outline" type="button" id="addNavbarItem">＋ Tambah Menu</button>
+          <!-- navbar -->
+          <div class="pane" id="tab-navbar">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Menu navigasi</h3><p>Atur label, tujuan, ikon, dan urutan menu di Marketplace.</p></div>
+                <button class="btn btn-sm btn-outline" type="button" id="addNavbarItem"><svg class="ico"><use href="#i-plus"></use></svg>Tambah menu</button>
+              </div>
+              <div class="panel-body">
+                <div class="form-grid one" style="margin-bottom:var(--s5)">
+                  <label class="field"><span>Label tombol Cek Pesanan</span><input data-section="navbar" data-field="cekPesananLabel" placeholder="Cek Pesanan"></label>
+                </div>
+                <div id="navbarItems" class="repeat"></div>
+              </div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="navbar">Simpan navbar</button></div>
             </div>
-            <div class="pane-foot"><button class="primary" data-save-section="navbar">Simpan Navbar</button></div>
           </div>
 
-          <div class="setting-pane" id="tab-home">
-            <div class="form-section"><h3>Hero / Home</h3><p>Konten utama halaman depan Marketplace.</p>
-              <div class="form-grid">
-                <label>Subtitle (eyebrow)<input data-section="home" data-field="subtitle"></label>
-                <label>Heading<input data-section="home" data-field="heading"></label>
-                <label class="wide">Deskripsi<textarea data-section="home" data-field="description"></textarea></label>
-                <label>Teks CTA<input data-section="home" data-field="ctaText"></label>
-                <label>Link CTA<input data-section="home" data-field="ctaLink" placeholder="#produk"></label>
+          <!-- home -->
+          <div class="pane" id="tab-home">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Bagian utama halaman depan</h3><p>Teks pertama yang dibaca pengunjung sebelum melihat produk.</p></div></div>
+              <div class="panel-body">
+                <div class="form-grid">
+                  <label class="field"><span>Teks kecil di atas judul</span><input data-section="home" data-field="subtitle" placeholder="Top up instan"></label>
+                  <label class="field"><span>Judul</span><input data-section="home" data-field="heading" placeholder="Judul besar halaman depan"></label>
+                  <label class="field span-full"><span>Deskripsi</span><textarea data-section="home" data-field="description" placeholder="Penjelasan singkat di bawah judul"></textarea></label>
+                  <label class="field"><span>Teks tombol</span><input data-section="home" data-field="ctaText" placeholder="Lihat produk"></label>
+                  <label class="field"><span>Tujuan tombol</span><input data-section="home" data-field="ctaLink" placeholder="#produk"></label>
+                </div>
               </div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="home">Simpan halaman depan</button></div>
             </div>
-            <div class="pane-foot"><button class="primary" data-save-section="home">Simpan Home</button></div>
           </div>
 
-          <div class="setting-pane" id="tab-statistics">
-            <div class="form-section"><h3>Statistics</h3><p>Angkanya dihitung backend dari order/produk/rating asli — di sini hanya mengatur visibility, label, dan urutan.</p>
-              <div class="form-grid"><label>Label Support<input data-section="statistics" data-field="supportLabel"></label></div>
-              <div id="statisticsItems" class="repeat-list"></div>
+          <!-- statistics -->
+          <div class="pane" id="tab-statistics">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Statistik Marketplace</h3><p>Angkanya dihitung backend dari order, produk, dan rating asli. Di sini hanya mengatur tampil atau tidaknya.</p></div></div>
+              <div class="panel-body">
+                <div class="form-grid one" style="margin-bottom:var(--s5)">
+                  <label class="field"><span>Label statistik dukungan</span><input data-section="statistics" data-field="supportLabel" placeholder="Support 24/7"></label>
+                </div>
+                <div id="statisticsItems" class="repeat"></div>
+              </div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="statistics">Simpan statistik</button></div>
             </div>
-            <div class="pane-foot"><button class="primary" data-save-section="statistics">Simpan Statistics</button></div>
           </div>
 
-          <div class="setting-pane" id="tab-highlights">
-            <div class="form-section"><h3>Highlights</h3><p>Kartu keunggulan store yang tampil di bawah Hero.</p>
-              <div id="highlightItems" class="repeat-list"></div>
-              <button class="outline" type="button" id="addHighlight">＋ Tambah Highlight</button>
+          <!-- highlights -->
+          <div class="pane" id="tab-highlights">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Highlight</h3><p>Kartu keunggulan yang tampil di bawah bagian utama.</p></div>
+                <button class="btn btn-sm btn-outline" type="button" id="addHighlight"><svg class="ico"><use href="#i-plus"></use></svg>Tambah highlight</button>
+              </div>
+              <div class="panel-body"><div id="highlightItems" class="repeat"></div></div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="highlights">Simpan highlight</button></div>
             </div>
-            <div class="pane-foot"><button class="primary" data-save-section="highlights">Simpan Highlights</button></div>
           </div>
 
-          <div class="setting-pane" id="tab-contact">
-            <div class="form-section"><h3>Contact &amp; Support</h3>
-              <div class="toggle-row"><div><b>Tampilkan section Contact</b><small>Sembunyikan kalau belum siap dipakai.</small></div><input type="checkbox" data-section="contact" data-field="enabled"></div>
-              <div class="form-grid">
-                <label>WhatsApp<input data-section="contact" data-field="whatsapp" placeholder="6281234567890"></label>
-                <label>Discord URL<input data-section="contact" data-field="discordUrl" placeholder="https://discord.gg/..."></label>
-                <label>Judul<input data-section="contact" data-field="title"></label>
-                <label>Teks Tombol<input data-section="contact" data-field="buttonText"></label>
-                <label class="wide">Deskripsi<textarea data-section="contact" data-field="description"></textarea></label>
+          <!-- contact -->
+          <div class="pane" id="tab-contact">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Kontak &amp; bantuan</h3><p>Kanal yang bisa dihubungi pembeli langsung dari Marketplace.</p></div></div>
+              <div class="panel-body">
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Tampilkan bagian kontak</b><small>Sembunyikan kalau kanalnya belum siap dipakai.</small></div>
+                  <label class="switch"><input type="checkbox" data-section="contact" data-field="enabled"><i></i></label>
+                </div>
+                <div class="form-grid" style="margin-top:var(--s5)">
+                  <label class="field"><span>Nomor WhatsApp</span><input data-section="contact" data-field="whatsapp" placeholder="6281234567890"></label>
+                  <label class="field"><span>Tautan Discord</span><input data-section="contact" data-field="discordUrl" placeholder="https://discord.gg/…"></label>
+                  <label class="field"><span>Judul</span><input data-section="contact" data-field="title" placeholder="Butuh bantuan?"></label>
+                  <label class="field"><span>Teks tombol</span><input data-section="contact" data-field="buttonText" placeholder="Hubungi kami"></label>
+                  <label class="field span-full"><span>Deskripsi</span><textarea data-section="contact" data-field="description"></textarea></label>
+                </div>
+                <div class="fieldset">
+                  <div class="fieldset-head"><h4>Gambar</h4></div>
+                  <div class="asset-row">
+                    <label class="asset">
+                      <span>Logo kontak</span>
+                      <span class="asset-box"><img id="preview-contact-logo" alt=""><svg class="ico"><use href="#i-image"></use></svg></span>
+                      <small>Klik untuk mengunggah</small>
+                      <input type="file" accept="image/*" data-upload-target="contact.logo" data-upload-folder="contact">
+                    </label>
+                  </div>
+                  <input type="hidden" data-section="contact" data-field="logo">
+                </div>
               </div>
-              <div class="asset-row">
-                <label class="asset-box"><span>Logo Contact</span><img id="preview-contact-logo" alt=""><input type="file" accept="image/*" data-upload-target="contact.logo" data-upload-folder="contact"><small>Klik untuk upload</small></label>
-              </div>
-              <input type="hidden" data-section="contact" data-field="logo">
+              <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="contact">Simpan kontak</button></div>
             </div>
-            <div class="pane-foot"><button class="primary" data-save-section="contact">Simpan Contact</button></div>
           </div>
 
-          <div class="setting-pane" id="tab-footer">
-            <div class="form-section"><h3>Footer</h3>
-              <div class="form-grid">
-                <label class="wide">Deskripsi<textarea data-section="footer" data-field="description"></textarea></label>
-                <label class="wide">Copyright<input data-section="footer" data-field="copyright"></label>
+          <!-- footer -->
+          <div class="pane" id="tab-footer">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Footer</h3><p>Bagian penutup di setiap halaman Marketplace.</p></div></div>
+              <div class="panel-body">
+                <div class="form-grid one">
+                  <label class="field"><span>Deskripsi</span><textarea data-section="footer" data-field="description"></textarea></label>
+                  <label class="field"><span>Teks copyright</span><input data-section="footer" data-field="copyright"></label>
+                </div>
+                <div class="fieldset">
+                  <div class="fieldset-head"><h4>Logo footer</h4></div>
+                  <div class="asset-row">
+                    <label class="asset">
+                      <span>Logo</span>
+                      <span class="asset-box"><img id="preview-footer-logo" alt=""><svg class="ico"><use href="#i-image"></use></svg></span>
+                      <small>Klik untuk mengunggah</small>
+                      <input type="file" accept="image/*" data-upload-target="footer.logo" data-upload-folder="branding">
+                    </label>
+                  </div>
+                  <input type="hidden" data-section="footer" data-field="logo">
+                </div>
               </div>
-              <div class="asset-row">
-                <label class="asset-box"><span>Logo Footer</span><img id="preview-footer-logo" alt=""><input type="file" accept="image/*" data-upload-target="footer.logo" data-upload-folder="branding"><small>Klik untuk upload</small></label>
-              </div>
-              <input type="hidden" data-section="footer" data-field="logo">
             </div>
-            <div class="form-section"><h3>Footer Links</h3><div id="footerLinks" class="repeat-list"></div><button class="outline" type="button" id="addFooterLink">＋ Tambah Link</button></div>
-            <div class="form-section"><h3>Social</h3><div id="footerSocial" class="repeat-list"></div><button class="outline" type="button" id="addFooterSocial">＋ Tambah Social</button></div>
-            <div class="pane-foot"><button class="primary" data-save-section="footer">Simpan Footer</button></div>
+
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Tautan footer</h3></div>
+                <button class="btn btn-sm btn-outline" type="button" id="addFooterLink"><svg class="ico"><use href="#i-plus"></use></svg>Tambah tautan</button>
+              </div>
+              <div class="panel-body"><div id="footerLinks" class="repeat"></div></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Media sosial</h3></div>
+                <button class="btn btn-sm btn-outline" type="button" id="addFooterSocial"><svg class="ico"><use href="#i-plus"></use></svg>Tambah akun</button>
+              </div>
+              <div class="panel-body"><div id="footerSocial" class="repeat"></div></div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="footer">Simpan footer</button></div>
+            </div>
           </div>
 
-          <div class="setting-pane" id="tab-background">
-            <div class="form-section"><h3>Background</h3>
-              <div class="form-grid">
-                <label>Mode<select data-section="background" data-field="mode"><option value="solid">solid</option><option value="gradient">gradient</option><option value="image">image</option></select></label>
-                <label>Solid Color<input type="color" data-section="background" data-field="solidColor"></label>
-                <label class="wide">Gradient CSS<input data-section="background" data-field="gradient" placeholder="linear-gradient(135deg,#faf9ff,#efe9ff)"></label>
-                <label class="wide">Overlay CSS<input data-section="background" data-field="overlay" placeholder="rgba(0,0,0,.25)"></label>
+          <!-- background -->
+          <div class="pane" id="tab-background">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Background</h3><p>Latar belakang Marketplace: warna solid, gradasi, atau gambar.</p></div></div>
+              <div class="panel-body">
+                <div class="form-grid">
+                  <label class="field"><span>Mode</span>
+                    <select data-section="background" data-field="mode">
+                      <option value="solid">Warna solid</option>
+                      <option value="gradient">Gradasi</option>
+                      <option value="image">Gambar</option>
+                    </select>
+                  </label>
+                  <label class="field"><span>Warna solid</span><input type="color" data-section="background" data-field="solidColor"></label>
+                  <label class="field span-full"><span>Nilai gradasi CSS</span><input data-section="background" data-field="gradient" placeholder="linear-gradient(135deg,#faf9ff,#efe9ff)"></label>
+                  <label class="field span-full"><span>Lapisan overlay CSS</span><input data-section="background" data-field="overlay" placeholder="rgba(0,0,0,.25)"></label>
+                </div>
+                <div class="fieldset">
+                  <div class="fieldset-head"><h4>Gambar background</h4></div>
+                  <div class="asset-row">
+                    <label class="asset">
+                      <span>Gambar</span>
+                      <span class="asset-box"><img id="preview-background-image" alt=""><svg class="ico"><use href="#i-image"></use></svg></span>
+                      <small>Klik untuk mengunggah</small>
+                      <input type="file" accept="image/*" data-upload-target="background.image" data-upload-folder="background">
+                    </label>
+                  </div>
+                  <input type="hidden" data-section="background" data-field="image">
+                </div>
+                <div class="fieldset">
+                  <div class="fieldset-head"><h4>Efek</h4></div>
+                  <div class="toggle-row">
+                    <div class="toggle-row-text"><b>Animasi background</b><small>Gerakan halus pada latar belakang.</small></div>
+                    <label class="switch"><input type="checkbox" data-section="background" data-field="animationEnabled"><i></i></label>
+                  </div>
+                  <div class="toggle-row">
+                    <div class="toggle-row-text"><b>Efek cahaya</b><small>Glow dekoratif di belakang konten.</small></div>
+                    <label class="switch"><input type="checkbox" data-section="background" data-field="ambientEffectsEnabled"><i></i></label>
+                  </div>
+                </div>
               </div>
-              <div class="asset-row">
-                <label class="asset-box"><span>Background Image</span><img id="preview-background-image" alt=""><input type="file" accept="image/*" data-upload-target="background.image" data-upload-folder="background"><small>Klik untuk upload</small></label>
-              </div>
-              <input type="hidden" data-section="background" data-field="image">
-              <div class="toggle-row"><div><b>Animasi background</b><small>Efek gerak halus pada background.</small></div><input type="checkbox" data-section="background" data-field="animationEnabled"></div>
-              <div class="toggle-row"><div><b>Ambient effects</b><small>Glow/blur dekoratif di belakang konten.</small></div><input type="checkbox" data-section="background" data-field="ambientEffectsEnabled"></div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="background">Simpan background</button></div>
             </div>
-            <div class="pane-foot"><button class="primary" data-save-section="background">Simpan Background</button></div>
           </div>
 
-          <div class="setting-pane" id="tab-theme">
-            <div class="form-section"><h3>Theme Color</h3><p>Dipakai Marketplace sebagai CSS variable, berubah tanpa refresh.</p>
-              <div class="form-grid four">
-                <label>Primary<input type="color" data-section="theme" data-field="primary"></label>
-                <label>Secondary<input type="color" data-section="theme" data-field="secondary"></label>
-                <label>Accent<input type="color" data-section="theme" data-field="accent"></label>
-                <label>Button<input type="color" data-section="theme" data-field="buttonColor"></label>
-                <label>Text<input type="color" data-section="theme" data-field="textColor"></label>
-                <label>Background<input type="color" data-section="theme" data-field="backgroundColor"></label>
-                <label>Border<input type="color" data-section="theme" data-field="borderColor"></label>
+          <!-- theme -->
+          <div class="pane" id="tab-theme">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Warna Marketplace</h3><p>Dipakai sebagai CSS variable dan berubah tanpa perlu refresh halaman.</p></div></div>
+              <div class="panel-body">
+                <div class="form-grid four">
+                  <label class="field"><span>Primer</span><input type="color" data-section="theme" data-field="primary"></label>
+                  <label class="field"><span>Sekunder</span><input type="color" data-section="theme" data-field="secondary"></label>
+                  <label class="field"><span>Aksen</span><input type="color" data-section="theme" data-field="accent"></label>
+                  <label class="field"><span>Tombol</span><input type="color" data-section="theme" data-field="buttonColor"></label>
+                  <label class="field"><span>Teks</span><input type="color" data-section="theme" data-field="textColor"></label>
+                  <label class="field"><span>Latar</span><input type="color" data-section="theme" data-field="backgroundColor"></label>
+                  <label class="field"><span>Garis</span><input type="color" data-section="theme" data-field="borderColor"></label>
+                </div>
               </div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="theme">Simpan warna</button></div>
             </div>
-            <div class="pane-foot"><button class="primary" data-save-section="theme">Simpan Theme</button></div>
           </div>
 
-          <div class="setting-pane" id="tab-typography">
-            <div class="form-section"><h3>Typography</h3>
-              <div class="form-grid">
-                <label>Font Family<input data-section="typography" data-field="fontFamily" placeholder="Inter"></label>
-                <label>Base Size<input data-section="typography" data-field="baseSize" placeholder="16px"></label>
-                <label>Heading Weight<input data-section="typography" data-field="headingWeight" placeholder="700"></label>
+          <!-- typography -->
+          <div class="pane" id="tab-typography">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Tipografi</h3><p>Huruf dan ukuran dasar yang dipakai Marketplace.</p></div></div>
+              <div class="panel-body">
+                <div class="form-grid three">
+                  <label class="field"><span>Nama font</span><input data-section="typography" data-field="fontFamily" placeholder="Inter"></label>
+                  <label class="field"><span>Ukuran dasar</span><input data-section="typography" data-field="baseSize" placeholder="16px"></label>
+                  <label class="field"><span>Ketebalan judul</span><input data-section="typography" data-field="headingWeight" placeholder="700"></label>
+                </div>
               </div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="typography">Simpan tipografi</button></div>
             </div>
-            <div class="pane-foot"><button class="primary" data-save-section="typography">Simpan Typography</button></div>
           </div>
 
         </div>
       </div>
     </section>
 
-    <!-- ============ FAQ ============ -->
+    <!-- ================================================================== FAQ -->
     <section id="faq" class="page">
-      <div class="page-head"><div><span class="eyebrow">HELP CENTER</span><h2>FAQ.</h2><p>Pertanyaan yang tampil di Marketplace. CRUD langsung ke MongoDB.</p></div><button class="primary" data-open-faq>＋ Tambah FAQ</button></div>
-      <div id="faqAdmin" class="faq-admin"></div>
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>FAQ</h2>
+          <p>Pertanyaan yang tampil di Marketplace, diurutkan sesuai nomor urut.</p>
+        </div>
+        <div class="page-head-actions">
+          <button class="btn btn-primary" type="button" data-open-faq><svg class="ico"><use href="#i-plus"></use></svg>Tambah FAQ</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="faq-list" id="faqAdmin"></div>
+      </div>
     </section>
 
-    <!-- ============ RATINGS ============ -->
+    <!-- =============================================================== RATING -->
     <section id="reviews" class="page">
-      <div class="page-head"><div><span class="eyebrow">CUSTOMER REVIEWS</span><h2>Rating.</h2><p>Moderasi review: approve untuk tampil di Marketplace, hide untuk menyembunyikan.</p></div></div>
-      <div class="review-summary"><div><strong id="ratingAvg">—</strong><span id="ratingStars"></span><small id="ratingTotal">—</small></div><div class="bars" id="ratingBars"></div></div>
-      <div class="toolbar"><select id="ratingStatusFilter"><option value="">Semua Status</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="hidden">Hidden</option></select></div>
-      <div id="reviewAdmin" class="review-admin"></div>
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>Rating</h2>
+          <p>Setujui review agar tampil di Marketplace, atau sembunyikan tanpa menghapusnya.</p>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:var(--s5)">
+        <div class="panel-body">
+          <div class="rating-overview">
+            <div class="rating-score">
+              <b id="ratingAvg">—</b>
+              <span class="stars stars-lg" id="ratingStars"></span>
+              <small id="ratingTotal">—</small>
+            </div>
+            <div class="rating-bars" id="ratingBars"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="seg" id="ratingSeg">
+          <button type="button" class="active" data-rating-filter="">Semua</button>
+          <button type="button" data-rating-filter="pending">Menunggu</button>
+          <button type="button" data-rating-filter="approved">Disetujui</button>
+          <button type="button" data-rating-filter="hidden">Disembunyikan</button>
+        </div>
+        <select id="ratingStatusFilter" class="sr-only" aria-hidden="true" tabindex="-1">
+          <option value=""></option><option value="pending"></option><option value="approved"></option><option value="hidden"></option>
+        </select>
+      </div>
+
+      <div id="reviewAdmin" class="review-grid"></div>
     </section>
 
-    <!-- ============ INTEGRATIONS ============ -->
+    <!-- ========================================================= INTEGRATIONS -->
     <section id="integrations" class="page">
-      <div class="page-head"><div><span class="eyebrow">SYSTEM</span><h2>Integrasi.</h2><p>Kredensial disimpan terenkripsi di database dan tidak pernah dikirim balik ke browser dalam bentuk asli.</p></div></div>
-      <div class="integration-grid" id="integrationStatus"></div>
-
-      <div class="settings-layout">
-        <div class="settings-nav">
-          <button class="setting-tab active" data-tab="klikqris">KlikQRIS</button>
-          <button class="setting-tab" data-tab="fonnte">Fonnte</button>
-          <button class="setting-tab" data-tab="resend">Resend</button>
-          <button class="setting-tab" data-tab="r2">Cloudflare R2</button>
-          <button class="setting-tab" data-tab="notif">Notifikasi</button>
-          <button class="setting-tab" data-tab="templates">Template</button>
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>Integrasi</h2>
+          <p>Kredensial disimpan terenkripsi di database dan tidak pernah dikirim kembali ke browser dalam bentuk asli.</p>
         </div>
-        <div class="setting-content">
+        <div class="page-head-actions">
+          <button class="btn btn-outline" type="button" id="intRefresh"><svg class="ico"><use href="#i-refresh"></use></svg>Muat ulang status</button>
+        </div>
+      </div>
 
-          <div class="setting-pane active" id="tab-klikqris">
-            <div class="form-section"><h3>KlikQRIS — Payment Gateway</h3><p>Kosongkan field kredensial kalau tidak ingin mengubahnya.</p>
-              <div class="toggle-row"><div><b>Aktifkan KlikQRIS</b><small>Checkout hanya bisa dibuat kalau integrasi ini aktif dan terkonfigurasi.</small></div><input type="checkbox" id="kqEnabled"></div>
-              <div class="form-grid">
-                <label>Mode<select id="kqMode"><option value="production">production</option><option value="sandbox">sandbox</option></select></label>
-                <label>API Key tersimpan<input id="kqApiKeyMasked" disabled placeholder="Belum dikonfigurasi"></label>
-                <label>API Key baru<input id="kqApiKey" type="password" autocomplete="off" placeholder="Isi untuk mengganti"></label>
-                <label>Merchant ID baru<input id="kqMerchantId" type="password" autocomplete="off" placeholder="Isi untuk mengganti"></label>
+      <div class="int-grid" id="integrationStatus"></div>
+
+      <div class="split-layout" data-split="integrations">
+        <nav class="split-nav">
+          <div class="split-nav-label">Layanan</div>
+          <button class="split-tab active" type="button" data-tab="klikqris"><svg class="ico"><use href="#i-qr"></use></svg><span>KlikQRIS</span></button>
+          <button class="split-tab" type="button" data-tab="fonnte"><svg class="ico"><use href="#i-message"></use></svg><span>Fonnte</span></button>
+          <button class="split-tab" type="button" data-tab="resend"><svg class="ico"><use href="#i-mail"></use></svg><span>Resend</span></button>
+          <button class="split-tab" type="button" data-tab="r2"><svg class="ico"><use href="#i-cloud"></use></svg><span>Cloudflare R2</span></button>
+          <div class="split-nav-label">Pesan</div>
+          <button class="split-tab" type="button" data-tab="notif"><svg class="ico"><use href="#i-bell"></use></svg><span>Notifikasi</span></button>
+          <button class="split-tab" type="button" data-tab="templates"><svg class="ico"><use href="#i-list"></use></svg><span>Template</span></button>
+        </nav>
+
+        <div class="split-panes">
+
+          <!-- klikqris -->
+          <div class="pane active" id="tab-klikqris">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-head-text"><h3>KlikQRIS</h3><p>Gerbang pembayaran QRIS. Checkout hanya bisa dibuat kalau layanan ini aktif dan terkonfigurasi.</p></div>
+                <span id="kqStatePill"></span>
               </div>
-              <div class="pane-foot"><button class="outline" type="button" id="kqTest">Test Connection</button><button class="primary" type="button" id="kqSave">Update Credential</button></div>
-              <p class="hint">Webhook URL yang perlu didaftarkan di dashboard KlikQRIS: <code id="webhookUrlHint">—</code></p>
-            </div>
-          </div>
-
-          <div class="setting-pane" id="tab-fonnte">
-            <div class="form-section"><h3>Fonnte — WhatsApp</h3>
-              <div class="toggle-row"><div><b>Aktifkan Fonnte</b><small>Notifikasi WhatsApp hanya dikirim jika aktif.</small></div><input type="checkbox" id="fnEnabled"></div>
-              <div class="form-grid">
-                <label>Token tersimpan<input id="fnTokenMasked" disabled placeholder="Belum dikonfigurasi"></label>
-                <label>Token baru<input id="fnToken" type="password" autocomplete="off" placeholder="Isi untuk mengganti"></label>
-                <label class="wide">Nomor tujuan test<input id="fnTestTarget" placeholder="6281234567890"></label>
+              <div class="panel-body">
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Aktifkan KlikQRIS</b><small>Mematikan ini akan menghentikan pembuatan pembayaran baru.</small></div>
+                  <label class="switch"><input type="checkbox" id="kqEnabled"><i></i></label>
+                </div>
+                <div class="form-grid" style="margin-top:var(--s5)">
+                  <label class="field"><span>Mode</span>
+                    <select id="kqMode"><option value="production">Production</option><option value="sandbox">Sandbox</option></select>
+                  </label>
+                  <label class="field"><span>API key tersimpan</span><input id="kqApiKeyMasked" disabled placeholder="Belum dikonfigurasi"><span class="hint">Hanya sebagian karakter yang ditampilkan.</span></label>
+                  <label class="field"><span>API key baru</span><input id="kqApiKey" type="password" autocomplete="off" placeholder="Kosongkan bila tidak diubah"></label>
+                  <label class="field"><span>Merchant ID baru</span><input id="kqMerchantId" type="password" autocomplete="off" placeholder="Kosongkan bila tidak diubah"></label>
+                </div>
+                <div class="notice" style="margin-top:var(--s5)">
+                  <svg class="ico ico-sm"><use href="#i-info"></use></svg>
+                  <div><b>Alamat webhook</b>Daftarkan alamat ini di dashboard KlikQRIS agar status pembayaran masuk otomatis: <code id="webhookUrlHint">—</code></div>
+                </div>
               </div>
-              <div class="pane-foot"><button class="outline" type="button" id="fnTest">Test WhatsApp</button><button class="primary" type="button" id="fnSave">Update Credential</button></div>
-            </div>
-          </div>
-
-          <div class="setting-pane" id="tab-resend">
-            <div class="form-section"><h3>Resend — Email</h3>
-              <div class="toggle-row"><div><b>Aktifkan Resend</b><small>Notifikasi email hanya dikirim jika aktif.</small></div><input type="checkbox" id="rsEnabled"></div>
-              <div class="form-grid">
-                <label>API Key tersimpan<input id="rsApiKeyMasked" disabled placeholder="Belum dikonfigurasi"></label>
-                <label>API Key baru<input id="rsApiKey" type="password" autocomplete="off" placeholder="Isi untuk mengganti"></label>
-                <label>From Email<input id="rsFromEmail" type="email" placeholder="noreply@store.com"></label>
-                <label>From Name<input id="rsFromName"></label>
-                <label class="wide">Email tujuan test<input id="rsTestTo" type="email" placeholder="kamu@email.com"></label>
+              <div class="panel-foot split">
+                <button class="btn btn-outline" type="button" id="kqTest"><svg class="ico"><use href="#i-play"></use></svg>Uji koneksi</button>
+                <button class="btn btn-primary" type="button" id="kqSave">Simpan KlikQRIS</button>
               </div>
-              <div class="pane-foot"><button class="outline" type="button" id="rsTest">Test Email</button><button class="primary" type="button" id="rsSave">Update Credential</button></div>
             </div>
           </div>
 
-          <div class="setting-pane" id="tab-r2">
-            <div class="form-section"><h3>Cloudflare R2 — Storage</h3>
-              <p>Kredensial R2 sengaja tetap berada di environment variable server (dibutuhkan saat boot dan tidak aman dikelola dari browser). Halaman ini hanya menampilkan status dan menjalankan test dari backend.</p>
-              <div class="form-grid"><label>Status<input id="r2StatusText" disabled></label><label>Test terakhir<input id="r2LastTest" disabled></label></div>
-              <div class="pane-foot"><button class="outline" type="button" id="r2Test">Test Storage</button></div>
+          <!-- fonnte -->
+          <div class="pane" id="tab-fonnte">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-head-text"><h3>Fonnte</h3><p>Pengiriman notifikasi WhatsApp ke pembeli.</p></div>
+                <span id="fnStatePill"></span>
+              </div>
+              <div class="panel-body">
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Aktifkan Fonnte</b><small>Notifikasi WhatsApp hanya dikirim kalau ini aktif.</small></div>
+                  <label class="switch"><input type="checkbox" id="fnEnabled"><i></i></label>
+                </div>
+                <div class="form-grid" style="margin-top:var(--s5)">
+                  <label class="field"><span>Token tersimpan</span><input id="fnTokenMasked" disabled placeholder="Belum dikonfigurasi"></label>
+                  <label class="field"><span>Token baru</span><input id="fnToken" type="password" autocomplete="off" placeholder="Kosongkan bila tidak diubah"></label>
+                  <label class="field span-full"><span>Nomor tujuan untuk uji kirim</span><input id="fnTestTarget" placeholder="6281234567890"><span class="hint">Nomor ini hanya dipakai saat menekan Kirim pesan uji.</span></label>
+                </div>
+              </div>
+              <div class="panel-foot split">
+                <button class="btn btn-outline" type="button" id="fnTest"><svg class="ico"><use href="#i-play"></use></svg>Kirim pesan uji</button>
+                <button class="btn btn-primary" type="button" id="fnSave">Simpan Fonnte</button>
+              </div>
             </div>
           </div>
 
-          <div class="setting-pane" id="tab-notif">
-            <div class="form-section"><h3>Channel</h3>
-              <div class="toggle-row"><div><b>WhatsApp</b><small>Master switch untuk semua notifikasi WhatsApp.</small></div><input type="checkbox" id="notifWa"></div>
-              <div class="toggle-row"><div><b>Email</b><small>Master switch untuk semua notifikasi email.</small></div><input type="checkbox" id="notifEmail"></div>
+          <!-- resend -->
+          <div class="pane" id="tab-resend">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-head-text"><h3>Resend</h3><p>Pengiriman email transaksional ke pembeli.</p></div>
+                <span id="rsStatePill"></span>
+              </div>
+              <div class="panel-body">
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Aktifkan Resend</b><small>Notifikasi email hanya dikirim kalau ini aktif.</small></div>
+                  <label class="switch"><input type="checkbox" id="rsEnabled"><i></i></label>
+                </div>
+                <div class="form-grid" style="margin-top:var(--s5)">
+                  <label class="field"><span>API key tersimpan</span><input id="rsApiKeyMasked" disabled placeholder="Belum dikonfigurasi"></label>
+                  <label class="field"><span>API key baru</span><input id="rsApiKey" type="password" autocomplete="off" placeholder="Kosongkan bila tidak diubah"></label>
+                  <label class="field"><span>Email pengirim</span><input id="rsFromEmail" type="email" placeholder="noreply@store.com"></label>
+                  <label class="field"><span>Nama pengirim</span><input id="rsFromName" placeholder="Nama Store"></label>
+                  <label class="field span-full"><span>Email tujuan untuk uji kirim</span><input id="rsTestTo" type="email" placeholder="kamu@email.com"></label>
+                </div>
+              </div>
+              <div class="panel-foot split">
+                <button class="btn btn-outline" type="button" id="rsTest"><svg class="ico"><use href="#i-play"></use></svg>Kirim email uji</button>
+                <button class="btn btn-primary" type="button" id="rsSave">Simpan Resend</button>
+              </div>
             </div>
-            <div class="form-section"><h3>Event</h3>
-              <div class="toggle-row"><div><b>Order Created</b><small>Saat order dibuat dan menunggu pembayaran.</small></div><input type="checkbox" data-notif-event="orderCreated"></div>
-              <div class="toggle-row"><div><b>Payment Pending</b><small>Pengingat pembayaran belum selesai.</small></div><input type="checkbox" data-notif-event="paymentPending"></div>
-              <div class="toggle-row"><div><b>Payment Success</b><small>Pembayaran terverifikasi lewat webhook KlikQRIS.</small></div><input type="checkbox" data-notif-event="paymentSuccess"></div>
-              <div class="toggle-row"><div><b>Payment Failed</b><small>Pembayaran gagal diproses.</small></div><input type="checkbox" data-notif-event="paymentFailed"></div>
-              <div class="toggle-row"><div><b>Payment Expired</b><small>Batas waktu pembayaran habis.</small></div><input type="checkbox" data-notif-event="paymentExpired"></div>
-              <div class="toggle-row"><div><b>Order Completed</b><small>Order ditandai selesai.</small></div><input type="checkbox" data-notif-event="orderCompleted"></div>
-            </div>
-            <div class="pane-foot"><button class="primary" type="button" id="notifSave">Simpan Notifikasi</button></div>
           </div>
 
-          <div class="setting-pane" id="tab-templates">
-            <div class="form-section"><h3>Template WhatsApp</h3>
-              <p class="hint">Placeholder: <code>{{customer_name}}</code> <code>{{order_code}}</code> <code>{{product_name}}</code> <code>{{quantity}}</code> <code>{{total}}</code> <code>{{payment_status}}</code> <code>{{store_name}}</code></p>
-              <label class="block-label">Order Created<textarea data-tpl-wa="orderCreated"></textarea></label>
-              <label class="block-label">Payment Success<textarea data-tpl-wa="paymentSuccess"></textarea></label>
-              <label class="block-label">Payment Failed<textarea data-tpl-wa="paymentFailed"></textarea></label>
-              <label class="block-label">Payment Expired<textarea data-tpl-wa="paymentExpired"></textarea></label>
+          <!-- r2 -->
+          <div class="pane" id="tab-r2">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-head-text"><h3>Cloudflare R2</h3><p>Penyimpanan gambar produk dan aset Marketplace.</p></div>
+                <span id="r2StatePill"></span>
+              </div>
+              <div class="panel-body">
+                <div class="notice warn">
+                  <svg class="ico ico-sm"><use href="#i-shield"></use></svg>
+                  <div><b>Dikelola dari environment server</b>Kredensial R2 dibutuhkan saat server booting dan tidak aman diubah dari browser, jadi halaman ini hanya menampilkan status dan menjalankan pengujian dari backend.</div>
+                </div>
+                <div class="form-grid" style="margin-top:var(--s5)">
+                  <label class="field"><span>Status</span><input id="r2StatusText" disabled></label>
+                  <label class="field"><span>Pengujian terakhir</span><input id="r2LastTest" disabled></label>
+                </div>
+              </div>
+              <div class="panel-foot"><button class="btn btn-outline" type="button" id="r2Test"><svg class="ico"><use href="#i-play"></use></svg>Uji penyimpanan</button></div>
             </div>
-            <div class="form-section"><h3>Template Email</h3>
-              <div id="emailTemplates"></div>
+          </div>
+
+          <!-- notif -->
+          <div class="pane" id="tab-notif">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Kanal pengiriman</h3><p>Saklar utama untuk seluruh notifikasi keluar.</p></div></div>
+              <div class="panel-body">
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>WhatsApp</b><small>Mematikan ini menghentikan seluruh pesan WhatsApp.</small></div>
+                  <label class="switch"><input type="checkbox" id="notifWa"><i></i></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Email</b><small>Mematikan ini menghentikan seluruh email otomatis.</small></div>
+                  <label class="switch"><input type="checkbox" id="notifEmail"><i></i></label>
+                </div>
+              </div>
             </div>
-            <div class="pane-foot"><button class="primary" type="button" id="templatesSave">Simpan Template</button></div>
+
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Kejadian yang dikirim</h3><p>Pilih momen mana saja yang memicu notifikasi ke pembeli.</p></div></div>
+              <div class="panel-body">
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Order dibuat</b><small>Saat order tercatat dan menunggu pembayaran.</small></div>
+                  <label class="switch"><input type="checkbox" data-notif-event="orderCreated"><i></i></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Pembayaran menunggu</b><small>Pengingat pembayaran yang belum selesai.</small></div>
+                  <label class="switch"><input type="checkbox" data-notif-event="paymentPending"><i></i></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Pembayaran berhasil</b><small>Terverifikasi lewat webhook KlikQRIS.</small></div>
+                  <label class="switch"><input type="checkbox" data-notif-event="paymentSuccess"><i></i></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Pembayaran gagal</b><small>Pembayaran tidak bisa diproses.</small></div>
+                  <label class="switch"><input type="checkbox" data-notif-event="paymentFailed"><i></i></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Pembayaran kedaluwarsa</b><small>Batas waktu pembayaran habis.</small></div>
+                  <label class="switch"><input type="checkbox" data-notif-event="paymentExpired"><i></i></label>
+                </div>
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Order selesai</b><small>Order ditandai selesai.</small></div>
+                  <label class="switch"><input type="checkbox" data-notif-event="orderCompleted"><i></i></label>
+                </div>
+              </div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" id="notifSave">Simpan notifikasi</button></div>
+            </div>
+          </div>
+
+          <!-- templates -->
+          <div class="pane" id="tab-templates">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Template WhatsApp</h3><p>Teks yang dikirim ke pembeli pada tiap kejadian.</p></div></div>
+              <div class="panel-body">
+                <div class="notice">
+                  <svg class="ico ico-sm"><use href="#i-info"></use></svg>
+                  <div><b>Kata kunci yang bisa dipakai</b>
+                    <span class="token-list">
+                      <code>{{customer_name}}</code><code>{{order_code}}</code><code>{{product_name}}</code><code>{{quantity}}</code><code>{{total}}</code><code>{{payment_status}}</code><code>{{store_name}}</code>
+                    </span>
+                  </div>
+                </div>
+                <div style="margin-top:var(--s5)">
+                  <div class="tpl-block"><h4>Order dibuat</h4><label class="field"><textarea data-tpl-wa="orderCreated" rows="4"></textarea></label></div>
+                  <div class="tpl-block"><h4>Pembayaran berhasil</h4><label class="field"><textarea data-tpl-wa="paymentSuccess" rows="4"></textarea></label></div>
+                  <div class="tpl-block"><h4>Pembayaran gagal</h4><label class="field"><textarea data-tpl-wa="paymentFailed" rows="4"></textarea></label></div>
+                  <div class="tpl-block"><h4>Pembayaran kedaluwarsa</h4><label class="field"><textarea data-tpl-wa="paymentExpired" rows="4"></textarea></label></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Template email</h3><p>Subjek dan isi HTML untuk tiap kejadian.</p></div></div>
+              <div class="panel-body"><div id="emailTemplates"></div></div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" id="templatesSave">Simpan template</button></div>
+            </div>
           </div>
 
         </div>
       </div>
     </section>
 
-    <!-- ============ SETTINGS (akun) ============ -->
+    <!-- ============================================================= SETTINGS -->
     <section id="settings" class="page">
-      <div class="page-head"><div><span class="eyebrow">ACCOUNT</span><h2>Pengaturan.</h2><p>Akun admin dan keamanan. Konfigurasi tampilan Marketplace ada di tab Konten Marketplace.</p></div></div>
-      <div class="settings-layout">
-        <div class="settings-nav">
-          <button class="setting-tab active" data-tab="account">Akun Saya</button>
-          <button class="setting-tab" data-tab="admins">Admin</button>
-          <button class="setting-tab" data-tab="server">Server</button>
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>Pengaturan</h2>
+          <p>Akun admin, keamanan, dan kondisi server. Tampilan Marketplace diatur di halaman Marketplace.</p>
         </div>
-        <div class="setting-content">
-          <div class="setting-pane active" id="tab-account">
-            <div class="form-section"><h3>Profil</h3>
-              <div class="form-grid"><label>Nama<input id="accName" disabled></label><label>Email<input id="accEmail" disabled></label><label>Role<input id="accRole" disabled></label><label>Login terakhir<input id="accLastLogin" disabled></label></div>
-            </div>
-            <div class="form-section"><h3>Ubah Password</h3>
-              <div class="form-grid"><label>Password Lama<input id="oldPassword" type="password" autocomplete="current-password"></label><label>Password Baru<input id="newPassword" type="password" autocomplete="new-password" placeholder="Minimal 8 karakter"></label></div>
-              <div class="pane-foot"><button class="primary" type="button" id="savePassword">Simpan Password</button></div>
+      </div>
+
+      <div class="split-layout" data-split="settings">
+        <nav class="split-nav">
+          <div class="split-nav-label">Pengaturan</div>
+          <button class="split-tab active" type="button" data-tab="account"><svg class="ico"><use href="#i-user"></use></svg><span>Akun saya</span></button>
+          <button class="split-tab" type="button" data-tab="security"><svg class="ico"><use href="#i-lock"></use></svg><span>Keamanan</span></button>
+          <button class="split-tab" type="button" data-tab="admins"><svg class="ico"><use href="#i-users"></use></svg><span>Tim admin</span></button>
+          <button class="split-tab" type="button" data-tab="server"><svg class="ico"><use href="#i-server"></use></svg><span>Server</span></button>
+        </nav>
+
+        <div class="split-panes">
+
+          <div class="pane active" id="tab-account">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Profil</h3><p>Data akun yang sedang dipakai untuk masuk.</p></div></div>
+              <div class="panel-body">
+                <div class="form-grid">
+                  <label class="field"><span>Nama</span><input id="accName" disabled></label>
+                  <label class="field"><span>Email</span><input id="accEmail" disabled></label>
+                  <label class="field"><span>Peran</span><input id="accRole" disabled></label>
+                  <label class="field"><span>Login terakhir</span><input id="accLastLogin" disabled></label>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="setting-pane" id="tab-admins">
-            <div class="form-section"><h3>Akun Admin</h3><p id="adminsNote">Hanya superadmin yang dapat mengelola akun admin.</p>
-              <div class="table-wrap"><table class="full"><thead><tr><th>NAMA</th><th>EMAIL</th><th>ROLE</th><th>LOGIN TERAKHIR</th><th>STATUS</th><th></th></tr></thead><tbody id="adminsTable"></tbody></table></div>
-            </div>
-            <div class="form-section" id="addAdminSection"><h3>Tambah Admin</h3>
-              <div class="form-grid"><label>Nama<input id="newAdminName"></label><label>Email<input id="newAdminEmail" type="email"></label><label>Password<input id="newAdminPassword" type="password" autocomplete="new-password" placeholder="Minimal 8 karakter"></label><label>Role<select id="newAdminRole"><option value="admin">admin</option><option value="superadmin">superadmin</option></select></label></div>
-              <div class="pane-foot"><button class="primary" type="button" id="createAdmin">Tambah Admin</button></div>
-            </div>
-          </div>
-          <div class="setting-pane" id="tab-server">
-            <div class="form-section"><h3>Server Health</h3><p>Diambil langsung dari <code>GET /api/health</code>.</p>
-              <div id="healthBox" class="integration-grid"></div>
-              <div class="pane-foot"><button class="outline" type="button" id="refreshHealth">Refresh</button></div>
+
+          <div class="pane" id="tab-security">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Ganti password</h3><p>Password baru minimal 8 karakter dan langsung berlaku pada login berikutnya.</p></div></div>
+              <div class="panel-body">
+                <div class="form-grid">
+                  <label class="field"><span>Password saat ini</span><input id="oldPassword" type="password" autocomplete="current-password"></label>
+                  <label class="field"><span>Password baru</span><input id="newPassword" type="password" autocomplete="new-password" placeholder="Minimal 8 karakter"></label>
+                </div>
+              </div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" id="savePassword">Simpan password</button></div>
             </div>
           </div>
+
+          <div class="pane" id="tab-admins">
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Akun admin</h3><p id="adminsNote">Kelola siapa saja yang bisa masuk ke Admin Console.</p></div></div>
+              <div class="panel-body flush">
+                <div class="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Nama</th>
+                        <th>Email</th>
+                        <th class="shrink">Peran</th>
+                        <th>Login terakhir</th>
+                        <th class="shrink">Status</th>
+                        <th class="shrink"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="adminsTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel" id="addAdminSection">
+              <div class="panel-head"><div class="panel-head-text"><h3>Tambah admin</h3><p>Akun baru bisa langsung dipakai untuk masuk.</p></div></div>
+              <div class="panel-body">
+                <div class="form-grid">
+                  <label class="field"><span>Nama</span><input id="newAdminName" placeholder="Nama lengkap"></label>
+                  <label class="field"><span>Email</span><input id="newAdminEmail" type="email" placeholder="nama@store.com"></label>
+                  <label class="field"><span>Password</span><input id="newAdminPassword" type="password" autocomplete="new-password" placeholder="Minimal 8 karakter"></label>
+                  <label class="field"><span>Peran</span>
+                    <select id="newAdminRole"><option value="admin">Admin</option><option value="superadmin">Superadmin</option></select>
+                  </label>
+                </div>
+              </div>
+              <div class="panel-foot"><button class="btn btn-primary" type="button" id="createAdmin">Tambah admin</button></div>
+            </div>
+          </div>
+
+          <div class="pane" id="tab-server">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-head-text"><h3>Kondisi server</h3><p>Diambil langsung dari <code>GET /api/health</code>.</p></div>
+                <button class="btn btn-sm btn-outline" type="button" id="refreshHealth"><svg class="ico"><use href="#i-refresh"></use></svg>Muat ulang</button>
+              </div>
+              <div class="panel-body"><div id="healthBox" class="kv-grid"></div></div>
+            </div>
+          </div>
+
         </div>
       </div>
     </section>
+
   </main>
 </div>
 
-<div id="bootScreen" class="boot-screen">Memuat Admin Panel...</div>
-<div id="toast" class="toast"></div>
+<div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
-<!-- ============ MODAL PRODUK ============ -->
-<div id="productModal" class="modal-backdrop">
-  <div class="modal product-modal">
-    <div class="modal-head"><div><span class="eyebrow">PRODUCT CATALOG</span><h3 id="productModalTitle">Tambah Produk</h3></div><button class="close" type="button" data-close-modal="productModal">×</button></div>
+<!-- ======================================================== MODAL — PRODUK -->
+<div class="modal-root" id="productModal" role="dialog" aria-modal="true" aria-labelledby="productModalTitle">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <div class="modal-head-text">
+        <h3 id="productModalTitle">Tambah produk</h3>
+        <p>Nama, harga, dan stok langsung dipakai Marketplace setelah disimpan.</p>
+      </div>
+      <button class="modal-close" type="button" data-close-modal="productModal" aria-label="Tutup"><svg class="ico"><use href="#i-x"></use></svg></button>
+    </div>
     <form id="productForm">
       <div class="modal-body">
+        <div class="modal-alert" id="productAlert"><svg class="ico ico-sm"><use href="#i-alert"></use></svg><span></span></div>
 
-        <div class="form-block">
-          <div class="form-block-head"><i>▤</i><div><b>Informasi Produk</b><small>Nama, kategori, dan deskripsi yang tampil ke pembeli.</small></div></div>
+        <div class="fieldset">
+          <div class="fieldset-head"><h4>Informasi produk</h4><p>Yang dilihat pembeli di halaman katalog.</p></div>
           <div class="form-grid">
-            <label class="wide">Nama Produk<input id="pName" required placeholder="Contoh: Voucher Diamond 100"></label>
-            <label>Kategori<select id="pCategory" required></select></label>
-            <label>Status<select id="pStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
-            <label class="wide">Deskripsi<textarea id="pDesc" placeholder="Deskripsi singkat produk (opsional)"></textarea></label>
+            <label class="field span-full"><span>Nama produk <i class="req">*</i></span><input id="pName" required placeholder="Contoh: Voucher Diamond 100"></label>
+            <label class="field"><span>Kategori <i class="req">*</i></span><select id="pCategory" required></select></label>
+            <label class="field"><span>Status tayang</span>
+              <select id="pStatus"><option value="active">Aktif</option><option value="inactive">Nonaktif</option></select>
+            </label>
+            <label class="field span-full"><span>Deskripsi</span><textarea id="pDesc" placeholder="Penjelasan singkat produk"></textarea></label>
           </div>
         </div>
 
-        <div class="form-block">
-          <div class="form-block-head"><i>฿</i><div><b>Harga &amp; Stok</b><small>Sumber kebenaran harga dan ketersediaan produk.</small></div></div>
+        <div class="fieldset">
+          <div class="fieldset-head"><h4>Harga &amp; stok</h4><p>Sumber kebenaran harga dan ketersediaan saat checkout.</p></div>
           <div class="form-grid three">
-            <label>Harga (IDR)<input id="pPrice" required type="number" min="0" step="1" placeholder="0"></label>
-            <label>Stok<input id="pStock" required type="number" min="0" step="1" value="0"></label>
-            <label>Urutan Tampil<input id="pSortOrder" type="number" step="1" value="0"></label>
+            <label class="field"><span>Harga (IDR) <i class="req">*</i></span><input id="pPrice" required type="number" min="0" step="1" placeholder="0"></label>
+            <label class="field"><span>Stok <i class="req">*</i></span><input id="pStock" required type="number" min="0" step="1" value="0"></label>
+            <label class="field"><span>Urutan tampil</span><input id="pSortOrder" type="number" step="1" value="0"></label>
           </div>
+          <p class="hint-line" id="pSoldHint" style="margin-top:var(--s3)"></p>
         </div>
 
-        <div class="form-block">
-          <div class="form-block-head"><i>▧</i><div><b>Media Produk</b><small>PNG, JPG, atau WEBP · Maksimal 5MB.</small></div></div>
-          <div class="image-upload" id="imageDrop" data-state="idle">
-            <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp">
-            <div class="upload-placeholder">
-              <div class="upload-icon">＋</div>
-              <b>Klik atau seret gambar ke sini</b>
-              <small>PNG, JPG, atau WEBP · Maks. 5MB</small>
+        <div class="fieldset">
+          <div class="fieldset-head"><h4>Gambar produk</h4><p>PNG, JPG, atau WEBP, maksimal 5&nbsp;MB. File diunggah ke Cloudflare R2 saat menyimpan.</p></div>
+          <div class="dropzone" id="imageDrop" data-state="idle">
+            <input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Pilih gambar produk">
+            <div class="dz-idle">
+              <svg class="ico"><use href="#i-upload"></use></svg>
+              <b>Letakkan gambar di sini atau klik untuk memilih</b>
+              <small>PNG, JPG, atau WEBP · maksimal 5 MB</small>
             </div>
-            <div class="upload-preview">
+            <div class="dz-preview">
               <img id="imagePreview" alt="">
-              <div class="upload-overlay">
-                <button type="button" class="img-action" data-replace-image>⟳ Ganti</button>
-                <button type="button" class="img-action danger" data-remove-image>✕ Hapus</button>
+              <div class="dz-actions">
+                <button type="button" class="btn btn-sm btn-outline" data-replace-image><svg class="ico"><use href="#i-refresh"></use></svg>Ganti</button>
+                <button type="button" class="btn btn-sm btn-outline" data-remove-image><svg class="ico"><use href="#i-trash"></use></svg>Hapus</button>
               </div>
             </div>
-            <div class="upload-spinner"><span></span>Mengunggah gambar...</div>
-            <div class="upload-error-box"><b>Gagal memuat/mengunggah gambar</b><small id="uploadErrorMsg">Terjadi kesalahan.</small></div>
+            <div class="dz-busy"><span class="boot-spin"></span><span>Mengunggah gambar…</span></div>
+            <div class="dz-error">
+              <b>Gambar gagal diproses</b>
+              <small id="uploadErrorMsg">Coba unggah ulang dengan file lain.</small>
+            </div>
           </div>
         </div>
-
       </div>
-      <div class="modal-foot"><button type="button" class="outline" data-close-modal="productModal">Batal</button><button class="primary" type="submit" id="productSubmit">Simpan Produk</button></div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close-modal="productModal">Batal</button>
+        <button type="submit" class="btn btn-primary" id="productSubmit">Simpan produk</button>
+      </div>
     </form>
   </div>
 </div>
 
-<!-- ============ MODAL KATEGORI ============ -->
-<div id="categoryModal" class="modal-backdrop">
-  <div class="modal category-modal">
-    <div class="modal-head"><div><span class="eyebrow">CATALOG</span><h3 id="categoryModalTitle">Tambah Kategori</h3></div><button class="close" type="button" data-close-modal="categoryModal">×</button></div>
+<!-- ====================================================== MODAL — KATEGORI -->
+<div class="modal-root" id="categoryModal" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-head-text">
+        <h3 id="categoryModalTitle">Tambah kategori</h3>
+        <p>Kategori tampil sebagai section tersendiri di Marketplace.</p>
+      </div>
+      <button class="modal-close" type="button" data-close-modal="categoryModal" aria-label="Tutup"><svg class="ico"><use href="#i-x"></use></svg></button>
+    </div>
     <form id="categoryForm">
       <div class="modal-body">
-        <div class="form-block">
-          <div class="form-block-head"><i>▤</i><div><b>Informasi Kategori</b><small>Nama dan icon yang tampil sebagai section di Marketplace.</small></div></div>
-          <div class="form-grid category-grid">
-            <label class="wide">Nama Kategori<input id="cName" required placeholder="Contoh: Top Up Game"></label>
-            <label class="icon-field">Icon (emoji/teks)<div class="icon-input-row"><span class="icon-preview" id="cIconPreview">🎮</span><input id="cIcon" placeholder="🎮"></div></label>
-            <label>Urutan Tampil<input id="cSortOrder" type="number" step="1" value="0"></label>
-            <label>Status<select id="cStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
-            <label class="wide">Deskripsi<textarea id="cDesc" placeholder="Deskripsi singkat kategori (opsional)"></textarea></label>
+        <div class="modal-alert" id="categoryAlert"><svg class="ico ico-sm"><use href="#i-alert"></use></svg><span></span></div>
+        <div class="form-grid">
+          <label class="field span-full"><span>Nama kategori <i class="req">*</i></span><input id="cName" required placeholder="Contoh: Top Up Game"></label>
+          <div class="field">
+            <span>Ikon</span>
+            <div class="input-group">
+              <span class="input-icon" id="cIconPreview">◆</span>
+              <input id="cIcon" placeholder="Tempel emoji atau satu karakter">
+            </div>
+            <span class="hint">Dipakai sebagai penanda kecil di Marketplace.</span>
           </div>
+          <label class="field"><span>Urutan tampil</span><input id="cSortOrder" type="number" step="1" value="0"></label>
+          <label class="field"><span>Status</span>
+            <select id="cStatus"><option value="active">Aktif</option><option value="inactive">Nonaktif</option></select>
+          </label>
+          <label class="field"><span>Slug</span><input id="cSlugPreview" disabled placeholder="Dibuat otomatis dari nama"></label>
+          <label class="field span-full"><span>Deskripsi</span><textarea id="cDesc" placeholder="Penjelasan singkat kategori"></textarea></label>
         </div>
       </div>
-      <div class="modal-foot"><button type="button" class="outline" data-close-modal="categoryModal">Batal</button><button class="primary" type="submit" id="categorySubmit">Simpan Kategori</button></div>
-    </form>
-  </div>
-</div>
-
-<!-- ============ MODAL FAQ ============ -->
-<div id="faqModal" class="modal-backdrop">
-  <div class="modal">
-    <div class="modal-head"><div><span class="eyebrow">HELP CENTER</span><h3 id="faqModalTitle">Tambah FAQ</h3></div><button class="close" type="button" data-close-modal="faqModal">×</button></div>
-    <form id="faqForm">
-      <div class="form-grid">
-        <label class="wide">Pertanyaan<input id="fQuestion" required></label>
-        <label class="wide">Jawaban<textarea id="fAnswer" required></textarea></label>
-        <label>Urutan<input id="fSortOrder" type="number" step="1" value="0"></label>
-        <label>Tampilkan<select id="fEnabled"><option value="true">Ya</option><option value="false">Tidak</option></select></label>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close-modal="categoryModal">Batal</button>
+        <button type="submit" class="btn btn-primary" id="categorySubmit">Simpan kategori</button>
       </div>
-      <div class="modal-foot"><button type="button" class="outline" data-close-modal="faqModal">Batal</button><button class="primary" type="submit" id="faqSubmit">Simpan FAQ</button></div>
     </form>
   </div>
 </div>
 
-<!-- ============ MODAL DETAIL ORDER ============ -->
-<div id="orderModal" class="modal-backdrop">
+<!-- =========================================================== MODAL — FAQ -->
+<div class="modal-root" id="faqModal" role="dialog" aria-modal="true" aria-labelledby="faqModalTitle">
   <div class="modal">
-    <div class="modal-head"><div><span class="eyebrow">ORDER DETAIL</span><h3 id="orderModalTitle">Order</h3></div><button class="close" type="button" data-close-modal="orderModal">×</button></div>
-    <div id="orderModalBody" class="order-detail"></div>
-    <div class="modal-foot"><button type="button" class="outline" data-close-modal="orderModal">Tutup</button></div>
+    <div class="modal-head">
+      <div class="modal-head-text">
+        <h3 id="faqModalTitle">Tambah FAQ</h3>
+        <p>Pertanyaan dan jawaban yang tampil di bagian bantuan Marketplace.</p>
+      </div>
+      <button class="modal-close" type="button" data-close-modal="faqModal" aria-label="Tutup"><svg class="ico"><use href="#i-x"></use></svg></button>
+    </div>
+    <form id="faqForm">
+      <div class="modal-body">
+        <div class="modal-alert" id="faqAlert"><svg class="ico ico-sm"><use href="#i-alert"></use></svg><span></span></div>
+        <div class="form-grid">
+          <label class="field span-full"><span>Pertanyaan <i class="req">*</i></span><input id="fQuestion" required placeholder="Berapa lama proses pengiriman?"></label>
+          <label class="field span-full"><span>Jawaban <i class="req">*</i></span><textarea id="fAnswer" required placeholder="Jawaban singkat dan jelas"></textarea></label>
+          <label class="field"><span>Urutan tampil</span><input id="fSortOrder" type="number" step="1" value="0"></label>
+          <label class="field"><span>Tampilkan di Marketplace</span>
+            <select id="fEnabled"><option value="true">Ya</option><option value="false">Tidak</option></select>
+          </label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close-modal="faqModal">Batal</button>
+        <button type="submit" class="btn btn-primary" id="faqSubmit">Simpan FAQ</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================================================== MODAL — DETAIL ORDER -->
+<div class="modal-root" id="orderModal" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-head-text">
+        <h3 id="orderModalTitle">Detail order</h3>
+        <p id="orderModalSub">Data order dan transaksi pembayaran terkait.</p>
+      </div>
+      <button class="modal-close" type="button" data-close-modal="orderModal" aria-label="Tutup"><svg class="ico"><use href="#i-x"></use></svg></button>
+    </div>
+    <div class="modal-body" id="orderModalBody"></div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-outline" data-close-modal="orderModal">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====================================================== MODAL — KONFIRMASI -->
+<div class="modal-root" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="modal modal-sm">
+    <div class="modal-head">
+      <div class="modal-head-text">
+        <h3 id="confirmTitle">Konfirmasi</h3>
+      </div>
+      <button class="modal-close" type="button" data-close-modal="confirmModal" aria-label="Tutup"><svg class="ico"><use href="#i-x"></use></svg></button>
+    </div>
+    <div class="modal-body confirm-body">
+      <div class="confirm-icon"><svg class="ico"><use href="#i-alert"></use></svg></div>
+      <p id="confirmText">Tindakan ini tidak bisa dibatalkan.</p>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" data-close-modal="confirmModal">Batal</button>
+      <button type="button" class="btn btn-danger" id="confirmOk">Hapus</button>
+    </div>
   </div>
 </div>
 

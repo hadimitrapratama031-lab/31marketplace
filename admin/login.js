@@ -3,12 +3,24 @@
   const TOKEN_KEY = "mp_admin_token";
   const form = document.getElementById("loginForm");
   const errorBox = document.getElementById("loginError");
+  const errorText = document.getElementById("loginErrorText");
   const submitBtn = document.getElementById("submitBtn");
 
   function showError(message) {
-    errorBox.textContent = message;
+    errorText.textContent = message;
     errorBox.classList.add("show");
   }
+
+  // Tombol lihat/sembunyikan password.
+  const pwInput = document.getElementById("password");
+  const pwToggle = document.getElementById("pwToggle");
+  pwToggle.addEventListener("click", () => {
+    const shown = pwInput.type === "text";
+    pwInput.type = shown ? "password" : "text";
+    pwToggle.setAttribute("aria-label", shown ? "Tampilkan password" : "Sembunyikan password");
+    pwToggle.querySelector("use").setAttribute("href", shown ? "#i-eye" : "#i-eye-off");
+    pwInput.focus();
+  });
 
   // Pull real store branding so the login page is not hardcoded to one store name.
   fetch("/api/settings")
@@ -18,7 +30,7 @@
       if (!general) return;
       if (general.storeName) {
         document.getElementById("brandName").textContent = general.storeName;
-        document.title = "Login Admin — " + general.storeName;
+        document.title = "Masuk — " + general.storeName;
         document.getElementById("brandMark").textContent = general.storeName.trim().charAt(0).toUpperCase();
       }
       if (general.favicon) {
