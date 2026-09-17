@@ -61,9 +61,14 @@
     statusBadge.textContent = outOfStock ? "● STOK HABIS" : "● TERSEDIA";
     statusBadge.className = "badge " + (outOfStock ? "purple" : "green");
 
-    if (product.image) {
-      const preview = $("main-preview");
-      if (preview) preview.style.cssText += `background-image:url('${product.image}');background-size:cover;background-position:center`;
+    const preview = $("main-preview");
+    const previewImg = $("preview-image");
+    if (product.image && preview && previewImg) {
+      previewImg.src = product.image;
+      previewImg.alt = product.name || "";
+      preview.classList.add("has-image");
+    } else if (preview) {
+      preview.classList.remove("has-image");
     }
 
     const buyBtn = $("buy-now");
