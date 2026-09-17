@@ -52,13 +52,25 @@ const create = asyncHandler(async (req, res) => {
 
   let image = "";
   let imageKey = "";
+  let uploadedImage = null;
   if (req.file) {
-    const uploaded = await r2Service.uploadBuffer(req.file.buffer, req.file.originalname, req.file.mimetype, "products");
-    image = uploaded.url;
-    imageKey = uploaded.key;
+    const allowedProductMimes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedProductMimes.includes(req.file.mimetype)) {
+      throw new AppError("Gambar produk hanya boleh PNG, JPG, atau WEBP.", 400);
+    }
+    uploadedImage = await r2Service.uploadBuffer(
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype,
+      "products"
+    );
+    image = uploadedImage.url;
+    imageKey = uploadedImage.key;
   }
 
-  const product = await Product.create({
+  let product;
+  try {
+    product = await Product.create({
     name,
     slug,
     categoryId,
@@ -70,7 +82,12 @@ const create = asyncHandler(async (req, res) => {
     sold: 0,
     status: status || "active",
     sortOrder: sortOrder || 0,
-  });
+    });
+  } catch (err) {
+    // Do not leave an orphaned R2 object when MongoDB rejects the product.
+    if (uploadedImage?.key) await r2Service.deleteObject(uploadedImage.key);
+    throw err;
+  }
 
   emitEvent("product:created", { product });
   emitEvent("products:updated", { action: "created", productId: product._id });
@@ -95,22 +112,41 @@ const update = asyncHandler(async (req, res) => {
   if (status !== undefined) product.status = status;
   if (sortOrder !== undefined) product.sortOrder = sortOrder;
 
+  let replacementKey = "";
+  const oldKey = product.imageKey;
   if (req.file) {
-    // Ganti gambar: upload dulu, baru hapus yang lama (kalau upload gagal,
-    // produk masih punya gambar lama, bukan malah kosong).
-    const oldKey = product.imageKey;
-    const uploaded = await r2Service.uploadBuffer(req.file.buffer, req.file.originalname, req.file.mimetype, "products");
+    const allowedProductMimes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedProductMimes.includes(req.file.mimetype)) {
+      throw new AppError("Gambar produk hanya boleh PNG, JPG, atau WEBP.", 400);
+    }
+    // Upload first. The old object is kept until MongoDB has saved the new URL.
+    const uploaded = await r2Service.uploadBuffer(
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype,
+      "products"
+    );
+    replacementKey = uploaded.key;
     product.image = uploaded.url;
     product.imageKey = uploaded.key;
-    if (oldKey) await r2Service.deleteObject(oldKey);
   } else if (removeImage === "true" || removeImage === true) {
     // Hapus gambar tanpa mengganti (tombol "Hapus" di form Edit Produk).
-    if (product.imageKey) await r2Service.deleteObject(product.imageKey);
     product.image = "";
     product.imageKey = "";
   }
 
-  await product.save();
+  try {
+    await product.save();
+  } catch (err) {
+    if (replacementKey) await r2Service.deleteObject(replacementKey);
+    throw err;
+  }
+
+  // Delete the old object only after the DB points at the replacement.
+  if (oldKey && (replacementKey || removeImage === "true" || removeImage === true) && oldKey !== product.imageKey) {
+    await r2Service.deleteObject(oldKey);
+  }
+
   emitEvent("product:updated", { product });
   emitEvent("products:updated", { action: "updated", productId: product._id });
   emitEvent("stock:updated", { productId: product._id, stock: product.stock });
