@@ -22,9 +22,9 @@ const logger = require("../utils/logger");
 const TIMEOUT_MS = 15000;
 const API_BASE = "https://discord.com/api/v10";
 
-// Hijau tua yang sama dengan aksen email paymentSuccess (#0f7a52) — tenang,
-// bukan neon, dan konsisten dengan email yang diterima pembeli.
-const ACCENT_SUCCESS = 0x0f7a52;
+// Warna dari template Discord existing yang diberikan (color: 4321431 =
+// #41F097). Dipertahankan apa adanya, bukan didekati dengan warna lain.
+const ACCENT_SUCCESS = 4321431;
 
 function getConfig() {
   const botToken = String(process.env.DISCORD_BOT_TOKEN || "").trim();
@@ -91,10 +91,21 @@ function field(name, value, inline = true) {
 /**
  * Embed PAYMENT_SUCCESS.
  *
+ * Bentuk/struktur mengikuti template Discord Embed existing apa adanya:
+ * author + icon toko, judul sebagai heading markdown di description (bukan
+ * field "title" bawaan Discord), enam field yang sama dengan label & emoji
+ * yang sama ("Costumer" memang begitu ejaannya di template asal), lalu
+ * Image/Banner besar di bagian bawah embed — BUKAN thumbnail kecil — supaya
+ * tiap product punya banner sendiri sesuai spec (bukan lagi ikon pojok kecil
+ * seperti sebelumnya).
+ *
  * Dibangun dari `ctx` yang SAMA dengan email dan WhatsApp (lihat
  * template.service.buildContext), jadi angka, status, dan waktunya tidak
- * mungkin berbeda antar channel. Gambar produk memakai URL publik yang sama
- * dengan Marketplace — tidak ada aset khusus Discord.
+ * mungkin berbeda antar channel. `ctx.productImage` berasal dari snapshot
+ * gambar produk pada order tersebut (dengan fallback ke gambar produk yang
+ * hidup sekarang kalau snapshotnya tidak valid — lihat
+ * notification.service.resolveProductImageFallback), jadi tidak pernah
+ * gambar produk lain atau gambar default/placeholder.
  */
 function buildPaymentSuccessEmbed(ctx) {
   const storeName = clamp(ctx.storeName || "Store", 256);
@@ -105,29 +116,25 @@ function buildPaymentSuccessEmbed(ctx) {
   const productImage = ctx.productImage || "";
 
   const fields = [
-    field("Customer", ctx.customerName),
-    field("Product", ctx.quantity > 1 ? `${ctx.productName} ×${ctx.quantity}` : ctx.productName),
-    field("Order ID", `\`${ctx.orderCode}\``),
-    field("Price", ctx.price),
-    field("Total", ctx.total),
-    field("Payment Method", ctx.paymentMethod),
-    field("Status", ctx.statusLabel),
-    field("Payment Time", ctx.paidAt || ctx.orderedAt),
+    field("👤 Costumer", ctx.customerName, false),
+    field("🛒 Product", ctx.quantity > 1 ? `${ctx.productName} x${ctx.quantity}` : ctx.productName, false),
+    field("🆔 Order", ctx.orderCode, false),
+    field("💰 Price", ctx.total, false),
+    field("⌚ Payment Time", ctx.paidAt || ctx.orderedAt, false),
+    field("📄 Status", ctx.statusLabel, false),
   ].filter(Boolean);
 
   const embed = {
-    // Judul dipisah dari nama toko: author menampung identitas toko + logo,
-    // title menampung peristiwanya. Hasilnya rapi tanpa teks kapital berlebihan.
-    author: logoUrl ? { name: storeName.toUpperCase(), icon_url: logoUrl } : { name: storeName.toUpperCase() },
-    title: "Pembayaran Berhasil",
+    author: logoUrl ? { name: storeName, icon_url: logoUrl } : { name: storeName },
+    description: "# :white_check_mark: Pembayaran Berhasil\n",
     color: ACCENT_SUCCESS,
     fields,
     timestamp: new Date().toISOString(),
-    footer: { text: storeName },
+    footer: logoUrl ? { text: storeName, icon_url: logoUrl } : { text: storeName },
   };
 
-  // Thumbnail, bukan image besar: embed tetap padat dan terbaca di mobile.
-  if (productImage) embed.thumbnail = { url: productImage };
+  // Image/Banner — bukan thumbnail — dan selalu gambar PRODUCT dari order ini.
+  if (productImage) embed.image = { url: productImage };
 
   return embed;
 }
