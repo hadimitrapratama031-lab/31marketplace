@@ -1,30 +1,145 @@
 <!DOCTYPE html>
-<html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Customer Reviews — 31 Store</title><link rel="stylesheet" href="../assets/css/style.css"></head>
-<body><header class="navbar"><a class="brand" href="../"><span class="brand-mark">31</span><span>31 Store</span></a><nav class="nav-links"><a class="nav-link" href="../">Home</a><a class="nav-link" href="../#product">Product</a><a class="nav-link" href="../#faq">FAQ</a><a class="nav-link" href="../#contact">Contact</a><a class="nav-link active" href="./">Rating</a></nav><a class="order-button" href="../cek-pesanan/">Cek Pesanan <span class="arrow">↗</span></a></header>
-<main>
-  <section class="section">
-    <div class="section-heading reveal visible"><div><span class="eyebrow">CUSTOMER REVIEWS</span><h2>Customer <span>Reviews.</span></h2></div><p>Lihat pengalaman customer yang telah berbelanja di store kami.</p></div>
-    <div class="product-grid" id="reviews"><p style="color:#8a8093;font-size:13px">Memuat ulasan...</p></div>
-  </section>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Ulasan pembeli 31 Store: rata-rata rating, sebaran bintang, dan pengalaman belanja pembeli lain.">
+  <meta name="theme-color" content="#0e0a17">
+  <title>Ulasan Pembeli — 31 Store</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body data-title-suffix="Ulasan Pembeli">
 
-  <section class="section" style="max-width:560px">
-    <div class="section-heading" style="display:block"><span class="eyebrow">SHARE YOUR EXPERIENCE</span><h2>Beri <span>Ulasan.</span></h2><p style="margin-top:10px">Ulasan kamu akan tampil setelah ditinjau oleh admin.</p></div>
-    <form id="review-form" class="feature-card" style="padding:26px">
-      <label style="display:block;font-size:12px;font-weight:700;margin-bottom:8px">Nama</label>
-      <input id="rv-user" required placeholder="Nama kamu" style="width:100%;padding:13px;border:1px solid #e4ddec;border-radius:11px;outline:none;font:13px Inter;margin-bottom:12px">
-      <label style="display:block;font-size:12px;font-weight:700;margin-bottom:8px">Rating</label>
-      <select id="rv-rating" style="width:100%;padding:13px;border:1px solid #e4ddec;border-radius:11px;outline:none;font:13px Inter;margin-bottom:12px">
-        <option value="5">★★★★★ (5)</option><option value="4">★★★★☆ (4)</option><option value="3">★★★☆☆ (3)</option><option value="2">★★☆☆☆ (2)</option><option value="1">★☆☆☆☆ (1)</option>
-      </select>
-      <label style="display:block;font-size:12px;font-weight:700;margin-bottom:8px">Review</label>
-      <textarea id="rv-review" required rows="3" placeholder="Ceritakan pengalaman kamu" style="width:100%;padding:13px;border:1px solid #e4ddec;border-radius:11px;outline:none;font:13px Inter;resize:vertical;margin-bottom:8px"></textarea>
-      <p id="review-msg" style="font-size:12px;margin-bottom:10px;min-height:14px"></p>
-      <button class="primary-button" id="review-submit" type="submit" style="border:0;cursor:pointer;width:100%;justify-content:center">Kirim Review</button>
-    </form>
-  </section>
-</main>
+  <div class="maintenance-bar" data-maintenance hidden>Toko sedang dalam pemeliharaan. Beberapa produk mungkin belum bisa dipesan.</div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="../assets/js/common.js"></script>
-<script src="rating.js"></script>
-</body></html>
+  <header class="site-header">
+    <div class="shell">
+      <a class="brand" href="../">
+        <span class="brand-mark" data-brand-mark><span data-store-initials>31</span></span>
+        <span data-store-name>31 Store</span>
+      </a>
+
+      <nav class="nav" aria-label="Navigasi utama">
+        <a href="../">Home</a>
+        <a href="../products.html">Product</a>
+        <a href="../index.html#faq">FAQ</a>
+        <a href="../index.html#contact">Contact</a>
+        <a href="./" class="is-active">Rating</a>
+      </nav>
+
+      <div class="header-actions">
+        <a class="btn btn-ghost btn-sm" href="../cek-pesanan/"><span data-cek-label>Cek Pesanan</span></a>
+        <button class="nav-toggle" type="button" aria-label="Buka menu" aria-expanded="false"><span></span></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="../">Home</a><span>/</span><strong>Ulasan</strong>
+    </nav>
+
+    <div class="page-head">
+      <h1 class="display">Ulasan pembeli</h1>
+      <p class="lede">Ulasan ditulis pembeli dan ditampilkan setelah ditinjau admin. Tidak ada ulasan buatan di halaman ini.</p>
+    </div>
+
+    <div class="rating-layout">
+      <section>
+        <div class="result-line">
+          <span id="review-count">Memuat ulasan…</span>
+        </div>
+        <div class="review-grid" id="review-grid">
+          <div class="skel" style="height:172px"></div>
+          <div class="skel" style="height:172px"></div>
+          <div class="skel" style="height:172px"></div>
+        </div>
+        <div class="load-more" id="load-more" hidden>
+          <button class="btn btn-ghost" type="button" id="load-more-btn">Tampilkan lebih banyak</button>
+        </div>
+      </section>
+
+      <aside>
+        <div class="panel rating-summary">
+          <div class="rating-score">
+            <b id="score">—</b>
+            <span><span class="stars" id="score-stars">☆☆☆☆☆</span><br><span id="score-count">belum ada ulasan</span></span>
+          </div>
+          <div id="distribution"></div>
+        </div>
+
+        <div class="panel" style="padding:26px;margin-top:18px">
+          <h3 class="display" style="font-size:20px;margin-bottom:6px">Tulis ulasan</h3>
+          <p class="muted" style="font-size:13.5px;margin-bottom:20px">Ulasan masuk ke antrean moderasi sebelum tampil.</p>
+
+          <form id="review-form" novalidate>
+            <label class="field"><span>Nama</span><input class="input" id="rv-user" required placeholder="Nama kamu" autocomplete="name"></label>
+
+            <div class="field">
+              <span>Rating</span>
+              <div class="star-picker" id="star-picker" role="group" aria-label="Pilih rating">
+                <button type="button" data-star="1" aria-label="1 bintang">★</button>
+                <button type="button" data-star="2" aria-label="2 bintang">★</button>
+                <button type="button" data-star="3" aria-label="3 bintang">★</button>
+                <button type="button" data-star="4" aria-label="4 bintang">★</button>
+                <button type="button" data-star="5" aria-label="5 bintang">★</button>
+              </div>
+            </div>
+
+            <label class="field"><span>Ulasan</span><textarea class="textarea" id="rv-review" required placeholder="Ceritakan pengalaman belanja kamu"></textarea></label>
+
+            <p class="form-note" id="rv-note"></p>
+            <button class="btn btn-primary btn-block" type="submit" id="rv-submit">Kirim ulasan</button>
+          </form>
+        </div>
+      </aside>
+    </div>
+
+    <div class="band-tight"></div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell">
+      <div class="footer-grid">
+        <div>
+          <a class="brand" href="../">
+            <span class="brand-mark" data-brand-mark><span data-store-initials>31</span></span>
+            <span data-store-name>31 Store</span>
+          </a>
+          <p data-footer-description>Marketplace produk digital dengan harga transparan dan pesanan yang bisa dilacak.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Navigasi</h4>
+          <a href="../">Home</a>
+          <a href="../products.html">Product</a>
+          <a href="../index.html#faq">FAQ</a>
+          <a href="./">Rating</a>
+        </div>
+        <div class="footer-col">
+          <h4>Bantuan</h4>
+          <a href="../cek-pesanan/"><span data-cek-label>Cek Pesanan</span></a>
+          <a href="../index.html#contact">Contact</a>
+          <a href="../index.html#faq">Cara pembelian</a>
+        </div>
+        <div class="footer-col footer-col-last">
+          <h4>Hubungi kami</h4>
+          <a data-wa-link target="_blank" rel="noopener" href="#" hidden>WhatsApp</a>
+          <a data-discord-link target="_blank" rel="noopener" href="#" hidden>Discord</a>
+          <span>Balasan admin pada jam operasional toko.</span>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span data-copyright>© <span data-year>2026</span> 31 Store</span>
+        <span>Dibuat untuk pembeli yang tidak suka menunggu.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="../assets/js/common.js"></script>
+  <script src="rating.js"></script>
+</body>
+</html>

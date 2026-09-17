@@ -1,320 +1,368 @@
-/* 31 Store — Marketplace homepage. Everything below is fetched from /api/*
-   (MongoDB-backed) and kept in sync live via Socket.IO. No hardcoded products. */
+/* ============================================================================
+   31 Store — home page.
+   Every list here is read from /api/* and re-read when the existing Socket.IO
+   events fire. Nothing on this page is hardcoded except interface copy.
+   ========================================================================= */
 (function () {
   "use strict";
 
-  const $ = (id) => document.getElementById(id);
-  const CATEGORY_ICONS = ["▦", "◈", "◆", "◇", "▧", "◉"];
+  var $ = function (id) {
+    return document.getElementById(id);
+  };
 
-  const state = { settings: null, categories: [], products: [], faqs: [], statistics: null };
+  var BOARD_LIMIT = 8;
+  var GRID_LIMIT = 8;
 
-  // ---------------------------------------------------------------------
-  // Rendering
-  // ---------------------------------------------------------------------
-  function productCard(product) {
-    const outOfStock = Number(product.stock) <= 0;
-    const image = product.image
-      ? `<img src="${MP.escapeHTML(product.image)}" alt="${MP.escapeHTML(product.name)}" loading="lazy" style="width:100%;height:100%;object-fit:cover">`
-      : "PRODUCT IMAGE";
-    return `<article class="product-card reveal visible">
-      <div class="product-image">${image}</div>
-      <div class="product-body">
-        <h4>${MP.escapeHTML(product.name)}</h4>
-        <p>${MP.escapeHTML(product.description || "")}</p>
-        <div class="product-meta">
-          <div><div class="price">${MP.formatIDR(product.price)}</div><div class="stock">${outOfStock ? "Stok Habis" : "Tersedia"}</div></div>
-          <span class="stock">${Number(product.sold) || 0} terjual</span>
-        </div>
-        <a class="buy" href="product.html?slug=${encodeURIComponent(product.slug)}" ${outOfStock ? 'style="opacity:.55;pointer-events:none"' : ""}>${outOfStock ? "Stok Habis" : "Beli Sekarang"}</a>
-      </div>
-    </article>`;
-  }
+  var state = { products: [], categories: [], faqs: [], stats: null };
+  var lastBoard = new Map(); // slug -> "price|stock", used to flash changed rows
 
-  function renderCategoriesAndProducts() {
-    const container = $("categories-container");
-    if (!container) return;
+  /* -------------------------------------------------------- price board */
+  function renderBoard() {
+    var rows = $("board-rows");
+    var count = $("board-count");
+    if (!rows) return;
 
-    const byCategory = new Map();
-    state.products.forEach((p) => {
-      const catId = p.categoryId && (p.categoryId._id || p.categoryId);
-      if (!catId) return;
-      const key = String(catId);
-      if (!byCategory.has(key)) byCategory.set(key, []);
-      byCategory.get(key).push(p);
-    });
+    var items = state.products.slice(0, BOARD_LIMIT);
 
-    const categoriesWithProducts = state.categories.filter((c) => byCategory.has(String(c._id)));
-
-    if (categoriesWithProducts.length === 0) {
-      container.innerHTML = `<p style="color:#8a8093;font-size:13px;padding:18px 0">Belum ada produk tersedia saat ini.</p>`;
+    if (!items.length) {
+      rows.innerHTML = '<div class="board-row"><div class="board-cell"><div class="board-sub">Belum ada produk aktif.</div></div></div>';
+      if (count) count.textContent = "0 produk";
       return;
     }
 
-    container.innerHTML = categoriesWithProducts
-      .map((cat, idx) => {
-        const products = byCategory.get(String(cat._id)) || [];
-        const icon = cat.icon || CATEGORY_ICONS[idx % CATEGORY_ICONS.length];
-        return `
-          <div class="category-heading reveal visible ${idx > 0 ? "second-category" : ""}">
-            <div class="category-icon">${MP.escapeHTML(icon)}</div>
-            <div><h3>${MP.escapeHTML(cat.name)}</h3><p>${MP.escapeHTML(cat.description || "")}</p></div>
-          </div>
-          <div class="product-grid">${products.map(productCard).join("")}</div>`;
+    if (count) count.textContent = MP.formatNumber(state.products.length) + " produk aktif";
+
+    var next = new Map();
+    rows.innerHTML = items
+      .map(function (p) {
+        var stock = Number(p.stock) || 0;
+        var signature = p.price + "|" + stock;
+        var changed = lastBoard.size > 0 && lastBoard.get(p.slug) !== signature;
+        next.set(p.slug, signature);
+
+        var category = (p.categoryId && p.categoryId.name) || "Produk digital";
+        var stockLabel = stock <= 0 ? "Stok habis" : stock <= 5 ? "Sisa " + stock : "Stok " + MP.formatNumber(stock);
+
+        return (
+          '<a class="board-row' + (changed ? " is-fresh" : "") + '" href="product.html?slug=' + encodeURIComponent(p.slug) + '">' +
+          '<span class="board-cell">' +
+          '<span class="board-name">' + MP.escapeHTML(p.name) + "</span>" +
+          '<span class="board-sub">' + MP.escapeHTML(category) + "</span>" +
+          "</span>" +
+          '<span class="board-cell">' +
+          '<span class="board-price">' + MP.formatIDR(p.price) + "</span>" +
+          '<span class="board-stock">' + stockLabel + "</span>" +
+          "</span>" +
+          "</a>"
+        );
+      })
+      .join("");
+
+    lastBoard = next;
+  }
+
+  /* ------------------------------------------------------------ products */
+  function renderProducts() {
+    var grid = $("product-grid");
+    var note = $("product-note");
+    if (!grid) return;
+
+    if (!state.products.length) {
+      grid.innerHTML = '<div class="notice" style="grid-column:1/-1"><b>Belum ada produk</b>Produk yang ditambahkan lewat panel admin akan langsung muncul di sini.</div>';
+      if (note) note.textContent = "Belum ada produk aktif.";
+      return;
+    }
+
+    grid.innerHTML = state.products
+      .slice(0, GRID_LIMIT)
+      .map(function (p) {
+        return MP.productCard(p);
+      })
+      .join("");
+
+    if (note) {
+      note.textContent =
+        state.products.length > GRID_LIMIT
+          ? "Menampilkan " + GRID_LIMIT + " dari " + MP.formatNumber(state.products.length) + " produk aktif."
+          : MP.formatNumber(state.products.length) + " produk aktif, harga dan stok terkini.";
+    }
+  }
+
+  /* ---------------------------------------------------------- categories */
+  function renderCategories() {
+    var rail = $("category-rail");
+    var note = $("category-note");
+    if (!rail) return;
+
+    var counts = new Map();
+    state.products.forEach(function (p) {
+      var id = String((p.categoryId && p.categoryId._id) || p.categoryId || "");
+      if (!id) return;
+      counts.set(id, (counts.get(id) || 0) + 1);
+    });
+
+    var visible = state.categories.filter(function (c) {
+      return counts.has(String(c._id));
+    });
+
+    if (!visible.length) {
+      rail.innerHTML = '<div class="notice" style="grid-column:1/-1">Kategori akan muncul setelah ada produk aktif di dalamnya.</div>';
+      if (note) note.textContent = "Belum ada kategori dengan produk aktif.";
+      return;
+    }
+
+    if (note) note.textContent = visible.length + " kategori dengan produk aktif saat ini.";
+
+    rail.innerHTML = visible
+      .map(function (c) {
+        var n = counts.get(String(c._id)) || 0;
+        var icon = c.icon || "";
+        var glyph = /^https?:\/\//i.test(icon)
+          ? '<img src="' + MP.escapeHTML(icon) + '" alt="" loading="lazy">'
+          : MP.escapeHTML(icon || MP.initials(c.name));
+
+        return (
+          '<a class="cat-card" href="products.html?category=' + encodeURIComponent(c.slug) + '">' +
+          '<span class="cat-glyph">' + glyph + "</span>" +
+          '<span class="cat-text"><b>' + MP.escapeHTML(c.name) + "</b><small>" + n + " produk</small></span>" +
+          "</a>"
+        );
       })
       .join("");
   }
 
+  /* ----------------------------------------------------------------- faq */
   function renderFAQ() {
-    const el = $("faq-list");
-    if (!el) return;
-    if (state.faqs.length === 0) {
-      el.innerHTML = `<p style="color:#8a8093;font-size:13px">Belum ada pertanyaan yang tersedia.</p>`;
+    var list = $("faq-list");
+    var note = $("faq-note");
+    if (!list) return;
+
+    if (!state.faqs.length) {
+      list.innerHTML = '<div class="notice"><b>Belum ada pertanyaan</b>Admin belum menambahkan FAQ untuk toko ini.</div>';
+      if (note) note.textContent = "Belum ada pertanyaan yang dipublikasikan.";
       return;
     }
-    el.innerHTML = state.faqs
-      .map(
-        (f, i) => `<div class="faq-item ${i === 0 ? "open" : ""}">
-      <button class="faq-question" type="button"><span>${MP.escapeHTML(f.question)}</span><span>+</span></button>
-      <div class="faq-answer">${MP.escapeHTML(f.answer)}</div>
-    </div>`
-      )
+
+    if (note) note.textContent = state.faqs.length + " pertanyaan, dikelola langsung oleh admin toko.";
+
+    list.innerHTML = state.faqs
+      .map(function (f, i) {
+        var open = i === 0;
+        return (
+          '<div class="faq-item' + (open ? " is-open" : "") + '">' +
+          '<button class="faq-q" type="button" aria-expanded="' + (open ? "true" : "false") + '">' +
+          "<span>" + MP.escapeHTML(f.question) + "</span>" +
+          '<span class="faq-sign" aria-hidden="true">+</span>' +
+          "</button>" +
+          '<div class="faq-a"><div><p>' + MP.escapeHTML(f.answer) + "</p></div></div>" +
+          "</div>"
+        );
+      })
       .join("");
-    el.querySelectorAll(".faq-question").forEach((btn) => {
-      btn.addEventListener("click", () => btn.parentElement.classList.toggle("open"));
+  }
+
+  function bindFAQ() {
+    var list = $("faq-list");
+    if (!list) return;
+    // One delegated listener for the lifetime of the page — re-rendering the
+    // list on a realtime FAQ update can never stack handlers.
+    list.addEventListener("click", function (e) {
+      var btn = e.target.closest(".faq-q");
+      if (!btn) return;
+      var item = btn.parentElement;
+      var open = item.classList.toggle("is-open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
     });
   }
 
-  function renderStatistics() {
-    const stats = state.statistics;
-    const visibility = state.settings?.statistics || {};
-    if (!stats) return;
+  /* ---------------------------------------------------------- statistics */
+  function renderStats() {
+    if (!state.stats) return;
+    var s = state.stats;
+    var visibility = (MP.getSettings() || {}).statistics || {};
 
-    const setStat = (wrapId, valueId, visible, text) => {
-      const wrap = $(wrapId);
-      const valueEl = $(valueId);
-      if (wrap) wrap.style.display = visible === false ? "none" : "";
-      if (valueEl) valueEl.textContent = text;
+    var map = {
+      sold: { el: $("stat-sold"), value: MP.formatNumber(s.totalProdukTerjual), visible: visibility.totalProdukTerjualVisible },
+      rating: { el: $("stat-rating"), value: s.averageRating ? s.averageRating + " / 5" : "Belum ada", visible: visibility.averageRatingVisible },
+      buyer: { el: $("stat-buyer"), value: MP.formatNumber(s.totalBuyer), visible: visibility.totalBuyerVisible },
+      produk: { el: $("stat-produk"), value: MP.formatNumber(s.totalProduk), visible: visibility.totalProdukVisible },
+      orders: { el: $("stat-orders"), value: MP.formatNumber(s.successfulOrders), visible: visibility.successfulOrdersVisible },
     };
 
-    setStat("stat-sold-wrap", "stat-sold", visibility.totalProdukTerjualVisible, `${Number(stats.totalProdukTerjual || 0).toLocaleString("id-ID")}+`);
-    setStat("stat-rating-wrap", "stat-rating", visibility.averageRatingVisible, stats.averageRating ? `${stats.averageRating}/5` : "Belum ada");
-    setStat("stat-buyer-wrap", "stat-buyer", visibility.totalBuyerVisible, `${Number(stats.totalBuyer || 0).toLocaleString("id-ID")}+`);
-    setStat("stat-produk-wrap", "stat-produk", visibility.totalProdukVisible, `${Number(stats.totalProduk || 0).toLocaleString("id-ID")}`);
-    setStat("stat-orders-wrap", "stat-orders", visibility.successfulOrdersVisible, `${Number(stats.successfulOrders || 0).toLocaleString("id-ID")}`);
-
-    const supportLabel = $("stat-support-label");
-    if (supportLabel && visibility.supportLabel) supportLabel.textContent = visibility.supportLabel;
-  }
-
-  function renderSettings() {
-    const s = state.settings;
-    if (!s) return;
-
-    // General / branding
-    if (s.general?.storeName) {
-      document.querySelectorAll(".js-store-name").forEach((el) => (el.textContent = s.general.storeName));
-      document.title = `${s.general.storeName} — Digital Gaming Marketplace`;
-    }
-    if (s.general?.logo) {
-      document.querySelectorAll(".js-brand-mark").forEach((el) => {
-        el.innerHTML = `<img src="${MP.escapeHTML(s.general.logo)}" alt="Logo" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`;
-      });
-    }
-    if (s.general?.description) {
-      const meta = document.querySelector('meta[name="description"]');
-      if (meta) meta.setAttribute("content", s.general.description);
-    }
-    if (s.general?.copyright) {
-      const el = $("footer-copyright");
-      if (el) el.textContent = s.general.copyright;
-    }
-    if (s.general?.websiteStatus === "maintenance") {
-      showMaintenanceBanner();
-    }
-
-    // Navbar
-    if (s.navbar?.cekPesananLabel) {
-      document.querySelectorAll(".js-cek-pesanan-label").forEach((el) => (el.textContent = s.navbar.cekPesananLabel));
-    }
-
-    // Home hero
-    if (s.home?.heading) $("hero-heading") && ($("hero-heading").textContent = s.home.heading);
-    if (s.home?.subtitle) $("hero-description") && ($("hero-description").textContent = s.home.subtitle);
-    if (s.home?.description && !s.home?.subtitle) $("hero-description") && ($("hero-description").textContent = s.home.description);
-    if (s.home?.ctaText) $("hero-cta-text") && ($("hero-cta-text").textContent = s.home.ctaText);
-    if (s.home?.ctaLink) $("hero-cta") && ($("hero-cta").setAttribute("href", s.home.ctaLink));
-
-    // Highlights
-    if (Array.isArray(s.highlights) && s.highlights.length > 0) {
-      const enabled = s.highlights.filter((h) => h.enabled !== false).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-      const grid = $("highlights-grid");
-      if (grid && enabled.length > 0) {
-        grid.innerHTML = enabled
-          .map((h) => `<article class="feature-card"><div class="icon">${MP.escapeHTML(h.icon || "•")}</div><h3>${MP.escapeHTML(h.title)}</h3><p>${MP.escapeHTML(h.description || "")}</p></article>`)
-          .join("");
-      }
-    }
-
-    // Contact
-    const contact = s.contact || {};
-    if (contact.title) $("contact-title") && ($("contact-title").textContent = contact.title);
-    if (contact.description) $("contact-description") && ($("contact-description").textContent = contact.description);
-    const waLink = $("contact-whatsapp-link");
-    const waCard = $("contact-card-whatsapp");
-    if (contact.whatsapp && waLink && waCard) {
-      const digits = String(contact.whatsapp).replace(/\D/g, "");
-      waLink.href = `https://wa.me/${digits}`;
-      if (contact.buttonText) waLink.textContent = `${contact.buttonText} ↗`;
-      waCard.style.display = "";
-      const footerWa = $("footer-whatsapp-link");
-      if (footerWa) footerWa.href = `https://wa.me/${digits}`;
-    }
-    const dcLink = $("contact-discord-link");
-    const dcCard = $("contact-card-discord");
-    if (contact.discordUrl && dcLink && dcCard) {
-      dcLink.href = contact.discordUrl;
-      dcCard.style.display = "";
-      const footerDc = $("footer-discord-link");
-      if (footerDc) footerDc.href = contact.discordUrl;
-    }
-
-    // Footer
-    if (s.footer?.description) $("footer-description") && ($("footer-description").textContent = s.footer.description);
-    if (s.footer?.copyright) $("footer-copyright") && ($("footer-copyright").textContent = s.footer.copyright);
-  }
-
-  function showMaintenanceBanner() {
-    if ($("maintenance-banner")) return;
-    const bar = document.createElement("div");
-    bar.id = "maintenance-banner";
-    bar.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:999;background:#211b31;color:#fff;text-align:center;font-size:12px;font-weight:700;padding:10px;letter-spacing:.03em";
-    bar.textContent = "Website sedang dalam pemeliharaan. Beberapa fitur mungkin belum tersedia.";
-    document.body.prepend(bar);
-  }
-
-  // ---------------------------------------------------------------------
-  // Data loading
-  // ---------------------------------------------------------------------
-  async function loadAll() {
-    const results = await Promise.allSettled([
-      MP.get("/settings"),
-      MP.get("/categories"),
-      MP.get("/products"),
-      MP.get("/faq"),
-      MP.get("/statistics"),
-    ]);
-
-    const [settingsR, categoriesR, productsR, faqR, statsR] = results;
-    if (settingsR.status === "fulfilled") state.settings = settingsR.value.data;
-    if (categoriesR.status === "fulfilled") state.categories = categoriesR.value.data || [];
-    if (productsR.status === "fulfilled") state.products = productsR.value.data || [];
-    if (faqR.status === "fulfilled") state.faqs = faqR.value.data || [];
-    if (statsR.status === "fulfilled") state.statistics = statsR.value.data;
-
-    results.forEach((r) => {
-      if (r.status === "rejected") console.error("Gagal memuat data marketplace:", r.reason);
+    Object.keys(map).forEach(function (key) {
+      var entry = map[key];
+      if (entry.el) entry.el.textContent = entry.value;
+      var wrap = document.querySelector('[data-stat="' + key + '"]');
+      if (wrap) wrap.hidden = entry.visible === false;
     });
 
-    renderSettings();
-    renderCategoriesAndProducts();
-    renderFAQ();
-    renderStatistics();
+    if (visibility.supportLabel && $("stat-support-label")) $("stat-support-label").textContent = visibility.supportLabel;
+
+    // The divider belongs to the last *visible* stat, not the last element.
+    var cells = Array.prototype.slice.call(document.querySelectorAll(".stat"));
+    var shown = cells.filter(function (c) {
+      return !c.hidden;
+    });
+    cells.forEach(function (c) {
+      c.classList.toggle("is-last", c === shown[shown.length - 1]);
+    });
   }
 
-  async function reloadProducts() {
-    try {
-      const [categoriesR, productsR] = await Promise.all([MP.get("/categories"), MP.get("/products")]);
-      state.categories = categoriesR.data || [];
-      state.products = productsR.data || [];
-      renderCategoriesAndProducts();
-    } catch (err) {
-      console.error("Gagal memperbarui produk:", err);
+  /* ------------------------------------------- settings-driven home copy */
+  function applyHomeSettings(s) {
+    if (!s) return;
+    var home = s.home || {};
+    var contact = s.contact || {};
+
+    if (home.heading && $("hero-heading")) $("hero-heading").textContent = home.heading;
+    var lede = home.subtitle || home.description;
+    if (lede && $("hero-description")) $("hero-description").textContent = lede;
+    if (home.ctaText && $("hero-cta-text")) $("hero-cta-text").textContent = home.ctaText;
+    if (home.ctaLink && $("hero-cta")) $("hero-cta").setAttribute("href", home.ctaLink);
+
+    if (contact.title && $("contact-title")) $("contact-title").textContent = contact.title;
+    if (contact.description && $("contact-description")) $("contact-description").textContent = contact.description;
+
+    var highlights = Array.isArray(s.highlights)
+      ? s.highlights
+          .filter(function (h) {
+            return h.enabled !== false && h.title;
+          })
+          .sort(function (a, b) {
+            return (a.sortOrder || 0) - (b.sortOrder || 0);
+          })
+      : [];
+
+    var grid = $("benefit-grid");
+    if (grid && highlights.length) {
+      grid.innerHTML = highlights
+        .map(function (h) {
+          return (
+            '<article class="benefit">' +
+            '<div class="cat-glyph">' + MP.escapeHTML(h.icon || "•") + "</div>" +
+            "<h3>" + MP.escapeHTML(h.title) + "</h3>" +
+            "<p>" + MP.escapeHTML(h.description || "") + "</p>" +
+            "</article>"
+          );
+        })
+        .join("");
     }
+
+    renderStats();
   }
 
-  async function reloadFAQ() {
+  /* --------------------------------------------------------- data loading */
+  async function loadCatalog() {
+    var results = await Promise.allSettled([MP.get("/products"), MP.get("/categories")]);
+    if (results[0].status === "fulfilled") state.products = results[0].value.data || [];
+    if (results[1].status === "fulfilled") state.categories = results[1].value.data || [];
+    results.forEach(function (r) {
+      if (r.status === "rejected") console.error("Gagal memuat katalog:", r.reason);
+    });
+    renderBoard();
+    renderProducts();
+    renderCategories();
+  }
+
+  async function loadFAQ() {
     try {
-      const r = await MP.get("/faq");
-      state.faqs = r.data || [];
+      var res = await MP.get("/faq");
+      state.faqs = res.data || [];
       renderFAQ();
     } catch (err) {
-      console.error("Gagal memperbarui FAQ:", err);
+      console.error("Gagal memuat FAQ:", err);
+      var list = $("faq-list");
+      if (list && !state.faqs.length) list.innerHTML = '<div class="notice">Daftar pertanyaan gagal dimuat. Coba muat ulang halaman.</div>';
     }
   }
 
-  async function reloadStatistics() {
+  async function loadStats() {
     try {
-      const r = await MP.get("/statistics");
-      state.statistics = r.data;
-      renderStatistics();
+      var res = await MP.get("/statistics");
+      state.stats = res.data;
+      renderStats();
     } catch (err) {
-      console.error("Gagal memperbarui statistik:", err);
+      console.error("Gagal memuat statistik:", err);
     }
   }
 
-  async function reloadSettings() {
-    try {
-      const r = await MP.get("/settings");
-      state.settings = r.data;
-      renderSettings();
-      renderStatistics();
-    } catch (err) {
-      console.error("Gagal memperbarui pengaturan:", err);
-    }
+  // Admin Web emits statistics:updated both when the numbers move and when a
+  // stat is shown/hidden — the visibility flags live in settings, so refresh
+  // both or a toggled stat would stay on screen until the next reload.
+  function refreshStatsAndVisibility() {
+    return Promise.all([loadStats(), MP.loadSettings(true)]);
   }
 
-  // ---------------------------------------------------------------------
-  // Realtime (Socket.IO) — reacts to events emitted by the Admin Web backend
-  // ---------------------------------------------------------------------
+  function loadAll() {
+    return Promise.all([loadCatalog(), loadFAQ(), loadStats()]);
+  }
+
+  /* ------------------------------------------------------------ realtime */
   function setupRealtime() {
-    const socket = MP.getSocket();
-    if (!socket) return;
+    var refreshCatalog = MP.debounce(loadCatalog, 300);
+    var refreshFAQ = MP.debounce(loadFAQ, 300);
+    var refreshStats = MP.debounce(refreshStatsAndVisibility, 300);
 
-    const debouncedProducts = MP.debounce(reloadProducts, 300);
-    const debouncedStats = MP.debounce(reloadStatistics, 300);
-    const debouncedSettings = MP.debounce(reloadSettings, 300);
-
-    ["product:created", "product:updated", "product:deleted", "products:updated", "categories:updated", "stock:updated"].forEach((evt) =>
-      socket.on(evt, debouncedProducts)
-    );
-    ["statistics:updated", "rating:updated"].forEach((evt) => socket.on(evt, debouncedStats));
-    ["website:settings:updated", "navbar:updated", "home:updated", "contact:updated"].forEach((evt) => socket.on(evt, debouncedSettings));
-    socket.on("faq:updated", MP.debounce(reloadFAQ, 300));
-
-    // After any reconnect, re-sync everything in case events were missed while offline.
-    socket.on("connect", () => {
-      loadAll().catch((err) => console.error(err));
+    MP.on(["product:created", "product:updated", "product:deleted", "products:updated", "categories:updated", "stock:updated"], refreshCatalog);
+    MP.on("faq:updated", refreshFAQ);
+    MP.on(["statistics:updated", "rating:updated", "order:updated", "payment:updated"], refreshStats);
+    MP.onReconnect(function () {
+      loadAll().catch(function (err) {
+        console.error(err);
+      });
     });
   }
 
-  // ---------------------------------------------------------------------
-  // Page chrome: reveal-on-scroll + active nav link (pure UI, unchanged)
-  // ---------------------------------------------------------------------
-  function setupPageChrome() {
-    const observer = new IntersectionObserver(
-      (entries) => entries.forEach((entry) => entry.isIntersecting && entry.target.classList.add("visible")),
-      { threshold: 0.08 }
-    );
-    document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
-
-    const sections = [...document.querySelectorAll("main section[id]")];
-    const navLinks = [...document.querySelectorAll(".nav-link")];
-    const sectionObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            navLinks.forEach((link) => link.classList.toggle("active", link.getAttribute("href") === "#" + entry.target.id));
-          }
-        });
-      },
-      { rootMargin: "-35% 0px -55% 0px" }
-    );
-    sections.forEach((s) => sectionObserver.observe(s));
+  /* --------------------------------------------------------------- search */
+  function setupSearch() {
+    var form = $("hero-search");
+    if (!form) return;
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var q = ($("hero-search-input").value || "").trim();
+      window.location.href = q ? "products.html?q=" + encodeURIComponent(q) : "products.html";
+    });
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
-    setupPageChrome();
-    loadAll().catch((err) => console.error("Gagal memuat marketplace:", err));
+  /* --------------------------------------------------- active nav on scroll */
+  function setupScrollSpy() {
+    var sections = Array.prototype.slice.call(document.querySelectorAll("main section[id]"));
+    var links = Array.prototype.slice.call(document.querySelectorAll('.nav a[href^="#"]'));
+    if (!sections.length || !links.length || !("IntersectionObserver" in window)) return;
+
+    var home = document.querySelector('.nav a[href="index.html"]');
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var match = links.filter(function (l) {
+            return l.getAttribute("href") === "#" + entry.target.id;
+          })[0];
+          links.forEach(function (l) {
+            l.classList.toggle("is-active", l === match);
+          });
+          if (home) home.classList.toggle("is-active", !match);
+        });
+      },
+      { rootMargin: "-40% 0px -55% 0px" }
+    );
+    sections.forEach(function (s) {
+      observer.observe(s);
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    bindFAQ();
+    setupSearch();
+    setupScrollSpy();
+    MP.onSettings(applyHomeSettings);
+    loadAll()
+      .then(function () {
+        MP.observeReveals();
+      })
+      .catch(function (err) {
+        console.error("Gagal memuat halaman:", err);
+      });
     setupRealtime();
   });
 })();

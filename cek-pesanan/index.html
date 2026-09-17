@@ -1,18 +1,104 @@
 <!DOCTYPE html>
-<html lang="id"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cek Pesanan — 31 Store</title><link rel="stylesheet" href="../assets/css/style.css"></head>
-<body><header class="navbar"><a class="brand" href="../"><span class="brand-mark">31</span><span>31 Store</span></a><nav class="nav-links"><a class="nav-link" href="../">Home</a><a class="nav-link" href="../#product">Product</a><a class="nav-link" href="../#faq">FAQ</a><a class="nav-link" href="../#contact">Contact</a><a class="nav-link" href="../rating/">Rating</a></nav><a class="order-button" href="./">Cek Pesanan <span class="arrow">↗</span></a></header>
-<main><section class="section" style="max-width:760px">
-  <div class="section-heading" style="display:block"><span class="eyebrow">ORDER TRACKING</span><h2>Cek <span>Pesanan.</span></h2><p style="margin-top:15px">Masukkan kode order kamu untuk melihat status transaksi secara realtime.</p></div>
-  <form id="form" class="feature-card" style="padding:28px">
-    <label style="display:block;font-size:12px;font-weight:700;margin-bottom:9px">Kode Order</label>
-    <input id="order-code" required placeholder="Contoh: ORD-2026-0001" style="width:100%;padding:14px;border:1px solid #e4ddec;border-radius:11px;outline:none;font:13px Inter;text-transform:uppercase">
-    <button class="primary-button" id="submit-btn" style="border:0;margin-top:14px;cursor:pointer">Cek Pesanan</button>
-    <p id="form-error" style="color:#c0392b;font-size:12px;margin-top:10px;min-height:14px"></p>
-  </form>
-  <div id="result" style="margin-top:22px"></div>
-</section></main>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Lacak status pesanan 31 Store dengan kode order: status pembayaran, detail produk, dan sisa waktu pembayaran.">
+  <meta name="theme-color" content="#0e0a17">
+  <title>Cek Pesanan — 31 Store</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body data-title-suffix="Cek Pesanan">
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="../assets/js/common.js"></script>
-<script src="cek-pesanan.js"></script>
-</body></html>
+  <div class="maintenance-bar" data-maintenance hidden>Toko sedang dalam pemeliharaan. Beberapa produk mungkin belum bisa dipesan.</div>
+
+  <header class="site-header">
+    <div class="shell">
+      <a class="brand" href="../">
+        <span class="brand-mark" data-brand-mark><span data-store-initials>31</span></span>
+        <span data-store-name>31 Store</span>
+      </a>
+
+      <nav class="nav" aria-label="Navigasi utama">
+        <a href="../">Home</a>
+        <a href="../products.html">Product</a>
+        <a href="../index.html#faq">FAQ</a>
+        <a href="../index.html#contact">Contact</a>
+        <a href="../rating/">Rating</a>
+      </nav>
+
+      <div class="header-actions">
+        <a class="btn btn-ghost btn-sm" href="./"><span data-cek-label>Cek Pesanan</span></a>
+        <button class="nav-toggle" type="button" aria-label="Buka menu" aria-expanded="false"><span></span></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="../">Home</a><span>/</span><strong data-cek-label>Cek Pesanan</strong>
+    </nav>
+
+    <div class="track-layout">
+      <div class="page-head">
+        <h1 class="display">Lacak pesanan kamu</h1>
+        <p class="lede">Masukkan kode order yang kamu terima setelah checkout. Statusnya diperbarui otomatis selama halaman ini terbuka.</p>
+      </div>
+
+      <form class="track-form" id="track-form" novalidate>
+        <input class="input" id="order-code" required placeholder="ORD-XXXX-XXXX" aria-label="Kode order" autocomplete="off" spellcheck="false">
+        <button class="btn btn-primary" type="submit" id="track-submit">Cek pesanan</button>
+      </form>
+      <p class="form-note" id="track-note"></p>
+
+      <div id="result"></div>
+    </div>
+
+    <div class="band-tight"></div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell">
+      <div class="footer-grid">
+        <div>
+          <a class="brand" href="../">
+            <span class="brand-mark" data-brand-mark><span data-store-initials>31</span></span>
+            <span data-store-name>31 Store</span>
+          </a>
+          <p data-footer-description>Marketplace produk digital dengan harga transparan dan pesanan yang bisa dilacak.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Navigasi</h4>
+          <a href="../">Home</a>
+          <a href="../products.html">Product</a>
+          <a href="../index.html#faq">FAQ</a>
+          <a href="../rating/">Rating</a>
+        </div>
+        <div class="footer-col">
+          <h4>Bantuan</h4>
+          <a href="./"><span data-cek-label>Cek Pesanan</span></a>
+          <a href="../index.html#contact">Contact</a>
+          <a href="../index.html#faq">Cara pembelian</a>
+        </div>
+        <div class="footer-col footer-col-last">
+          <h4>Hubungi kami</h4>
+          <a data-wa-link target="_blank" rel="noopener" href="#" hidden>WhatsApp</a>
+          <a data-discord-link target="_blank" rel="noopener" href="#" hidden>Discord</a>
+          <span>Balasan admin pada jam operasional toko.</span>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span data-copyright>© <span data-year>2026</span> 31 Store</span>
+        <span>Dibuat untuk pembeli yang tidak suka menunggu.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="../assets/js/common.js"></script>
+  <script src="cek-pesanan.js"></script>
+</body>
+</html>

@@ -1,87 +1,140 @@
+/* ============================================================================
+   31 Store — lacak pesanan.
+   Reads /api/orders/track/:orderCode and re-reads it whenever the existing
+   order:updated / payment:updated events mention the order on screen.
+   ========================================================================= */
 (function () {
-  const $ = (id) => document.getElementById(id);
-  let currentOrderCode = null;
-  let socketBound = false;
+  "use strict";
 
-  function statusPill(status, label) {
-    const color = MP.STATUS_COLOR[status] || "#8a8093";
-    return `<span style="display:inline-block;padding:5px 12px;border-radius:999px;font-size:11px;font-weight:800;color:#fff;background:${color}">${MP.escapeHTML(label || status)}</span>`;
+  var $ = function (id) {
+    return document.getElementById(id);
+  };
+
+  var currentOrder = null;
+
+  var DONE = ["PAID", "SUCCESS", "COMPLETED"];
+  var BAD = ["FAILED", "EXPIRED", "CANCELLED"];
+
+  function pill(status) {
+    var tone = MP.STATUS_TONE[status] || "idle";
+    var label = MP.STATUS_LABEL[status] || status;
+    return '<span class="pill pill-' + tone + '">' + MP.escapeHTML(label) + "</span>";
+  }
+
+  function stepState(order) {
+    var paid = DONE.indexOf(order.paymentStatus) !== -1 || DONE.indexOf(order.status) !== -1;
+    var stopped = BAD.indexOf(order.paymentStatus) !== -1 || BAD.indexOf(order.status) !== -1;
+    var finished = order.status === "COMPLETED";
+
+    return [
+      { label: "Pesanan dibuat", note: "Kode order diterbitkan", state: "is-done" },
+      {
+        label: "Pembayaran",
+        note: stopped ? "Tidak diselesaikan" : paid ? "Sudah dibayar" : "Menunggu pembayaran",
+        state: stopped ? "" : paid ? "is-done" : "is-current",
+      },
+      {
+        label: "Verifikasi",
+        note: paid ? "Pembayaran terverifikasi" : "Menunggu pembayaran masuk",
+        state: paid ? "is-done" : "",
+      },
+      {
+        label: "Selesai",
+        note: finished ? "Pesanan selesai" : "Diproses admin toko",
+        state: finished ? "is-done" : paid ? "is-current" : "",
+      },
+    ];
   }
 
   function render(order) {
-    const paidLabel = MP.STATUS_LABEL[order.paymentStatus] || order.paymentStatus;
-    const statusLabel = MP.STATUS_LABEL[order.status] || order.status;
+    var steps = stepState(order)
+      .map(function (s) {
+        return '<div class="step ' + s.state + '"><i></i><b>' + s.label + "</b><span>" + s.note + "</span></div>";
+      })
+      .join("");
 
-    let paymentBlock = "";
+    var payment = "";
     if (order.payment && order.paymentStatus === "PENDING") {
-      paymentBlock = `
-        <div style="margin-top:18px;padding:18px;border-radius:14px;background:#f5effd;border:1px solid #e2d5f4">
-          <strong style="font-size:12px">Selesaikan Pembayaran</strong>
-          ${order.payment.qrisUrl ? `<img src="${MP.escapeHTML(order.payment.qrisUrl)}" alt="QRIS" style="width:100%;max-width:260px;display:block;margin:12px auto;border-radius:12px">` : ""}
-          ${order.payment.directUrl ? `<a href="${MP.escapeHTML(order.payment.directUrl)}" target="_blank" rel="noopener" class="primary-button" style="width:100%;justify-content:center;text-decoration:none;margin-top:6px">Buka Halaman Pembayaran ↗</a>` : ""}
-          ${order.payment.expiredAt ? `<p style="font-size:11px;color:#8a8093;margin-top:10px">Kedaluwarsa: ${MP.formatDate(order.payment.expiredAt)}</p>` : ""}
-        </div>`;
+      payment =
+        '<div class="pay-box">' +
+        "<h4>Selesaikan pembayaran</h4>" +
+        (order.payment.qrisUrl ? '<img class="qris" src="' + MP.escapeHTML(order.payment.qrisUrl) + '" alt="Kode QRIS pembayaran">' : "") +
+        (order.payment.directUrl
+          ? '<a class="btn btn-primary btn-block" href="' + MP.escapeHTML(order.payment.directUrl) + '" target="_blank" rel="noopener">Buka halaman pembayaran</a>'
+          : "") +
+        (order.payment.expiredAt ? '<p class="muted" style="font-size:12.5px;margin-top:12px">Berlaku sampai ' + MP.formatDate(order.payment.expiredAt) + "</p>" : "") +
+        "</div>";
     }
 
-    $("result").innerHTML = `
-      <div style="padding:22px;border-radius:16px;background:#fff;border:1px solid #e8e1f0;box-shadow:0 8px 24px rgba(74,50,110,.05)">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-          <strong style="font-size:16px">${MP.escapeHTML(order.orderCode)}</strong>
-          ${statusPill(order.paymentStatus, paidLabel)}
-        </div>
-        <div style="margin-top:16px;font-size:13px;line-height:2;color:#4c465a">
-          <div style="display:flex;justify-content:space-between"><span>Produk</span><strong>${MP.escapeHTML(order.product.name)}</strong></div>
-          <div style="display:flex;justify-content:space-between"><span>Jumlah</span><strong>${order.quantity}</strong></div>
-          <div style="display:flex;justify-content:space-between"><span>Total</span><strong>${MP.formatIDR(order.total)}</strong></div>
-          <div style="display:flex;justify-content:space-between"><span>Status Order</span><strong>${MP.escapeHTML(statusLabel)}</strong></div>
-          <div style="display:flex;justify-content:space-between"><span>Tanggal</span><strong>${MP.formatDate(order.createdAt)}</strong></div>
-        </div>
-        ${paymentBlock}
-      </div>`;
+    $("result").innerHTML =
+      '<div class="panel order-card">' +
+      '<div class="order-top"><span class="order-code">' + MP.escapeHTML(order.orderCode) + "</span>" + pill(order.paymentStatus) + "</div>" +
+      '<div class="steps">' + steps + "</div>" +
+      '<div style="padding-top:8px">' +
+      '<div class="kv"><span>Produk</span><strong>' + MP.escapeHTML(order.product.name) + "</strong></div>" +
+      '<div class="kv"><span>Jumlah</span><strong>' + MP.escapeHTML(String(order.quantity)) + "</strong></div>" +
+      '<div class="kv"><span>Total</span><strong>' + MP.formatIDR(order.total) + "</strong></div>" +
+      '<div class="kv"><span>Status pesanan</span><strong>' + MP.escapeHTML(MP.STATUS_LABEL[order.status] || order.status) + "</strong></div>" +
+      '<div class="kv"><span>Dibuat</span><strong>' + MP.formatDate(order.createdAt) + "</strong></div>" +
+      "</div>" +
+      payment +
+      "</div>";
   }
 
-  async function lookup(orderCode) {
-    const errorEl = $("form-error");
-    const btn = $("submit-btn");
-    errorEl.textContent = "";
-    btn.disabled = true;
-    btn.textContent = "Mencari...";
+  async function lookup(code, silent) {
+    var note = $("track-note");
+    var btn = $("track-submit");
+
+    if (!silent) {
+      note.className = "form-note";
+      note.textContent = "Mencari pesanan…";
+      btn.disabled = true;
+      btn.textContent = "Mencari…";
+    }
+
     try {
-      const res = await MP.get(`/orders/track/${encodeURIComponent(orderCode)}`);
-      currentOrderCode = orderCode;
+      var res = await MP.get("/orders/track/" + encodeURIComponent(code));
+      currentOrder = code;
+      if (!silent) note.textContent = "";
       render(res.data);
-      bindSocket();
     } catch (err) {
+      if (silent) return; // keep the last good view if a refresh fails
+      currentOrder = null;
       $("result").innerHTML = "";
-      errorEl.textContent = err.message || "Order tidak ditemukan.";
+      note.className = "form-note is-error";
+      note.textContent = err.message || "Pesanan tidak ditemukan. Periksa lagi kode order kamu.";
     } finally {
-      btn.disabled = false;
-      btn.textContent = "Cek Pesanan";
+      if (!silent) {
+        btn.disabled = false;
+        btn.textContent = "Cek pesanan";
+      }
     }
   }
 
-  function bindSocket() {
-    if (socketBound) return;
-    const socket = MP.getSocket();
-    if (!socket) return;
-    socketBound = true;
-    const handler = (payload) => {
-      if (payload && payload.orderCode === currentOrderCode) lookup(currentOrderCode);
-    };
-    socket.on("order:updated", handler);
-    socket.on("payment:updated", handler);
-  }
+  document.addEventListener("DOMContentLoaded", function () {
+    $("track-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var code = ($("order-code").value || "").trim().toUpperCase();
+      if (code) lookup(code, false);
+    });
 
-  $("form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const code = $("order-code").value.trim().toUpperCase();
-    if (code) lookup(code);
+    // One listener for the page: it checks the payload against whichever order
+    // is on screen, so re-rendering never attaches another handler.
+    var refresh = MP.debounce(function (payload) {
+      if (!currentOrder) return;
+      if (payload && payload.orderCode && payload.orderCode !== currentOrder) return;
+      lookup(currentOrder, true);
+    }, 250);
+
+    MP.on(["order:updated", "payment:updated"], refresh);
+    MP.onReconnect(function () {
+      if (currentOrder) lookup(currentOrder, true);
+    });
+
+    var preset = new URLSearchParams(window.location.search).get("order");
+    if (preset) {
+      $("order-code").value = preset.toUpperCase();
+      lookup(preset.toUpperCase(), false);
+    }
   });
-
-  // Deep-link support: cek-pesanan/?order=ORD-XXXX
-  const preset = new URLSearchParams(location.search).get("order");
-  if (preset) {
-    $("order-code").value = preset.toUpperCase();
-    lookup(preset.toUpperCase());
-  }
 })();

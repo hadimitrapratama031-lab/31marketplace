@@ -179,7 +179,11 @@ app.get(["/admin", "/admin/"], (req, res, next) => {
   return sendPage(res, next, "admin", "index.html");
 });
 
-// Halaman produk
+// Katalog produk (daftar). Didaftarkan eksplisit supaya "/products" tidak
+// bergantung pada opsi `extensions` di express.static.
+app.get(["/products", "/products.html"], (req, res, next) => sendPage(res, next, "products.html"));
+
+// Halaman detail produk
 app.get(["/product", "/product.html"], (req, res, next) => sendPage(res, next, "product.html"));
 
 // Cek Pesanan

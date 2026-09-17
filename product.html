@@ -1,54 +1,165 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <meta name="description" content="Detail produk — 31 Store Digital Gaming Marketplace">
-  <title>Product Detail — 31 Store</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css"><link rel="stylesheet" href="assets/css/product.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Detail produk digital: harga, stok, dan cara pembelian.">
+  <meta name="theme-color" content="#0e0a17">
+  <title>Detail Produk — 31 Store</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/product.css">
 </head>
-<body>
-  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-noise"></div>
-  <header class="navbar">
-    <a class="brand" href="index.html"><span class="brand-mark">31</span><span>31 Store</span></a>
-    <nav class="nav-links"><a class="nav-link" href="index.html#home">Home</a><a class="nav-link active" href="index.html#product">Product</a><a class="nav-link" href="index.html#faq">FAQ</a><a class="nav-link" href="index.html#contact">Contact</a><a class="nav-link" href="rating/">Rating</a></nav>
-    <a class="order-button" href="cek-pesanan/">Cek Pesanan <span class="arrow">↗</span></a>
+<body data-title-suffix="Detail Produk">
+
+  <div class="maintenance-bar" data-maintenance hidden>Toko sedang dalam pemeliharaan. Beberapa produk mungkin belum bisa dipesan.</div>
+
+  <header class="site-header">
+    <div class="shell">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" data-brand-mark><span data-store-initials>31</span></span>
+        <span data-store-name>31 Store</span>
+      </a>
+
+      <nav class="nav" aria-label="Navigasi utama">
+        <a href="index.html">Home</a>
+        <a href="products.html" class="is-active">Product</a>
+        <a href="index.html#faq">FAQ</a>
+        <a href="index.html#contact">Contact</a>
+        <a href="rating/">Rating</a>
+      </nav>
+
+      <div class="header-actions">
+        <a class="btn btn-ghost btn-sm" href="cek-pesanan/"><span data-cek-label>Cek Pesanan</span></a>
+        <button class="nav-toggle" type="button" aria-label="Buka menu" aria-expanded="false"><span></span></button>
+      </div>
+    </div>
   </header>
 
-  <main class="product-detail-page">
-    <div class="breadcrumbs"><a href="index.html">Home</a><span>/</span><a href="index.html#product">Marketplace</a><span>/</span><strong id="crumb-name">Product</strong></div>
-    <section class="product-detail-grid">
-      <div class="product-gallery">
-        <div class="main-preview" id="main-preview"><img class="preview-image" id="preview-image" alt=""><div class="preview-top"><span>31 STORE</span><span>VERIFIED PRODUCT</span></div><div class="preview-glow"></div><div class="preview-grid"></div><div class="preview-number">31</div><div class="preview-title" id="preview-title">DIGITAL<br><strong>PRODUCT</strong></div><div class="preview-bottom"><span>GAMING GOODS</span><span>2026</span></div></div>
-        <div class="thumbnail-row"><button class="thumb active" type="button"><span>01</span> Overview</button><button class="thumb" type="button"><span>02</span> Preview</button><button class="thumb" type="button"><span>03</span> Info</button></div>
+  <main class="shell detail" id="detail-root">
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="index.html">Home</a><span>/</span><a href="products.html">Katalog</a><span>/</span><strong id="crumb-name">Produk</strong>
+    </nav>
+
+    <section class="detail-grid">
+      <div class="detail-media">
+        <figure class="media-frame" id="media-frame">
+          <div class="ph" id="media-placeholder">31</div>
+        </figure>
+        <div class="media-notes">
+          <div class="media-note"><b>✓</b><span>Harga dan stok dibaca langsung dari sistem toko</span></div>
+          <div class="media-note"><b>⚡</b><span>Diproses setelah pembayaran terverifikasi</span></div>
+          <div class="media-note"><b>◎</b><span>Setiap pesanan punya kode untuk dilacak</span></div>
+        </div>
       </div>
-      <div class="product-info">
-        <div class="product-badges"><span class="badge purple" id="product-category-badge">DIGITAL GOODS</span><span class="badge green" id="product-status-badge">● TERSEDIA</span></div>
-        <h1 id="product-name">Memuat produk...</h1>
-        <p class="lead" id="product-desc"></p>
-        <div class="rating-line"><span id="sold">— terjual</span><span>•</span><span>Instant delivery</span></div>
-        <div class="price-box"><div><div class="detail-price" id="product-price">Rp 0</div></div></div>
-        <div class="purchase-box"><div class="qty"><button id="minus">−</button><span id="qty">1</span><button id="plus">+</button></div><button class="primary-button buy-detail" id="buy-now">Beli Sekarang <span>→</span></button></div>
-        <div class="trust-row"><div><b>✓</b><span>Produk terverifikasi</span></div><div><b>⚡</b><span>Proses cepat</span></div><div><b>↺</b><span>Support after-sales</span></div></div>
-        <div class="detail-divider"></div>
-        <div class="seller"><div class="seller-avatar">31</div><div class="seller-copy"><strong>31 Store Official</strong><span>Official Digital Gaming Marketplace</span></div><span class="verified">✓ Verified</span></div>
+
+      <div class="detail-info">
+        <div class="detail-tags">
+          <span class="tag" id="tag-category">Produk digital</span>
+          <span class="tag tag-ok" id="tag-stock">Tersedia</span>
+        </div>
+
+        <h1 id="product-name">Memuat produk…</h1>
+        <p class="detail-lede" id="product-desc"></p>
+
+        <div class="detail-meta">
+          <span id="product-sold">0 terjual</span><i></i><span id="product-category-line">Produk digital</span>
+        </div>
+
+        <div class="buy-panel">
+          <div class="buy-price">
+            <b id="product-price">Rp 0</b>
+            <span id="product-stock-line">Memuat stok…</span>
+          </div>
+
+          <div class="buy-row">
+            <div class="qty">
+              <button type="button" id="qty-minus" aria-label="Kurangi jumlah">−</button>
+              <span id="qty-value">1</span>
+              <button type="button" id="qty-plus" aria-label="Tambah jumlah">+</button>
+            </div>
+            <button class="btn btn-primary btn-lg" type="button" id="buy-now">Beli sekarang</button>
+          </div>
+
+          <div class="buy-total">
+            <span>Total</span>
+            <strong id="buy-total">Rp 0</strong>
+          </div>
+
+          <p class="buy-fine">Pembayaran memakai QRIS. Kode pesanan muncul setelah checkout dan bisa dipakai untuk melacak status kapan saja.</p>
+        </div>
       </div>
     </section>
 
-    <section class="information-section">
-      <div class="info-main">
-        <div class="tabs"><button class="tab active" data-tab="description">Deskripsi</button><button class="tab" data-tab="included">Yang Kamu Dapat</button><button class="tab" data-tab="instructions">Cara Pembelian</button></div>
-        <div class="tab-content active" id="description"><h2>Tentang produk</h2><p id="long-desc">Dapatkan produk digital gaming dengan alur pembelian yang dibuat sederhana. Setelah pembayaran terkonfirmasi, detail pesanan akan tersedia melalui sistem order.</p><div class="highlight-grid"><div><span>01</span><strong>Digital</strong><small>Produk dikirim secara digital.</small></div><div><span>02</span><strong>Fast Process</strong><small>Order diproses sesuai status pembayaran.</small></div><div><span>03</span><strong>Support</strong><small>Admin siap membantu jika ada kendala.</small></div></div></div>
-        <div class="tab-content" id="included"><h2>Isi produk</h2><ul class="check-list" id="included-list"><li>Detail produk sesuai paket yang dipilih</li><li>Instruksi penggunaan / aktivasi</li><li>Order ID untuk pengecekan status</li><li>Customer support setelah pembelian</li></ul></div>
-        <div class="tab-content" id="instructions"><h2>Cara pembelian</h2><ol class="steps"><li><b>01</b><div><strong>Pilih produk</strong><span>Tentukan produk dan jumlah yang ingin dibeli.</span></div></li><li><b>02</b><div><strong>Lakukan pembayaran</strong><span>Ikuti instruksi checkout dan selesaikan pembayaran.</span></div></li><li><b>03</b><div><strong>Tunggu konfirmasi</strong><span>Sistem memproses pesanan setelah pembayaran terverifikasi.</span></div></li><li><b>04</b><div><strong>Terima produk</strong><span>Gunakan detail pesanan untuk mengakses produk digital.</span></div></li></ol></div>
+    <section class="detail-about">
+      <div>
+        <h2>Tentang produk</h2>
+        <div class="about-body" id="about-body">Deskripsi produk belum diisi oleh admin toko.</div>
       </div>
-      <aside class="side-card"><span class="eyebrow">ORDER SUMMARY</span><h3>Siap untuk checkout?</h3><p>Semua detail pesanan akan ditampilkan sebelum pembayaran dilakukan.</p><div class="summary-row"><span>Produk</span><strong id="summary-name">—</strong></div><div class="summary-row"><span>Jumlah</span><strong id="summary-qty">1</strong></div><div class="summary-total"><span>Total</span><strong id="summary-total">Rp 0</strong></div><button class="full-buy" id="side-buy">Lanjutkan Pembelian →</button><small>Dengan melanjutkan, kamu menyetujui ketentuan pembelian 31 Store.</small></aside>
+      <div>
+        <h2>Cara pembelian</h2>
+        <ol class="flow">
+          <li><div><b>Tentukan jumlah</b><span>Atur jumlah pembelian, total ikut menyesuaikan.</span></div></li>
+          <li><div><b>Isi data pesanan</b><span>Email dan nomor WhatsApp dipakai untuk mengirim detail pesanan.</span></div></li>
+          <li><div><b>Bayar lewat QRIS</b><span>Scan kode pembayaran yang muncul setelah pesanan dibuat.</span></div></li>
+          <li><div><b>Pantau statusnya</b><span>Status berubah otomatis di halaman ini dan di Cek Pesanan.</span></div></li>
+        </ol>
+      </div>
     </section>
 
-    <section class="related"><div class="section-heading"><div><span class="eyebrow">YOU MAY ALSO LIKE</span><h2>Produk <span>lainnya.</span></h2></div></div><div class="related-grid" id="related-grid"></div></section>
+    <section class="detail-related">
+      <div class="sec-head">
+        <div>
+          <h2 class="display">Produk lainnya</h2>
+          <p>Produk aktif lain dari kategori yang sama.</p>
+        </div>
+        <a class="sec-link" href="products.html">Semua produk</a>
+      </div>
+      <div class="grid-products" id="related-grid"></div>
+    </section>
   </main>
-  <footer><div class="footer-main"><div><a class="brand" href="index.html"><span class="brand-mark">31</span><span>31 Store</span></a><p>Digital gaming marketplace dengan pengalaman pembelian yang simple dan premium.</p></div><div class="footer-links"><strong>Quick Links</strong><a href="index.html#home">Home</a><a href="index.html#product">Product</a><a href="index.html#faq">FAQ</a></div><div class="footer-links"><strong>Support</strong><a href="index.html#contact">Contact</a><a href="cek-pesanan/">Cek Pesanan</a></div></div><div class="footer-bottom"><span>© 2026 31 Store</span><span>Made for gamers.</span></div></footer>
+
+  <footer class="site-footer">
+    <div class="shell">
+      <div class="footer-grid">
+        <div>
+          <a class="brand" href="index.html">
+            <span class="brand-mark" data-brand-mark><span data-store-initials>31</span></span>
+            <span data-store-name>31 Store</span>
+          </a>
+          <p data-footer-description>Marketplace produk digital dengan harga transparan dan pesanan yang bisa dilacak.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Navigasi</h4>
+          <a href="index.html">Home</a>
+          <a href="products.html">Product</a>
+          <a href="index.html#faq">FAQ</a>
+          <a href="rating/">Rating</a>
+        </div>
+        <div class="footer-col">
+          <h4>Bantuan</h4>
+          <a href="cek-pesanan/"><span data-cek-label>Cek Pesanan</span></a>
+          <a href="index.html#contact">Contact</a>
+          <a href="index.html#faq">Cara pembelian</a>
+        </div>
+        <div class="footer-col footer-col-last">
+          <h4>Hubungi kami</h4>
+          <a data-wa-link target="_blank" rel="noopener" href="#" hidden>WhatsApp</a>
+          <a data-discord-link target="_blank" rel="noopener" href="#" hidden>Discord</a>
+          <span>Balasan admin pada jam operasional toko.</span>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span data-copyright>© <span data-year>2026</span> 31 Store</span>
+        <span>Dibuat untuk pembeli yang tidak suka menunggu.</span>
+      </div>
+    </div>
+  </footer>
+
+  <div id="modal-root"></div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="assets/js/common.js"></script>
   <script src="assets/js/product.js"></script>

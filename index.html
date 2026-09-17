@@ -2,134 +2,228 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="31 Store — Your Digital Gaming Marketplace">
-  <title>31 Store — Digital Gaming Marketplace</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Marketplace produk digital gaming. Harga dan stok selalu terbaru, pembayaran QRIS, pesanan bisa dilacak kapan saja.">
+  <meta name="theme-color" content="#0e0a17">
+  <title>31 Store — Marketplace Produk Digital</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
 </head>
-<body>
-  <div class="ambient ambient-one"></div>
-  <div class="ambient ambient-two"></div>
-  <div class="grid-noise"></div>
+<body data-title-suffix="Marketplace Produk Digital">
 
-  <header class="navbar">
-    <a class="brand" href="#home" aria-label="31 Store">
-      <span class="brand-mark js-brand-mark">31</span>
-      <span class="js-store-name">31 Store</span>
-    </a>
+  <div class="maintenance-bar" data-maintenance hidden>Toko sedang dalam pemeliharaan. Beberapa produk mungkin belum bisa dipesan.</div>
 
-    <nav class="nav-links" aria-label="Main navigation">
-      <a class="nav-link active" href="#home">Home</a>
-      <a class="nav-link" href="#product">Product</a>
-      <a class="nav-link" href="#faq">FAQ</a>
-      <a class="nav-link" href="#contact">Contact</a>
-      <a class="nav-link" href="rating/">Rating</a>
-    </nav>
+  <header class="site-header">
+    <div class="shell">
+      <a class="brand" href="index.html">
+        <span class="brand-mark" data-brand-mark><span data-store-initials>31</span></span>
+        <span data-store-name>31 Store</span>
+      </a>
 
-    <a class="order-button" href="cek-pesanan/">
-      <span class="js-cek-pesanan-label">Cek Pesanan</span>
-      <span class="arrow">↗</span>
-    </a>
+      <nav class="nav" aria-label="Navigasi utama">
+        <a href="index.html" class="is-active">Home</a>
+        <a href="products.html">Product</a>
+        <a href="#faq">FAQ</a>
+        <a href="#contact">Contact</a>
+        <a href="rating/">Rating</a>
+      </nav>
+
+      <div class="header-actions">
+        <a class="btn btn-ghost btn-sm" href="cek-pesanan/"><span data-cek-label>Cek Pesanan</span></a>
+        <button class="nav-toggle" type="button" aria-label="Buka menu" aria-expanded="false"><span></span></button>
+      </div>
+    </div>
   </header>
 
   <main>
-    <section id="home" class="hero section">
-      <div class="hero-copy reveal">
-        <div class="eyebrow"><span class="pulse"></span> Digital Gaming Marketplace</div>
-        <h1 id="hero-heading">Your <span>Digital</span><br>Gaming Marketplace.</h1>
-        <p id="hero-description">Temukan berbagai produk digital gaming dengan proses pembelian yang cepat, aman, dan mudah.</p>
+    <!-- hero: copy on the left, the live price board on the right -->
+    <section class="shell hero">
+      <div class="hero-copy">
+        <h1 class="display" id="hero-heading">Produk digital, harga terbaru, langsung diproses.</h1>
+        <p class="lede" id="hero-description">Harga dan stok di halaman ini dibaca langsung dari sistem toko. Begitu admin mengubahnya, tampilan di sini ikut berubah tanpa perlu memuat ulang.</p>
+
+        <form class="hero-search" id="hero-search" role="search">
+          <input class="input" id="hero-search-input" type="search" name="q" placeholder="Cari produk atau game" aria-label="Cari produk">
+          <button class="btn btn-primary" type="submit">Cari</button>
+        </form>
+
         <div class="hero-actions">
-          <a class="primary-button" id="hero-cta" href="#product"><span id="hero-cta-text">Jelajahi Produk</span> <span>→</span></a>
-          <a class="secondary-button" href="#contact">Butuh Bantuan?</a>
+          <a class="btn btn-ghost" id="hero-cta" href="products.html"><span id="hero-cta-text">Lihat katalog</span></a>
+          <a class="btn btn-quiet" href="#contact">Butuh bantuan?</a>
+        </div>
+
+        <p class="hero-alt">Sudah pesan? <a href="cek-pesanan/">Lacak status pesanan</a> pakai kode order kamu.</p>
+      </div>
+
+      <aside class="board" aria-label="Harga produk terbaru">
+        <div class="board-head">
+          <span class="live-dot"></span>
+          <strong>Harga terbaru</strong>
+          <span class="board-count" id="board-count">memuat…</span>
+        </div>
+        <div class="board-rows" id="board-rows">
+          <div class="skel skel-row"></div>
+          <div class="skel skel-row"></div>
+          <div class="skel skel-row"></div>
+          <div class="skel skel-row"></div>
+          <div class="skel skel-row"></div>
+        </div>
+        <div class="board-foot">
+          <span>Diperbarui otomatis dari panel admin</span>
+          <a class="sec-link" href="products.html">Semua produk</a>
+        </div>
+      </aside>
+    </section>
+
+    <section class="shell">
+      <div class="stat-strip" id="stat-strip">
+        <div class="stat" data-stat="sold"><strong id="stat-sold">—</strong><span>Produk terjual</span></div>
+        <div class="stat" data-stat="rating"><strong id="stat-rating">—</strong><span>Rata-rata ulasan</span></div>
+        <div class="stat" data-stat="buyer"><strong id="stat-buyer">—</strong><span>Pembeli</span></div>
+        <div class="stat" data-stat="produk"><strong id="stat-produk">—</strong><span>Produk aktif</span></div>
+        <div class="stat" data-stat="orders"><strong id="stat-orders">—</strong><span>Pesanan selesai</span></div>
+        <div class="stat" data-stat="support"><strong>24/7</strong><span id="stat-support-label">Bantuan admin</span></div>
+      </div>
+    </section>
+
+    <!-- categories -->
+    <section class="shell band-tight" id="category">
+      <div class="sec-head reveal">
+        <div>
+          <h2 class="display">Kategori</h2>
+          <p id="category-note">Pilih kategori untuk melihat produk yang tersedia di dalamnya.</p>
+        </div>
+        <a class="sec-link" href="products.html">Lihat semua produk</a>
+      </div>
+      <div class="cat-rail" id="category-rail"></div>
+    </section>
+
+    <!-- products -->
+    <section class="shell band-tight" id="product">
+      <div class="sec-head reveal">
+        <div>
+          <h2 class="display">Produk tersedia</h2>
+          <p id="product-note">Daftar produk aktif beserta harga dan stok terkini.</p>
+        </div>
+        <a class="sec-link" href="products.html">Semua produk</a>
+      </div>
+      <div class="grid-products" id="product-grid">
+        <div class="skel skel-card"></div>
+        <div class="skel skel-card"></div>
+        <div class="skel skel-card"></div>
+        <div class="skel skel-card"></div>
+      </div>
+    </section>
+
+    <!-- benefits -->
+    <section class="shell band-tight">
+      <div class="sec-head reveal">
+        <div>
+          <h2 class="display">Kenapa belanja di sini</h2>
+          <p>Hal-hal yang kami jaga di setiap transaksi.</p>
         </div>
       </div>
+      <div class="benefit-grid" id="benefit-grid">
+        <article class="benefit"><div class="cat-glyph">✓</div><h3>Harga apa adanya</h3><p>Harga yang tampil sama dengan harga yang dibayar saat checkout.</p></article>
+        <article class="benefit"><div class="cat-glyph">⚡</div><h3>Proses cepat</h3><p>Pesanan diproses begitu pembayaran terverifikasi sistem.</p></article>
+        <article class="benefit"><div class="cat-glyph">◎</div><h3>Pesanan terlacak</h3><p>Setiap order punya kode yang bisa dicek statusnya kapan saja.</p></article>
+      </div>
+    </section>
 
-      <div class="hero-art reveal">
-        <div class="art-card">
-          <div class="art-top"><span>31 STORE</span><span>01 / 04</span></div>
-          <div class="art-orb"></div>
-          <div class="art-lines"></div>
-          <div class="art-title">LEVEL<br><strong>UP.</strong></div>
-          <div class="art-bottom"><span>GAMING DIGITAL GOODS</span><span>2026</span></div>
+    <!-- faq -->
+    <section class="shell band-tight" id="faq">
+      <div class="sec-head reveal">
+        <div>
+          <h2 class="display">Pertanyaan yang sering masuk</h2>
+          <p id="faq-note">Jawaban dikelola langsung oleh admin toko.</p>
         </div>
       </div>
-
-      <div class="stats reveal">
-        <div class="stat" id="stat-sold-wrap"><strong id="stat-sold">—</strong><span>Total Produk Terjual</span></div>
-        <div class="stat" id="stat-rating-wrap"><strong id="stat-rating">—</strong><span>Average Rating</span></div>
-        <div class="stat" id="stat-buyer-wrap"><strong id="stat-buyer">—</strong><span>Total Buyer</span></div>
-        <div class="stat" id="stat-produk-wrap"><strong id="stat-produk">—</strong><span>Total Produk</span></div>
-        <div class="stat" id="stat-orders-wrap"><strong id="stat-orders">—</strong><span>Successful Orders</span></div>
-        <div class="stat" id="stat-support-wrap"><strong>24/7</strong><span id="stat-support-label">Customer Support</span></div>
-      </div>
+      <div class="faq" id="faq-list"></div>
     </section>
 
-    <section class="features section reveal">
-      <div class="section-heading compact">
-        <span class="eyebrow">WHY 31 STORE</span>
-        <h2>Simple. Secure. <span>Fast.</span></h2>
+    <!-- contact -->
+    <section class="shell band-tight" id="contact">
+      <div class="sec-head reveal">
+        <div>
+          <h2 class="display" id="contact-title">Butuh bantuan?</h2>
+          <p id="contact-description">Hubungi admin lewat channel yang paling nyaman buat kamu.</p>
+        </div>
       </div>
-      <div class="feature-grid" id="highlights-grid">
-        <article class="feature-card"><div class="icon">↯</div><h3>Instant Payment</h3><p>Pembayaran praktis dengan proses otomatis.</p></article>
-        <article class="feature-card"><div class="icon">◉</div><h3>Support 24/7</h3><p>Admin siap membantu ketika kamu membutuhkan.</p></article>
-        <article class="feature-card"><div class="icon">⌁</div><h3>Secure Transaction</h3><p>Transaksi dirancang agar tetap aman dan jelas.</p></article>
-        <article class="feature-card"><div class="icon">→</div><h3>Fast Delivery</h3><p>Produk dikirim dengan proses yang cepat.</p></article>
-        <article class="feature-card"><div class="icon">✓</div><h3>Verified Products</h3><p>Produk ditampilkan dengan informasi yang transparan.</p></article>
-        <article class="feature-card"><div class="icon">+</div><h3>Easy Ordering</h3><p>Alur order dibuat singkat dan mudah dipahami.</p></article>
-      </div>
-    </section>
-
-    <section id="product" class="section product-section">
-      <div class="section-heading reveal">
-        <div><span class="eyebrow">MARKETPLACE</span><h2>Product <span>Tersedia.</span></h2></div>
-        <p>Pilih produk digital gaming yang kamu butuhkan.</p>
-      </div>
-
-      <div id="categories-container">
-        <p class="js-products-empty" style="display:none;color:#8a8093;font-size:13px;padding:18px 0">Belum ada produk tersedia saat ini.</p>
-      </div>
-    </section>
-
-    <section id="faq" class="section faq-section">
-      <div class="section-heading reveal">
-        <div><span class="eyebrow">FAQ</span><h2>Frequently Asked <span>Questions.</span></h2></div>
-      </div>
-      <div class="faq-list reveal" id="faq-list"></div>
-    </section>
-
-    <section id="contact" class="section contact-section">
-      <div class="section-heading reveal">
-        <div><span class="eyebrow">NEED HELP?</span><h2 id="contact-title">Butuh <span>Bantuan?</span></h2></div>
-        <p id="contact-description">Ada pertanyaan atau mengalami kendala? Hubungi admin melalui channel yang paling nyaman untuk kamu.</p>
-      </div>
-      <div class="contact-grid reveal" id="contact-grid">
-        <article class="contact-card whatsapp" id="contact-card-whatsapp" style="display:none">
-          <div class="contact-logo">WA</div>
-          <div><h3>WhatsApp</h3><p>Hubungi admin secara langsung melalui WhatsApp.</p><a href="#" id="contact-whatsapp-link" target="_blank" rel="noopener" class="contact-button">Chat WhatsApp ↗</a></div>
+      <div class="contact-grid" id="contact-grid">
+        <article class="contact-card" id="contact-card-whatsapp" hidden>
+          <div class="cat-glyph">WA</div>
+          <div>
+            <h3>WhatsApp</h3>
+            <p>Jalur tercepat untuk kendala pesanan dan pertanyaan produk.</p>
+            <a class="btn btn-ghost btn-sm" data-wa-link data-show-when-linked="#contact-card-whatsapp" target="_blank" rel="noopener" href="#">Chat admin</a>
+          </div>
         </article>
-        <article class="contact-card discord" id="contact-card-discord" style="display:none">
-          <div class="contact-logo">DC</div>
-          <div><h3>Discord</h3><p>Bergabung dengan Discord kami untuk mendapatkan bantuan dan informasi terbaru.</p><a href="#" id="contact-discord-link" target="_blank" rel="noopener" class="contact-button">Join Discord ↗</a></div>
+        <article class="contact-card" id="contact-card-discord" hidden>
+          <div class="cat-glyph">DC</div>
+          <div>
+            <h3>Discord</h3>
+            <p>Gabung server untuk info stok, produk baru, dan pengumuman.</p>
+            <a class="btn btn-ghost btn-sm" data-discord-link data-show-when-linked="#contact-card-discord" target="_blank" rel="noopener" href="#">Buka server</a>
+          </div>
         </article>
+      </div>
+    </section>
+
+    <!-- closing cta -->
+    <section class="shell band-tight">
+      <div class="cta-band reveal">
+        <div>
+          <h2 class="display">Siap pesan sekarang?</h2>
+          <p>Pilih produk, bayar lewat QRIS, dan pantau statusnya sampai selesai.</p>
+        </div>
+        <a class="btn btn-primary btn-lg" href="products.html">Lihat katalog</a>
       </div>
     </section>
   </main>
 
-  <footer>
-    <div class="footer-main">
-      <div><a class="brand" href="#home"><span class="brand-mark js-brand-mark">31</span><span class="js-store-name">31 Store</span></a><p id="footer-description">Digital gaming marketplace dengan pengalaman pembelian yang simple dan premium.</p></div>
-      <div class="footer-links"><strong>Quick Links</strong><a href="#home">Home</a><a href="#product">Product</a><a href="#faq">FAQ</a><a href="#contact">Contact</a><a href="rating/">Rating</a></div>
-      <div class="footer-links"><strong>Support</strong><a href="#" id="footer-whatsapp-link">WhatsApp</a><a href="#" id="footer-discord-link">Discord</a><a href="cek-pesanan/" class="js-cek-pesanan-label">Cek Pesanan</a></div>
+  <footer class="site-footer">
+    <div class="shell">
+      <div class="footer-grid">
+        <div>
+          <a class="brand" href="index.html">
+            <span class="brand-mark" data-brand-mark><span data-store-initials>31</span></span>
+            <span data-store-name>31 Store</span>
+          </a>
+          <p data-footer-description>Marketplace produk digital dengan harga transparan dan pesanan yang bisa dilacak.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Navigasi</h4>
+          <a href="index.html">Home</a>
+          <a href="products.html">Product</a>
+          <a href="#faq">FAQ</a>
+          <a href="rating/">Rating</a>
+        </div>
+        <div class="footer-col">
+          <h4>Bantuan</h4>
+          <a href="cek-pesanan/"><span data-cek-label>Cek Pesanan</span></a>
+          <a href="#contact">Contact</a>
+          <a href="#faq">Cara pembelian</a>
+        </div>
+        <div class="footer-col footer-col-last">
+          <h4>Hubungi kami</h4>
+          <a data-wa-link target="_blank" rel="noopener" href="#" hidden>WhatsApp</a>
+          <a data-discord-link target="_blank" rel="noopener" href="#" hidden>Discord</a>
+          <span>Balasan admin pada jam operasional toko.</span>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span data-copyright>© <span data-year>2026</span> 31 Store</span>
+        <span>Dibuat untuk pembeli yang tidak suka menunggu.</span>
+      </div>
     </div>
-    <div class="footer-bottom"><span id="footer-copyright">© 2026 31 Store</span><span>Made for gamers.</span></div>
   </footer>
+
+  <a href="admin/" style="position:fixed;left:-9999px">Admin</a>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="assets/js/common.js"></script>
   <script src="assets/js/app.js"></script>
-<!-- Admin entry --><a href="admin/" style="position:fixed;left:-9999px">Admin</a>
 </body>
 </html>
