@@ -201,6 +201,12 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
     // sama persis dengan angka yang dibayar pelanggan.
     total: formatIDR((transaction && transaction.totalAmount) || order.total),
     paymentMethod,
+    // Dipakai baris "ThreeOne Store / https://..." dan link invoice pada
+    // template WhatsApp bawaan (spec: tidak boleh hardcode data toko).
+    // CLIENT_URL adalah env yang sama yang sudah dipakai di seluruh project
+    // (assetUrl.js, chat.service.js, server.js CORS) sebagai domain publik
+    // toko — bukan variabel baru.
+    storeUrl: String(process.env.CLIENT_URL || "").replace(/\/+$/, ""),
 
     statusLabel: copy ? copy.statusLabel : order.paymentStatus,
     orderedAt: formatDateTime(order.createdAt),
@@ -224,6 +230,24 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
   };
 
   ctx.subject = copy ? copy.subject(ctx) : `Update pesanan ${ctx.orderCode}`;
+
+  // Link "Silakan cek invoice melalui" pada template WhatsApp Order Sukses —
+  // mengarah ke halaman order-success milik toko sendiri (bukan link
+  // payment gateway), sesuai query param yang dibaca assets/js/order-success.js
+  // (?order=ORDERCODE). Kosong kalau CLIENT_URL belum diset — baris terkait
+  // tidak dirender (lihat detailLineIf di buildWhatsAppMessage) daripada
+  // menampilkan link yang rusak.
+  ctx.invoiceUrl = ctx.storeUrl ? `${ctx.storeUrl}/order-success?order=${encodeURIComponent(ctx.orderCode)}` : "";
+
+  // Link WhatsApp admin dengan pesan pra-isi berisi Order ID, seperti pada
+  // template yang diberikan. Nomor admin TIDAK di-hardcode — tetap dari
+  // contact.whatsapp Admin Web (ctx.waHref), hanya menambahkan ?text=.
+  ctx.waAdminChatUrl = ctx.waHref
+    ? `${ctx.waHref}${ctx.waHref.includes("?") ? "&" : "?"}text=${encodeURIComponent(
+        `Halo Admin, saya ingin bertanya mengenai Order ${ctx.orderCode}`
+      )}`
+    : "";
+
   return ctx;
 }
 
@@ -251,97 +275,105 @@ function placeholders(ctx) {
 
 /* ------------------------------------------------------------- whatsapp */
 
-const RULE = "━━━━━━━━━━━━━━━━━━━━";
-
-// Baris "Label : Nilai" dengan label dipadkan supaya kolom nilainya lurus.
-// WhatsApp memakai font proporsional, jadi kelurusan tidak pernah sempurna —
-// padding tetap dipakai karena hasilnya jauh lebih terbaca daripada tanpa.
-function detailLine(label, value) {
+// Baris "• Label : Nilai" persis format template WhatsApp yang diberikan
+// (bullet, bukan padding kolom seperti versi lama). Baris tidak dirender
+// kalau nilainya kosong — tidak ada placeholder/dummy yang tampil.
+function bulletLine(label, value) {
   if (value === undefined || value === null || value === "") return null;
-  return `${label.padEnd(12, " ")}: ${value}`;
+  return `• ${label} : ${value}`;
+}
+
+// Empat builder di bawah mengikuti PERSIS struktur, wording, format, dan
+// emoji dari template yang diberikan (lihat file "Notif WA Order dibuat.txt",
+// "Gagal & kadaluarsa.txt", "Notif WA Order Sukses.txt"). "(Text Tebal)" pada
+// file sumber berarti teks tersebut dibuat tebal di WhatsApp — dirender di
+// sini sebagai *teks* sesuai format bold WhatsApp. Tidak ada data yang
+// di-hardcode: semua nilai berasal dari ctx (order/transaction/settings asli).
+function buildOrderCreatedWhatsApp(ctx) {
+  const lines = [
+    "*Orderan Berhasil Dibuat*",
+    `Halo, ${ctx.customerName}`,
+    "",
+    "*Detail Pesanan*",
+    ...[
+      bulletLine("Order ID", ctx.orderCode),
+      bulletLine("Produk", ctx.quantity > 1 ? `${ctx.productName} x${ctx.quantity}` : ctx.productName),
+      bulletLine("Total Yang Harus Dibayar", ctx.total),
+      bulletLine("Pembayaran", ctx.paymentMethod),
+      bulletLine("Status", ctx.statusLabel),
+      bulletLine("Waktu Kadaluwarsa", ctx.expiredAt),
+    ].filter(Boolean),
+  ];
+
+  if (ctx.payUrl) {
+    lines.push("", "*Bayar Disini*", ctx.payUrl);
+  }
+
+  lines.push("", ctx.storeName, ctx.storeUrl);
+  return lines.join("\n");
+}
+
+// Satu template untuk ORDER_FAILED dan ORDER_EXPIRED, persis seperti file
+// sumber "Gagal & kadaluarsa.txt" — hanya nilai Status/Waktu yang berbeda
+// menurut event (spec 3: status DB adalah source of truth).
+function buildOrderFailedOrExpiredWhatsApp(ctx) {
+  const isExpired = ctx.event === "paymentExpired";
+  const lines = [
+    "*Orderan Gagal/Kadaluwarsa*",
+    `Halo, ${ctx.customerName}`,
+    "",
+    "*Detail Pesanan*",
+    ...[
+      bulletLine("Order ID", ctx.orderCode),
+      bulletLine("Produk", ctx.quantity > 1 ? `${ctx.productName} x${ctx.quantity}` : ctx.productName),
+      bulletLine("Status", isExpired ? "Kadaluwarsa" : "Gagal"),
+      bulletLine("Waktu", isExpired ? ctx.expiredAt : ctx.orderedAt),
+    ].filter(Boolean),
+    "",
+    ctx.storeName,
+    ctx.storeUrl,
+  ];
+  return lines.join("\n");
+}
+
+function buildOrderSuccessWhatsApp(ctx) {
+  const lines = [
+    "*Pembayaran Berhasil*",
+    "",
+    `Halo ${ctx.customerName},`,
+    "",
+    `Terima kasih telah berbelanja di ${ctx.storeName}.`,
+    "",
+    "*Detail Pesanan:*",
+    "",
+    ...[
+      bulletLine("Order ID", ctx.orderCode),
+      bulletLine("Produk", ctx.quantity > 1 ? `${ctx.productName} x${ctx.quantity}` : ctx.productName),
+      bulletLine("Total", ctx.total),
+      bulletLine("Pembayaran", ctx.paymentMethod),
+      bulletLine("Status", "Lunas"),
+      bulletLine("Waktu Pembayaran", ctx.paidAt),
+    ].filter(Boolean),
+  ];
+
+  if (ctx.invoiceUrl) {
+    lines.push("", "Silakan cek invoice melalui:", ctx.invoiceUrl);
+  }
+  if (ctx.waAdminChatUrl) {
+    lines.push("", "Silakan Chat Admin langsung di sini:", ctx.waAdminChatUrl);
+  }
+
+  lines.push("", ctx.storeName, ctx.storeUrl, "", "Terima kasih 🙏");
+  return lines.join("\n");
 }
 
 function buildWhatsAppMessage(ctx) {
-  const copy = EVENT_COPY[ctx.event];
-  if (!copy) return "";
+  if (!EVENT_COPY[ctx.event]) return "";
 
-  const lines = [];
-  lines.push(RULE);
-  lines.push(ctx.storeName.toUpperCase());
-  if (ctx.storeTagline) lines.push(ctx.storeTagline);
-  lines.push(RULE);
-  lines.push("");
-  lines.push(`*${copy.waTitle}*`);
-  lines.push("");
-  lines.push(`Halo, ${ctx.customerName}.`);
-  lines.push("");
-  lines.push(copy.lead(ctx));
-  lines.push("");
-  lines.push("*DETAIL PESANAN*");
-  lines.push(RULE);
-
-  const details = [
-    detailLine("Produk", ctx.quantity > 1 ? `${ctx.productName} x${ctx.quantity}` : ctx.productName),
-    detailLine("Order ID", ctx.orderCode),
-    detailLine("Harga", ctx.price),
-    detailLine("Total", ctx.total),
-    detailLine("Pembayaran", ctx.paymentMethod),
-    detailLine("Status", ctx.statusLabel),
-    detailLine("Waktu", ctx.orderedAt),
-  ].filter(Boolean);
-
-  if (ctx.event === "paymentSuccess" && ctx.paidAt) details.push(detailLine("Dibayar", ctx.paidAt));
-  if ((ctx.event === "orderCreated" || ctx.event === "paymentExpired") && ctx.expiredAt) {
-    details.push(detailLine(ctx.event === "paymentExpired" ? "Kedaluwarsa" : "Batas bayar", ctx.expiredAt));
-  }
-  lines.push(...details);
-  lines.push(RULE);
-  lines.push("");
-
-  // Blok tambahan per event. Hanya berisi hal yang benar-benar diketahui
-  // sistem — alasan kegagalan tidak pernah dikarang kalau provider tidak
-  // memberikannya (spec 10).
-  if (ctx.event === "orderCreated") {
-    lines.push("*CARA MEMBAYAR*");
-    lines.push("Selesaikan pembayaran melalui halaman pembayaran, lalu status pesanan akan diperbarui otomatis.");
-    if (ctx.payUrl) {
-      lines.push("");
-      lines.push(ctx.payUrl);
-    }
-    if (ctx.expiredAt) {
-      lines.push("");
-      lines.push(`Selesaikan sebelum ${ctx.expiredAt} agar pesanan tidak ditutup otomatis.`);
-    }
-  } else if (ctx.event === "paymentSuccess") {
-    lines.push("*LANGKAH SELANJUTNYA*");
-    lines.push("Pesanan sedang kami proses. Detail produk akan dikirimkan ke WhatsApp dan email ini. Simpan Order ID di atas untuk mengecek status kapan saja.");
-  } else if (ctx.event === "paymentFailed") {
-    lines.push("*LANGKAH SELANJUTNYA*");
-    lines.push("Silakan buat pesanan baru untuk mencoba kembali. Jika dana Anda terpotong, kirimkan Order ID di atas ke admin agar kami periksa.");
-  } else if (ctx.event === "paymentExpired") {
-    lines.push("*LANGKAH SELANJUTNYA*");
-    lines.push("Pembayaran belum kami terima untuk pesanan ini. Silakan buat pesanan baru jika masih ingin melanjutkan.");
-  }
-
-  if (ctx.waEnabled || ctx.discordEnabled) {
-    lines.push("");
-    lines.push("*BUTUH BANTUAN?*");
-    if (ctx.waEnabled) {
-      lines.push("Hubungi admin melalui WhatsApp:");
-      lines.push(ctx.waHref);
-    }
-    if (ctx.discordEnabled) {
-      if (ctx.waEnabled) lines.push("");
-      lines.push("Discord:");
-      lines.push(ctx.discordHref);
-    }
-  }
-
-  lines.push("");
-  lines.push(`Terima kasih telah menggunakan ${ctx.storeName}.`);
-  lines.push(RULE);
-
-  return lines.join("\n");
+  if (ctx.event === "orderCreated") return buildOrderCreatedWhatsApp(ctx);
+  if (ctx.event === "paymentFailed" || ctx.event === "paymentExpired") return buildOrderFailedOrExpiredWhatsApp(ctx);
+  if (ctx.event === "paymentSuccess") return buildOrderSuccessWhatsApp(ctx);
+  return "";
 }
 
 /* ---------------------------------------------------------------- email */
