@@ -72,7 +72,14 @@ const createOrder = asyncHandler(async (req, res) => {
     });
   } catch (err) {
     // Keep the order as PENDING so admin can retry payment creation; surface a clean error.
-    logger.error("Failed to create KlikQRIS transaction for order", { orderCode: order.orderCode, message: err.message });
+    // The real HTTP status / gateway response body is already logged inside
+    // klikqris.service.js at the point the failure happened — this just
+    // records which order it was for for cross-referencing.
+    logger.error("Failed to create KlikQRIS transaction for order", {
+      orderCode: order.orderCode,
+      statusCode: err.statusCode,
+      message: err.message,
+    });
     throw err;
   }
 

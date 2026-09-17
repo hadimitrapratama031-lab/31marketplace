@@ -11,10 +11,22 @@ async function getKlikQrisConfig() {
   const kq = settings.klikqris;
   const apiKey = kq.apiKeyEncrypted ? decrypt(kq.apiKeyEncrypted) : process.env.KLIKQRIS_API_KEY;
   const merchantId = kq.merchantIdEncrypted ? decrypt(kq.merchantIdEncrypted) : process.env.KLIKQRIS_MERCHANT_ID;
+
+  // `mode` is only ever written by updateKlikQrisCredentials(), in the same
+  // save as apiKey/merchantId — there is no other code path that sets it. So
+  // if an admin has never saved either of those from Admin Web, any value
+  // sitting in `kq.mode` (including a leftover "production" from an older
+  // schema default that auto-created this document on first boot) was never
+  // an intentional choice, and must not outrank KLIKQRIS_MODE from ENV. This
+  // is what previously sent a sandbox API key to the production endpoint —
+  // KlikQRIS correctly rejects that combination, which is what surfaced as
+  // "gagal menghubungi payment gateway".
+  const adminConfiguredKlikQris = Boolean(kq.apiKeyEncrypted || kq.merchantIdEncrypted);
+  const storedMode = adminConfiguredKlikQris ? kq.mode : null;
   // Normalize casing — ENV values (KLIKQRIS_MODE=Sandbox etc.) are user-typed
   // and easy to get wrong-cased, which would otherwise silently fall through
   // to the production base URL while using a sandbox key.
-  const mode = String(kq.mode || process.env.KLIKQRIS_MODE || "production").toLowerCase();
+  const mode = String(storedMode || process.env.KLIKQRIS_MODE || "production").toLowerCase();
   const baseUrl =
     mode === "sandbox" ? "https://klikqris.com/api/sandbox" : process.env.KLIKQRIS_BASE_URL || "https://klikqris.com/api";
 
@@ -80,12 +92,17 @@ async function getIntegrationStatusSummary() {
   const kqConfigured = Boolean(settings.klikqris.apiKeyEncrypted || process.env.KLIKQRIS_API_KEY);
   const fnConfigured = Boolean(settings.fonnte.tokenEncrypted || process.env.FONNTE_TOKEN);
   const rsConfigured = Boolean(settings.resend.apiKeyEncrypted || process.env.RESEND_API_KEY);
+  // Effective mode, not the raw stored field: a document created before an
+  // admin ever visited this page can hold a leftover value that ENV is
+  // actually overriding at request time (see getKlikQrisConfig). Showing the
+  // raw field here would tell the admin the opposite of what's really live.
+  const kqEffective = await getKlikQrisConfig();
 
   return {
     klikqris: {
       configured: kqConfigured,
       enabled: settings.klikqris.enabled,
-      mode: settings.klikqris.mode,
+      mode: kqEffective.mode,
       apiKeyMasked: settings.klikqris.apiKeyEncrypted ? maskSecret(decrypt(settings.klikqris.apiKeyEncrypted)) : null,
       lastTestStatus: settings.klikqris.lastTestStatus,
       lastTestAt: settings.klikqris.lastTestAt,

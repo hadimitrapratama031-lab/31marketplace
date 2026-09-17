@@ -15,7 +15,12 @@ const IntegrationSettingsSchema = new mongoose.Schema(
 
     klikqris: {
       enabled: { type: Boolean, default: false },
-      mode: { type: String, enum: ["production", "sandbox"], default: "production" },
+      // No default: an unset mode must be falsy so ENV's KLIKQRIS_MODE can
+      // take effect (see getKlikQrisConfig). A stored default here would
+      // silently outrank ENV even when no admin ever touched this setting —
+      // that mismatch is what let a sandbox API key hit the production
+      // endpoint (KlikQRIS then rejects it, surfacing as a gateway failure).
+      mode: { type: String, enum: ["production", "sandbox", null], default: null },
       // encrypted values; never sent to frontend as plaintext
       apiKeyEncrypted: { type: String, default: null },
       merchantIdEncrypted: { type: String, default: null },
