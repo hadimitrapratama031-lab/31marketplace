@@ -365,6 +365,14 @@
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a7.5 7.5 0 0 1-10.9 6.7L4 20l1.4-4.2A7.5 7.5 0 1 1 20 12Z"/></svg>' +
         '<span class="mp-chat-badge" hidden>0</span>';
 
+      // Bubble ajakan di atas tombol. Murni dekoratif dan berulang sendiri,
+      // jadi ditandai aria-hidden supaya pembaca layar tidak mengumumkannya
+      // setiap ±4,5 detik — label tombol yang stabil ("Buka live chat") sudah
+      // cukup untuk itu.
+      var tip = el("div", "mp-chat-tip");
+      tip.setAttribute("aria-hidden", "true");
+      tip.innerHTML = "<span>Butuh bantuan? Silakan chat admin di sini.</span>";
+
       var panel = el("div", "mp-chat-panel");
       panel.hidden = true;
       panel.setAttribute("role", "dialog");
@@ -398,12 +406,14 @@
 
       host.appendChild(panel);
       host.appendChild(btn);
+      host.appendChild(tip);
       document.body.appendChild(host);
 
       nodes = {
         host: host,
         btn: btn,
         panel: panel,
+        tip: tip,
         badge: btn.querySelector(".mp-chat-badge"),
         mark: panel.querySelector("[data-mark]"),
         title: panel.querySelector("[data-title]"),
@@ -793,6 +803,11 @@
       nodes.panel.hidden = !open;
       document.body.classList.toggle("mp-chat-open", open);
       nodes.btn.setAttribute("aria-label", open ? "Tutup live chat" : "Buka live chat");
+      // Bubble ajakan tidak relevan lagi begitu pengunjung sudah membuka
+      // chat; berhenti total (bukan cuma menunggu siklus berikutnya) dan
+      // baru mulai lagi dari awal setelah panel ditutup.
+      if (open) tipStop();
+      else tipStart();
       if (open) {
         if (!loaded) load();
         else {
@@ -806,6 +821,51 @@
     }
 
     /* ------------------------------------------------------------ bind */
+    /* --------------------------------------------------- tooltip ajakan chat
+       Loop sederhana: tampil ~3 detik, transisi keluar, jeda 1,5 detik, ulang.
+       Timer disimpan di satu variabel (`tipTimer`) dan selalu dibersihkan
+       sebelum dijadwalkan ulang, jadi tidak mungkin ada dua rantai timeout
+       berjalan bersamaan — satu-satunya controller aktif untuk bubble ini.
+       Berhenti (bukan cuma disembunyikan CSS) saat panel chat terbuka atau
+       tab sedang tidak aktif, supaya tidak ada animasi yang bekerja sia-sia
+       di latar belakang. */
+    var TIP_VISIBLE_MS = 3000;
+    var TIP_GAP_MS = 1500;
+    var tipTimer = null;
+
+    function tipAllowed() {
+      return !open && !document.hidden;
+    }
+
+    function tipShow() {
+      tipTimer = null;
+      if (!tipAllowed()) return;
+      nodes.tip.classList.add("is-visible");
+      tipTimer = setTimeout(tipHide, TIP_VISIBLE_MS);
+    }
+
+    function tipHide() {
+      nodes.tip.classList.remove("is-visible");
+      tipTimer = setTimeout(function () {
+        tipTimer = null;
+        if (tipAllowed()) tipShow();
+      }, TIP_GAP_MS);
+    }
+
+    // Idempotent: memanggilnya saat loop sudah berjalan tidak menambah timer
+    // kedua — cukup untuk mencegah duplikasi kalau toggle(false) terpanggil
+    // berkali-kali (mis. beberapa klik cepat pada tombol tutup).
+    function tipStart() {
+      if (tipTimer || nodes.tip.classList.contains("is-visible") || !tipAllowed()) return;
+      tipTimer = setTimeout(tipShow, TIP_GAP_MS); // jeda singkat sebelum tampilan pertama
+    }
+
+    function tipStop() {
+      clearTimeout(tipTimer);
+      tipTimer = null;
+      nodes.tip.classList.remove("is-visible");
+    }
+
     function bind() {
       nodes.btn.addEventListener("click", function () {
         toggle();
@@ -873,6 +933,17 @@
       }
 
       MP.on("chat:message", onMessage);
+
+      // Tab yang disembunyikan tidak perlu memutar animasi bubble: hemat kerja,
+      // dan mencegah beberapa siklus "lewat" tanpa pernah terlihat siapa pun.
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) tipStop();
+        else tipStart();
+      });
+
+      // Timer dibersihkan saat halaman ditinggalkan (termasuk sebelum masuk
+      // bfcache), supaya tidak ada timeout yang menggantung.
+      window.addEventListener("pagehide", tipStop, { once: true });
     }
 
     function init() {
@@ -885,6 +956,7 @@
         var socket = MP.getSocket();
         if (socket && socket.connected) setState("online", "Terhubung");
       }
+      tipStart();
     }
 
     return { init: init };

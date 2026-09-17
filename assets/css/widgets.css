@@ -223,6 +223,72 @@
   display: none;
 }
 
+/* ------------------------------------------------- C.1 tooltip ajakan chat */
+/*
+   Menempel pada host yang sama dengan tombol (.mp-float-chat), bukan
+   dihitung lewat JS/getBoundingClientRect — jadi posisinya otomatis ikut
+   tombol pada resize/responsive tanpa kode tambahan. `right: 0` menyamakan
+   sisi kanan tooltip dengan sisi kanan tombol (bukan dipusatkan), supaya di
+   layar sempit tooltip tidak pernah terpotong viewport di sisi kanan; anak
+   panah di dalamnya yang digeser untuk tetap menunjuk ke tengah ikon.
+*/
+.mp-chat-tip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 14px);
+  width: max-content;
+  max-width: min(240px, calc(100vw - 2 * var(--w-gap) - 12px));
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--edge);
+  /* Sedikit transparan + blur, bukan kartu solid — tetap terasa seperti
+     lapisan mengambang di atas halaman, bukan komponen UI permanen. */
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--w-lift);
+  color: var(--text);
+  font: 500 12.5px/1.55 var(--ui);
+  text-align: left;
+  pointer-events: none; /* tidak pernah mengganggu klik tombol di bawahnya */
+  opacity: 0;
+  transform: translateY(6px) scale(0.97);
+  transform-origin: bottom right;
+  transition: opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 1;
+}
+
+.mp-chat-tip.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Konektor kecil mengarah ke tombol: bujur sangkar 10px diputar 45°, dengan
+   sisi kanan+bawah yang meniru tepi tooltip supaya menyatu tanpa jahitan.
+   `right: 22px` dihitung dari lebar tombol (54px / 2 = 27, dikurangi setengah
+   lebar panah) — tetap tepat menunjuk ke tengah ikon berapa pun lebar teksnya,
+   karena diukur dari sisi kanan tooltip yang selalu sejajar sisi kanan tombol. */
+.mp-chat-tip::after {
+  content: "";
+  position: absolute;
+  right: 22px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  backdrop-filter: inherit;
+  -webkit-backdrop-filter: inherit;
+  border-right: inherit;
+  border-bottom: inherit;
+  transform: rotate(45deg);
+}
+
+/* Saat panel chat terbuka, tooltip diam total — bukan cuma disembunyikan
+   visual, supaya tidak pernah tumpang tindih dengan panel yang baru terbuka. */
+body.mp-chat-open .mp-chat-tip {
+  display: none;
+}
+
 /* ------------------------------------------------------- D panel live chat */
 .mp-chat-panel {
   position: absolute;
@@ -731,5 +797,12 @@
 
   .mp-chat-log {
     scroll-behavior: auto;
+  }
+
+  /* Loop tetap jalan (JS tidak berubah), tapi transisinya dimatikan — teks
+     langsung muncul/hilang tanpa fade atau pergeseran. */
+  .mp-chat-tip {
+    transition: none;
+    transform: none;
   }
 }
