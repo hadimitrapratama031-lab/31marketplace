@@ -6,11 +6,25 @@ const { encrypt, decrypt, maskSecret } = require("../utils/crypto");
 // otherwise we fall back to ENV so the system still works right after
 // deployment before an admin opens the settings page.
 
+// Copy-pasted credentials (from Admin Web or Railway's env editor) very
+// commonly pick up a trailing newline/space, or — for env vars — surrounding
+// quotes typed literally into the value box. KlikQRIS's API validates
+// id_merchant/api key format strictly, so an otherwise-correct credential
+// with invisible extra characters is rejected outright (422/401) with no
+// obvious visual difference in Admin Web's masked preview. Normalize once,
+// here, so every caller gets a clean value regardless of source.
+function cleanCredential(value) {
+  if (!value) return value;
+  return String(value).trim().replace(/^["']|["']$/g, "");
+}
+
 async function getKlikQrisConfig() {
   const settings = await IntegrationSettings.getSingleton();
   const kq = settings.klikqris;
-  const apiKey = kq.apiKeyEncrypted ? decrypt(kq.apiKeyEncrypted) : process.env.KLIKQRIS_API_KEY;
-  const merchantId = kq.merchantIdEncrypted ? decrypt(kq.merchantIdEncrypted) : process.env.KLIKQRIS_MERCHANT_ID;
+  const apiKey = cleanCredential(kq.apiKeyEncrypted ? decrypt(kq.apiKeyEncrypted) : process.env.KLIKQRIS_API_KEY);
+  const merchantId = cleanCredential(
+    kq.merchantIdEncrypted ? decrypt(kq.merchantIdEncrypted) : process.env.KLIKQRIS_MERCHANT_ID
+  );
 
   // `mode` is only ever written by updateKlikQrisCredentials(), in the same
   // save as apiKey/merchantId — there is no other code path that sets it. So
@@ -58,8 +72,8 @@ async function getResendConfig() {
 
 async function updateKlikQrisCredentials({ apiKey, merchantId, mode, enabled }) {
   const settings = await IntegrationSettings.getSingleton();
-  if (apiKey) settings.klikqris.apiKeyEncrypted = encrypt(apiKey);
-  if (merchantId) settings.klikqris.merchantIdEncrypted = encrypt(merchantId);
+  if (apiKey) settings.klikqris.apiKeyEncrypted = encrypt(cleanCredential(apiKey));
+  if (merchantId) settings.klikqris.merchantIdEncrypted = encrypt(cleanCredential(merchantId));
   if (mode) settings.klikqris.mode = mode;
   if (typeof enabled === "boolean") settings.klikqris.enabled = enabled;
   await settings.save();

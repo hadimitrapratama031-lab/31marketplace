@@ -37,7 +37,10 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 
   const price = product.price; // source of truth, never trust frontend
-  const total = price * qty;
+  // KlikQRIS requires an Integer amount — round defensively here too, not
+  // just inside the KlikQRIS client, so the Order/Transaction records store
+  // the exact same whole-rupiah figure that was actually charged.
+  const total = Math.round(price * qty);
   const orderCode = generateOrderCode();
 
   const customer = await Customer.findOneAndUpdate(

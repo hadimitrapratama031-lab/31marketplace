@@ -33,20 +33,43 @@ const logger = require("../utils/logger");
  * x-api-key lives. Only err.response (the gateway's OWN reply) and err.code
  * (a network-level errno, not a secret) are read.
  */
+// KlikQRIS (Laravel-style) validation failures come back as:
+//   { "status": false, "message": "Validation Error", "errors": { "amount": ["..."] } }
+// The top-level `message` is always the same generic string — the actual
+// reason (which field, and why) only ever lives in `errors`. Previous code
+// logged `message` and threw it straight back to the caller, so every 422
+// surfaced as the same useless "Validation Error" no matter what was
+// actually wrong with the payload. This flattens `errors` into one readable
+// string so both the log and the thrown AppError say specifically what
+// KlikQRIS rejected (e.g. "amount: The amount must be an integer.").
+function flattenValidationErrors(errors) {
+  if (!errors || typeof errors !== "object") return null;
+  const parts = [];
+  for (const [field, msgs] of Object.entries(errors)) {
+    const text = Array.isArray(msgs) ? msgs.join(" ") : String(msgs);
+    parts.push(`${field}: ${text}`);
+  }
+  return parts.length ? parts.join(" | ") : null;
+}
+
 function describeGatewayFailure(err, endpoint) {
   if (err.response) {
     // The gateway was reached and answered — the request itself was rejected.
     const httpStatus = err.response.status;
     const body = err.response.data;
-    const gatewayMessage = (body && typeof body === "object" && (body.message || body.error)) || undefined;
+    const validationDetail = body && typeof body === "object" ? flattenValidationErrors(body.errors) : null;
+    const gatewayMessage =
+      validationDetail || (body && typeof body === "object" && (body.message || body.error)) || undefined;
 
     logger.error("KlikQRIS rejected the request", {
       endpoint,
       httpStatus,
       gatewayMessage,
-      // Truncated: enough to diagnose (error code, validation field, etc.)
-      // without flooding logs if KlikQRIS ever returns an HTML error page.
-      body: typeof body === "string" ? body.slice(0, 500) : JSON.stringify(body || {}).slice(0, 500),
+      validationErrors: body && typeof body === "object" ? body.errors : undefined,
+      // Generous cap: enough to see every field-level validation message in
+      // full (these can be long with several invalid fields) without
+      // flooding logs if KlikQRIS ever returns an HTML error page instead.
+      body: typeof body === "string" ? body.slice(0, 4000) : JSON.stringify(body || {}).slice(0, 4000),
     });
 
     if (httpStatus === 401 || httpStatus === 403) {
@@ -74,33 +97,59 @@ function describeGatewayFailure(err, endpoint) {
   return { message: "Gagal menghubungi payment gateway. Silakan coba lagi.", statusCode: 502 };
 }
 
+// `callback_url` is optional per the docs, but if we send a non-empty value
+// that isn't actually a well-formed absolute URL (a common outcome of an
+// empty-but-not-unset Railway env var, or one pasted with quotes/whitespace),
+// KlikQRIS's own validator rejects the whole request with a 422 — the
+// symptom this file was seeing. Safer to just omit the field entirely unless
+// it's genuinely usable, exactly like leaving it blank per the docs.
+function sanitizeCallbackUrl(rawUrl) {
+  const trimmed = String(rawUrl || "").trim();
+  if (!trimmed) return undefined;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return undefined;
+    return parsed.toString();
+  } catch {
+    logger.error("KLIKQRIS_WEBHOOK_URL is not a valid absolute URL — omitting callback_url", { rawUrl: trimmed });
+    return undefined;
+  }
+}
+
 async function createTransaction({ orderId, amount, keterangan }) {
   const cfg = await getKlikQrisConfig();
   if (!cfg.enabled) {
     throw new AppError("KlikQRIS belum diaktifkan/dikonfigurasi. Hubungi admin.", 503);
   }
 
+  // `amount` must be an Integer per KlikQRIS docs. It's computed upstream as
+  // price * quantity, both of which are already validated Numbers, but a
+  // stray decimal product price (or floating-point rounding) would turn this
+  // into e.g. 15000.0000000002 — which KlikQRIS's validator rejects outright.
+  const safeAmount = Math.round(Number(amount));
+  if (!Number.isFinite(safeAmount) || safeAmount <= 0) {
+    throw new AppError("Nominal pembayaran tidak valid.", 400);
+  }
+
   const endpoint = `${cfg.baseUrl}/qris/create`;
+  const payload = {
+    order_id: String(orderId).trim(),
+    id_merchant: cfg.merchantId,
+    amount: safeAmount,
+    keterangan: String(keterangan || "").trim().slice(0, 255),
+  };
+  const callbackUrl = sanitizeCallbackUrl(cfg.webhookUrl);
+  if (callbackUrl) payload.callback_url = callbackUrl;
 
   try {
-    const response = await axios.post(
-      endpoint,
-      {
-        order_id: orderId,
+    const response = await axios.post(endpoint, payload, {
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": cfg.apiKey,
         id_merchant: cfg.merchantId,
-        amount,
-        keterangan,
-        callback_url: cfg.webhookUrl,
       },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": cfg.apiKey,
-          id_merchant: cfg.merchantId,
-        },
-        timeout: 15000,
-      }
-    );
+      timeout: 15000,
+    });
 
     if (!response.data || response.data.status !== true) {
       logger.error("KlikQRIS create returned status:false", {
