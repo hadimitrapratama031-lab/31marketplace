@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Marketplace produk digital gaming. Harga dan stok selalu terbaru, pembayaran QRIS, pesanan bisa dilacak kapan saja.">
-  <meta name="theme-color" content="#0e0a17">
+  <meta name="theme-color" content="#fbfaff">
   <title>31 Store — Marketplace Produk Digital</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body data-title-suffix="Marketplace Produk Digital">
@@ -38,43 +38,52 @@
   </header>
 
   <main>
-    <!-- hero: copy on the left, the live price board on the right -->
-    <section class="shell hero">
+    <!--
+      Hero — every string, the image, and the slides come from Admin Web
+      (settings.home.hero) and update live over the existing Socket.IO
+      connection. The markup below is the shape only: the copy you see here
+      is a first-paint fallback, replaced by renderHero() in assets/js/app.js.
+    -->
+    <section class="shell hero" id="hero">
       <div class="hero-copy">
-        <h1 class="display" id="hero-heading">Produk digital, harga terbaru, langsung diproses.</h1>
-        <p class="lede" id="hero-description">Harga dan stok di halaman ini dibaca langsung dari sistem toko. Begitu admin mengubahnya, tampilan di sini ikut berubah tanpa perlu memuat ulang.</p>
+        <p class="hero-eyebrow" id="hero-eyebrow" hidden></p>
 
-        <form class="hero-search" id="hero-search" role="search">
-          <input class="input" id="hero-search-input" type="search" name="q" placeholder="Cari produk atau game" aria-label="Cari produk">
-          <button class="btn btn-primary" type="submit">Cari</button>
-        </form>
+        <h1 class="hero-title" id="hero-title">
+          <span class="hero-line">Produk digital gaming,</span>
+          <span class="hero-line">langsung diproses.</span>
+        </h1>
+
+        <p class="hero-lede" id="hero-description">Harga dan stok di halaman ini dibaca langsung dari sistem toko, jadi yang kamu lihat adalah yang kamu bayar.</p>
 
         <div class="hero-actions">
-          <a class="btn btn-ghost" id="hero-cta" href="products.html"><span id="hero-cta-text">Lihat katalog</span></a>
-          <a class="btn btn-quiet" href="#contact">Butuh bantuan?</a>
+          <a class="btn btn-primary btn-lg" id="hero-cta-primary" href="products.html">
+            <span id="hero-cta-primary-text">Jelajahi produk</span>
+            <span class="arrow" aria-hidden="true">&#8594;</span>
+          </a>
+          <a class="btn btn-ghost btn-lg" id="hero-cta-secondary" href="#contact"><span id="hero-cta-secondary-text">Butuh bantuan?</span></a>
         </div>
-
-        <p class="hero-alt">Sudah pesan? <a href="cek-pesanan/">Lacak status pesanan</a> pakai kode order kamu.</p>
       </div>
 
-      <aside class="board" aria-label="Harga produk terbaru">
-        <div class="board-head">
-          <span class="live-dot"></span>
-          <strong>Harga terbaru</strong>
-          <span class="board-count" id="board-count">memuat…</span>
+      <div class="hero-art" id="hero-art">
+        <div class="hero-slides" id="hero-slides"></div>
+
+        <div class="hero-art-overlay" aria-hidden="true">
+          <div class="hero-art-row">
+            <span id="hero-art-tl"></span>
+            <span class="hero-art-counter" id="hero-art-tr"></span>
+          </div>
+          <div></div>
+          <div class="hero-art-row is-bottom">
+            <span id="hero-art-bl"></span>
+            <span id="hero-art-br"></span>
+          </div>
         </div>
-        <div class="board-rows" id="board-rows">
-          <div class="skel skel-row"></div>
-          <div class="skel skel-row"></div>
-          <div class="skel skel-row"></div>
-          <div class="skel skel-row"></div>
-          <div class="skel skel-row"></div>
+
+        <div class="hero-art-nav" id="hero-art-nav" hidden>
+          <button type="button" data-slide="prev" aria-label="Slide sebelumnya">&#8249;</button>
+          <button type="button" data-slide="next" aria-label="Slide berikutnya">&#8250;</button>
         </div>
-        <div class="board-foot">
-          <span>Diperbarui otomatis dari panel admin</span>
-          <a class="sec-link" href="products.html">Semua produk</a>
-        </div>
-      </aside>
+      </div>
     </section>
 
     <section class="shell">
@@ -164,16 +173,6 @@
       </div>
     </section>
 
-    <!-- closing cta -->
-    <section class="shell band-tight">
-      <div class="cta-band reveal">
-        <div>
-          <h2 class="display">Siap pesan sekarang?</h2>
-          <p>Pilih produk, bayar lewat QRIS, dan pantau statusnya sampai selesai.</p>
-        </div>
-        <a class="btn btn-primary btn-lg" href="products.html">Lihat katalog</a>
-      </div>
-    </section>
   </main>
 
   <footer class="site-footer">

@@ -1186,8 +1186,10 @@
     setPreview("preview-contact-discord-icon", s.contact.discord && s.contact.discord.icon);
     setPreview("preview-footer-logo", s.footer.logo);
     setPreview("preview-background-image", s.background.image);
+    setPreview("preview-home-hero-image-url", getPath(s.home || {}, "hero.image.url"));
 
     renderNavbarItems(s.navbar.items || []);
+    renderHeroSlides(getPath(s.home || {}, "hero.slides") || []);
     renderStatisticsItems(s.statistics || {});
     renderHighlights(s.highlights || []);
     renderFooterLinks(s.footer.links || []);
@@ -1309,6 +1311,88 @@
       .join("");
   }
 
+  // Hero slides. Each row owns its own image, so the upload control lives in
+  // the row and writes straight into that row's `image` field — it posts to
+  // the same /settings/admin/upload endpoint (and therefore the same R2
+  // bucket) as every other asset in this panel, no second upload path.
+  function slideImageField(value) {
+    return (
+      '<label class="field span-full"><span>Gambar slide</span>' +
+      '<span class="row-asset">' +
+      '<img class="row-thumb" src="' + esc(value || "") + '" alt="">' +
+      '<input type="file" class="row-file" accept="image/*" data-row-upload="1">' +
+      "</span>" +
+      '<input data-key="image" value="' + esc(value || "") + '" placeholder="URL gambar, terisi otomatis setelah unggah">' +
+      "</label>"
+    );
+  }
+
+  function renderHeroSlides(slides) {
+    const ordered = slides.slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    $("heroSlides").innerHTML =
+      ordered
+        .map((slide, i) =>
+          repeatRow(
+            slideImageField(slide.image) +
+              field("Teks alternatif", "alt", slide.alt, { placeholder: "Deskripsi singkat gambar" }) +
+              switchField("Aktif", "enabled", slide.enabled !== false) +
+              field("Kiri atas", "topLeft", slide.topLeft) +
+              field("Kanan atas", "topRight", slide.topRight, { placeholder: "Kosong = nomor slide otomatis" }) +
+              field("Kiri bawah", "bottomLeft", slide.bottomLeft) +
+              field("Kanan bawah", "bottomRight", slide.bottomRight),
+            i
+          )
+        )
+        .join("") ||
+      emptyState("image", "Belum ada slide", "Hero memakai satu gambar di atas. Tambah slide kalau ingin gambarnya bergantian.");
+  }
+
+  async function uploadSlideImage(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+
+    const row = input.closest(".repeat-row");
+    const target = row && row.querySelector('[data-key="image"]');
+    const thumb = row && row.querySelector(".row-thumb");
+    if (!target) return;
+
+    if (!UPLOAD_ALLOWED_MIME.includes(file.type)) {
+      showToast("Tipe file tidak didukung. Gunakan JPG, PNG, WEBP, GIF, atau SVG.", "error");
+      input.value = "";
+      return;
+    }
+    if (file.size > UPLOAD_MAX_BYTES) {
+      showToast("Ukuran file maksimal 5MB.", "error");
+      input.value = "";
+      return;
+    }
+
+    // Roll back to whatever the row held before, not to the <img> src, so a
+    // failed upload restores the saved URL instead of the page's own URL.
+    const previous = target.value;
+    const blobUrl = URL.createObjectURL(file);
+    if (thumb) thumb.src = blobUrl;
+
+    const form = new FormData();
+    form.append("file", file);
+    form.append("folder", "hero");
+
+    try {
+      const res = await api("/settings/admin/upload", { method: "POST", body: form });
+      if (!res.data || !res.data.url) throw new Error("Upload gagal: server tidak mengembalikan URL gambar.");
+      target.value = res.data.url;
+      if (thumb) thumb.src = res.data.url;
+      showToast("Gambar slide terunggah. Tekan simpan untuk menerapkannya.", "success");
+    } catch (err) {
+      target.value = previous;
+      if (thumb) thumb.src = previous;
+      showToast(err.message, "error");
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+      input.value = "";
+    }
+  }
+
   function renderHighlights(items) {
     $("highlightItems").innerHTML =
       items
@@ -1367,6 +1451,26 @@
     }
 
     const data = collectSectionFields(section);
+
+    // `updateSection` replaces the section object it receives, so the whole
+    // hero (including its slides) has to travel in one payload. The dotted
+    // data-field names above already rebuilt `data.hero`; only the repeating
+    // rows are left to attach.
+    if (section === "home") {
+      data.hero = data.hero || {};
+      data.hero.slides = collectRows("heroSlides")
+        .filter((r) => r.image)
+        .map((r) => ({
+          image: r.image,
+          alt: r.alt,
+          enabled: r.enabled,
+          sortOrder: r.sortOrder,
+          topLeft: r.topLeft,
+          topRight: r.topRight,
+          bottomLeft: r.bottomLeft,
+          bottomRight: r.bottomRight,
+        }));
+    }
 
     if (section === "navbar") {
       data.items = collectRows("navbarItems").map((r) => ({
@@ -2392,9 +2496,36 @@
     $("addFooterSocial").addEventListener("click", () =>
       appendRow("footerSocial", renderFooterSocial, { platform: "", url: "" })
     );
+    $("addHeroSlide").addEventListener("click", () =>
+      appendRow("heroSlides", renderHeroSlides, {
+        image: "",
+        alt: "",
+        enabled: true,
+        topLeft: "",
+        topRight: "",
+        bottomLeft: "",
+        bottomRight: "",
+      })
+    );
 
     // Unggah aset Marketplace
     qsa("[data-upload-target]").forEach((input) => input.addEventListener("change", () => uploadAsset(input)));
+
+    // Slide hero dirender ulang setiap kali daftarnya berubah, jadi input
+    // filenya didengarkan lewat delegasi — bukan diikat satu per satu, supaya
+    // baris baru ikut bekerja tanpa menumpuk listener pada baris lama.
+    $("heroSlides").addEventListener("change", (e) => {
+      const input = e.target.closest("[data-row-upload]");
+      if (input) uploadSlideImage(input);
+    });
+
+    // Mengetik URL gambar secara manual juga memperbarui thumbnail barisnya.
+    $("heroSlides").addEventListener("input", (e) => {
+      const field = e.target.closest('[data-key="image"]');
+      if (!field) return;
+      const thumb = field.closest(".repeat-row").querySelector(".row-thumb");
+      if (thumb) thumb.src = field.value;
+    });
 
     // Integrasi
     $("intRefresh").addEventListener("click", () =>

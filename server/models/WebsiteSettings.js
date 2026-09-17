@@ -32,12 +32,79 @@ const WebsiteSettingsSchema = new mongoose.Schema(
       cekPesananLabel: { type: String, default: "Cek Pesanan" },
     },
 
+    // `home.hero` is the Marketplace Home hero, edited in Admin Web under
+    // Marketplace > Halaman depan. The five flat fields above it are the
+    // original (pre-hero) shape and are kept so older documents and any code
+    // still reading settings.home.heading keep working; the Marketplace
+    // prefers `hero.*` and falls back to them. Nothing here is hardcoded in
+    // the frontend, including the slide counter, which is derived from the
+    // number of enabled slides.
     home: {
       heading: { type: String, default: "" },
       subtitle: { type: String, default: "" },
       description: { type: String, default: "" },
       ctaText: { type: String, default: "" },
       ctaLink: { type: String, default: "" },
+
+      hero: {
+        eyebrow: {
+          text: { type: String, default: "" },
+          enabled: { type: Boolean, default: true },
+        },
+        // Three separate lines instead of one string: the admin decides where
+        // the heading breaks, and `accentText` marks the words that take the
+        // accent colour, so emphasis never has to be hardcoded in the markup.
+        heading: {
+          line1: { type: String, default: "" },
+          line2: { type: String, default: "" },
+          line3: { type: String, default: "" },
+          accentText: { type: String, default: "" },
+          accentColor: { type: String, default: "" },
+        },
+        description: { type: String, default: "" },
+        primaryButton: {
+          enabled: { type: Boolean, default: true },
+          text: { type: String, default: "" },
+          url: { type: String, default: "" },
+        },
+        secondaryButton: {
+          enabled: { type: Boolean, default: true },
+          text: { type: String, default: "" },
+          url: { type: String, default: "" },
+        },
+        // Single artwork. Used when no slide is enabled; uploaded through the
+        // existing /api/settings/admin/upload endpoint, so the file lives in
+        // Cloudflare R2 and only its URL is stored here.
+        image: {
+          url: { type: String, default: "" },
+          alt: { type: String, default: "" },
+        },
+        // Corner captions drawn over the artwork. Top-right is left empty by
+        // default so the automatic NN / NN slide counter shows there instead.
+        overlay: {
+          enabled: { type: Boolean, default: true },
+          topLeft: { type: String, default: "" },
+          topRight: { type: String, default: "" },
+          bottomLeft: { type: String, default: "" },
+          bottomRight: { type: String, default: "" },
+        },
+        slides: [
+          {
+            image: { type: String, default: "" },
+            alt: { type: String, default: "" },
+            enabled: { type: Boolean, default: true },
+            sortOrder: { type: Number, default: 0 },
+            topLeft: { type: String, default: "" },
+            topRight: { type: String, default: "" },
+            bottomLeft: { type: String, default: "" },
+            bottomRight: { type: String, default: "" },
+          },
+        ],
+        autoplay: {
+          enabled: { type: Boolean, default: true },
+          intervalMs: { type: Number, default: 6000 },
+        },
+      },
     },
 
     statistics: {
@@ -91,28 +158,35 @@ const WebsiteSettingsSchema = new mongoose.Schema(
       social: [{ platform: String, url: String }],
     },
 
+    // Global background for every Marketplace page. `secondary` is the one
+    // companion colour that sits opposite the purple in the ambient layer;
+    // `intensity` and `animationIntensity` are 0-100 and are handed to CSS as
+    // plain multipliers, so there is no second animation system to maintain.
     background: {
       mode: { type: String, enum: ["solid", "gradient", "image"], default: "gradient" },
-      solidColor: { type: String, default: "#faf9ff" },
+      solidColor: { type: String, default: "#fbfaff" },
+      secondary: { type: String, default: "#f3a8c9" },
       gradient: { type: String, default: "" },
       image: { type: String, default: "" },
       overlay: { type: String, default: "" },
+      intensity: { type: Number, default: 100, min: 0, max: 100 },
+      animationIntensity: { type: Number, default: 100, min: 0, max: 100 },
       animationEnabled: { type: Boolean, default: true },
       ambientEffectsEnabled: { type: Boolean, default: true },
     },
 
     theme: {
-      primary: { type: String, default: "#7c3aed" },
-      secondary: { type: String, default: "#a78bfa" },
-      accent: { type: String, default: "#f4b400" },
-      buttonColor: { type: String, default: "#7c3aed" },
-      textColor: { type: String, default: "#211b31" },
-      backgroundColor: { type: String, default: "#faf9ff" },
-      borderColor: { type: String, default: "#e5e0f7" },
+      primary: { type: String, default: "#6d3bee" },
+      secondary: { type: String, default: "#7d54f0" },
+      accent: { type: String, default: "#b97706" },
+      buttonColor: { type: String, default: "#6d3bee" },
+      textColor: { type: String, default: "#17122a" },
+      backgroundColor: { type: String, default: "#fbfaff" },
+      borderColor: { type: String, default: "#ebe4ff" },
     },
 
     typography: {
-      fontFamily: { type: String, default: "Inter" },
+      fontFamily: { type: String, default: "Plus Jakarta Sans" },
       baseSize: { type: String, default: "16px" },
       headingWeight: { type: String, default: "700" },
     },

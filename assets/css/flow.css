@@ -43,7 +43,7 @@
   font-style: normal;
   font-size: 11px;
   border: 1px solid var(--edge-strong);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface);
   flex: none;
 }
 
@@ -148,7 +148,7 @@
   border-radius: var(--r-md);
   overflow: hidden;
   border: 1px solid var(--edge);
-  background: linear-gradient(140deg, #2a1f47, #17112b);
+  background: var(--media-bg);
   display: grid;
   place-items: center;
   flex: none;
@@ -161,7 +161,7 @@
 }
 
 .co-product-media .ph {
-  color: rgba(185, 166, 255, 0.4);
+  color: var(--media-ink);
   font-family: var(--display);
   font-weight: 700;
   font-size: 15px;
@@ -283,7 +283,7 @@
   padding: 18px;
   border-radius: var(--r-md);
   border: 1px solid var(--edge);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-tint);
   margin: 4px 0 20px;
 }
 
@@ -335,7 +335,7 @@
 }
 
 .pay-state-icon.is-idle {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--violet-pale);
   color: var(--text-mute);
 }
 
@@ -392,7 +392,7 @@
   display: grid;
   place-items: center;
   font-size: 32px;
-  border: 1px solid rgba(70, 192, 138, 0.35);
+  border: 1px solid rgba(15, 139, 99, 0.3);
 }
 
 .success-hero h1 {
@@ -435,7 +435,7 @@
   border-radius: var(--r-md);
   overflow: hidden;
   border: 1px solid var(--edge);
-  background: linear-gradient(140deg, #2a1f47, #17112b);
+  background: var(--media-bg);
   display: grid;
   place-items: center;
   flex: none;
@@ -448,7 +448,7 @@
 }
 
 .success-product-media .ph {
-  color: rgba(185, 166, 255, 0.4);
+  color: var(--media-ink);
   font-family: var(--display);
   font-weight: 700;
   font-size: 16px;
@@ -503,7 +503,7 @@
   padding: 13px 22px;
   border-radius: 999px;
   border: 1px solid var(--edge-strong);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface);
   color: var(--text);
   font-size: 13.5px;
   font-weight: 600;
@@ -537,13 +537,13 @@
 }
 
 .admin-btn.is-wa i {
-  background: rgba(70, 192, 138, 0.18);
+  background: var(--ok-wash);
   color: var(--ok);
 }
 
 .admin-btn.is-discord i {
-  background: rgba(124, 92, 255, 0.22);
-  color: var(--violet-soft);
+  background: var(--violet-pale);
+  color: var(--violet-deep);
 }
 
 .success-cta {

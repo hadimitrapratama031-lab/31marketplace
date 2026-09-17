@@ -251,6 +251,40 @@
     if (HEX.test(theme.accent || "")) root.style.setProperty("--amber", theme.accent);
   }
 
+  // Clamps a 0-100 admin slider to the 0-1 multiplier the CSS layers expect.
+  // `fallback` keeps an unset/garbage value at full strength rather than
+  // silently blanking the background.
+  function ratio(value, fallback) {
+    var n = Number(value);
+    if (!isFinite(n)) n = fallback;
+    return Math.min(100, Math.max(0, n)) / 100;
+  }
+
+  // The global background (section 01b of style.css) is four fixed CSS layers
+  // behind every page. Admin Web only moves the dials — colour, intensity,
+  // animation — so there is no per-page background, no canvas, and no second
+  // animation loop anywhere in the Marketplace.
+  function applyBackground(background) {
+    var root = document.documentElement;
+    var bg = background || {};
+
+    var base = HEX.test(bg.solidColor || "") ? bg.solidColor : "";
+    root.style.setProperty("--bg-base", base || "#fbfaff");
+    if (HEX.test(bg.secondary || "")) root.style.setProperty("--aurora", bg.secondary);
+
+    root.style.setProperty("--bg-veil", String(ratio(bg.intensity, 100)));
+    // Never 0: the drift duration divides by this value, and a 0 would make
+    // the animation duration infinite rather than stopping it. Use the
+    // animationEnabled switch for "off".
+    root.style.setProperty("--bg-drift", String(Math.max(0.15, ratio(bg.animationIntensity, 100))));
+
+    var image = bg.mode === "image" && bg.image ? 'url("' + bg.image.replace(/"/g, "%22") + '")' : "none";
+    root.style.setProperty("--bg-image", image);
+
+    root.classList.toggle("bg-static", bg.animationEnabled === false);
+    root.classList.toggle("bg-flat", bg.ambientEffectsEnabled === false);
+  }
+
   function setText(selector, value) {
     if (!value) return;
     document.querySelectorAll(selector).forEach(function (el) {
@@ -283,6 +317,7 @@
     var footer = s.footer || {};
 
     applyTheme(s.theme);
+    applyBackground(s.background);
 
     if (general.storeName) {
       setText("[data-store-name]", general.storeName);
@@ -404,6 +439,7 @@
     observeReveals: observeReveals,
     onSettings: onSettings,
     loadSettings: loadSettings,
+    applyBackground: applyBackground,
     contactChannels: contactChannels,
     getSettings: function () {
       return settings;

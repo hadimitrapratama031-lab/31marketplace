@@ -3217,3 +3217,64 @@ td.empty-cell {
     display: none !important;
   }
 }
+
+/* ------------------------------------------------- hero slides & sliders */
+/* Range inputs are only used by the Marketplace background settings; they
+   inherit the same track/thumb treatment as the rest of the form controls
+   instead of falling back to the browser default. */
+.field input[type="range"] {
+  width: 100%;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+/* Each hero slide row carries its own image, so the upload control lives in
+   the row rather than in a shared asset box. */
+.row-asset {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.row-thumb {
+  width: 64px;
+  height: 42px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  flex: none;
+}
+
+.row-thumb:not([src]),
+.row-thumb[src=""] {
+  opacity: 0.35;
+}
+
+.row-file {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.row-file::file-selector-button {
+  margin-right: 10px;
+  padding: 7px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-12);
+  cursor: pointer;
+}
+
+.row-file::file-selector-button:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}

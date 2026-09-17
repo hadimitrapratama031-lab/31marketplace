@@ -685,18 +685,111 @@
             </div>
           </div>
 
-          <!-- home -->
+          <!--
+            home / hero
+            Satu-satunya tempat mengatur bagian paling atas Marketplace. Field
+            lama (home.heading, home.ctaText, dst) masih ada di database untuk
+            kompatibilitas dan dipakai Marketplace sebagai cadangan, tapi tidak
+            ditampilkan lagi di sini supaya tidak ada dua tempat mengatur hal
+            yang sama.
+          -->
           <div class="pane" id="tab-home">
             <div class="panel">
-              <div class="panel-head"><div class="panel-head-text"><h3>Bagian utama halaman depan</h3><p>Teks pertama yang dibaca pengunjung sebelum melihat produk.</p></div></div>
+              <div class="panel-head"><div class="panel-head-text"><h3>Teks hero</h3><p>Bagian pertama yang dibaca pengunjung. Setiap perubahan langsung tampil di Marketplace tanpa refresh.</p></div></div>
               <div class="panel-body">
-                <div class="form-grid">
-                  <label class="field"><span>Teks kecil di atas judul</span><input data-section="home" data-field="subtitle" placeholder="Top up instan"></label>
-                  <label class="field"><span>Judul</span><input data-section="home" data-field="heading" placeholder="Judul besar halaman depan"></label>
-                  <label class="field span-full"><span>Deskripsi</span><textarea data-section="home" data-field="description" placeholder="Penjelasan singkat di bawah judul"></textarea></label>
-                  <label class="field"><span>Teks tombol</span><input data-section="home" data-field="ctaText" placeholder="Lihat produk"></label>
-                  <label class="field"><span>Tujuan tombol</span><input data-section="home" data-field="ctaLink" placeholder="#produk"></label>
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Tampilkan teks kecil di atas judul</b><small>Label pendek seperti "Digital Gaming Marketplace".</small></div>
+                  <label class="switch"><input type="checkbox" data-section="home" data-field="hero.eyebrow.enabled"><i></i></label>
                 </div>
+                <div class="form-grid" style="margin-top:var(--s5)">
+                  <label class="field span-full"><span>Teks kecil di atas judul</span><input data-section="home" data-field="hero.eyebrow.text" placeholder="Digital Gaming Marketplace"></label>
+                  <label class="field"><span>Judul baris 1</span><input data-section="home" data-field="hero.heading.line1" placeholder="Your Digital"></label>
+                  <label class="field"><span>Judul baris 2</span><input data-section="home" data-field="hero.heading.line2" placeholder="Gaming"></label>
+                  <label class="field"><span>Judul baris 3</span><input data-section="home" data-field="hero.heading.line3" placeholder="Marketplace."></label>
+                  <label class="field"><span>Kata yang diberi warna</span><input data-section="home" data-field="hero.heading.accentText" placeholder="Digital"></label>
+                  <label class="field"><span>Warna kata tersebut</span><input type="color" data-section="home" data-field="hero.heading.accentColor"></label>
+                  <label class="field span-full"><span>Deskripsi</span><textarea data-section="home" data-field="hero.description" placeholder="Satu atau dua kalimat di bawah judul"></textarea></label>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Tombol hero</h3><p>Matikan salah satunya kalau hero cukup dengan satu tombol.</p></div></div>
+              <div class="panel-body">
+                <div class="fieldset">
+                  <div class="fieldset-head"><h4>Tombol utama</h4></div>
+                  <div class="toggle-row">
+                    <div class="toggle-row-text"><b>Tampilkan tombol utama</b></div>
+                    <label class="switch"><input type="checkbox" data-section="home" data-field="hero.primaryButton.enabled"><i></i></label>
+                  </div>
+                  <div class="form-grid" style="margin-top:var(--s5)">
+                    <label class="field"><span>Teks tombol</span><input data-section="home" data-field="hero.primaryButton.text" placeholder="Jelajahi Produk"></label>
+                    <label class="field"><span>Tujuan</span><input data-section="home" data-field="hero.primaryButton.url" placeholder="products.html"></label>
+                  </div>
+                </div>
+
+                <div class="fieldset">
+                  <div class="fieldset-head"><h4>Tombol kedua</h4></div>
+                  <div class="toggle-row">
+                    <div class="toggle-row-text"><b>Tampilkan tombol kedua</b></div>
+                    <label class="switch"><input type="checkbox" data-section="home" data-field="hero.secondaryButton.enabled"><i></i></label>
+                  </div>
+                  <div class="form-grid" style="margin-top:var(--s5)">
+                    <label class="field"><span>Teks tombol</span><input data-section="home" data-field="hero.secondaryButton.text" placeholder="Butuh Bantuan?"></label>
+                    <label class="field"><span>Tujuan</span><input data-section="home" data-field="hero.secondaryButton.url" placeholder="#contact"></label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Gambar hero</h3><p>Dipakai kalau belum ada slide aktif. File diunggah ke Cloudflare R2; database hanya menyimpan URL-nya.</p></div></div>
+              <div class="panel-body">
+                <div class="asset-row">
+                  <label class="asset">
+                    <span>Gambar hero</span>
+                    <span class="asset-box"><img id="preview-home-hero-image-url" alt=""><svg class="ico"><use href="#i-image"></use></svg></span>
+                    <small>Klik untuk mengunggah</small>
+                    <input type="file" accept="image/*" data-upload-target="home.hero.image.url" data-upload-folder="hero">
+                  </label>
+                </div>
+                <div class="form-grid" style="margin-top:var(--s5)">
+                  <label class="field span-full"><span>URL gambar</span><input data-section="home" data-field="hero.image.url" placeholder="Terisi otomatis setelah unggah, bisa juga ditempel manual"></label>
+                  <label class="field span-full"><span>Teks alternatif gambar</span><input data-section="home" data-field="hero.image.alt" placeholder="Deskripsi singkat gambar untuk pembaca layar"></label>
+                </div>
+                <p class="hint-line" style="margin-top:var(--s4)">Kosongkan URL gambar untuk menghapus gambar hero. Marketplace akan kembali memakai artwork bawaan.</p>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Tulisan di atas gambar</h3><p>Empat sudut gambar hero. Sudut kanan atas otomatis menampilkan nomor slide (01 / 04) kalau dikosongkan.</p></div></div>
+              <div class="panel-body">
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Tampilkan tulisan di atas gambar</b></div>
+                  <label class="switch"><input type="checkbox" data-section="home" data-field="hero.overlay.enabled"><i></i></label>
+                </div>
+                <div class="form-grid" style="margin-top:var(--s5)">
+                  <label class="field"><span>Kiri atas</span><input data-section="home" data-field="hero.overlay.topLeft" placeholder="31 STORE"></label>
+                  <label class="field"><span>Kanan atas</span><input data-section="home" data-field="hero.overlay.topRight" placeholder="Kosongkan untuk nomor slide otomatis"></label>
+                  <label class="field"><span>Kiri bawah</span><input data-section="home" data-field="hero.overlay.bottomLeft" placeholder="GAMING DIGITAL GOODS"></label>
+                  <label class="field"><span>Kanan bawah</span><input data-section="home" data-field="hero.overlay.bottomRight" placeholder="2026"></label>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head"><div class="panel-head-text"><h3>Slide hero</h3><p>Tambah lebih dari satu gambar untuk membuat hero bergantian. Nomor slide dihitung otomatis dari slide yang aktif.</p></div>
+                <button class="btn btn-sm btn-outline" type="button" id="addHeroSlide"><svg class="ico"><use href="#i-plus"></use></svg>Tambah slide</button>
+              </div>
+              <div class="panel-body">
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Ganti slide otomatis</b><small>Berhenti saat kursor berada di atas gambar, dan saat pengunjung mengaktifkan mode hemat animasi.</small></div>
+                  <label class="switch"><input type="checkbox" data-section="home" data-field="hero.autoplay.enabled"><i></i></label>
+                </div>
+                <div class="form-grid one" style="margin:var(--s5) 0">
+                  <label class="field"><span>Jeda antar slide (milidetik)</span><input type="number" min="2500" step="500" data-section="home" data-field="hero.autoplay.intervalMs" placeholder="6000"></label>
+                </div>
+                <div id="heroSlides" class="repeat"></div>
               </div>
               <div class="panel-foot"><button class="btn btn-primary" type="button" data-save-section="home">Simpan halaman depan</button></div>
             </div>
@@ -831,7 +924,10 @@
                       <option value="image">Gambar</option>
                     </select>
                   </label>
-                  <label class="field"><span>Warna solid</span><input type="color" data-section="background" data-field="solidColor"></label>
+                  <label class="field"><span>Warna dasar</span><input type="color" data-section="background" data-field="solidColor"></label>
+                  <label class="field"><span>Warna pendamping</span><input type="color" data-section="background" data-field="secondary"></label>
+                  <label class="field"><span>Ketebalan background</span><input type="range" min="0" max="100" step="5" data-section="background" data-field="intensity"></label>
+                  <label class="field"><span>Kecepatan animasi</span><input type="range" min="15" max="100" step="5" data-section="background" data-field="animationIntensity"></label>
                   <label class="field span-full"><span>Nilai gradasi CSS</span><input data-section="background" data-field="gradient" placeholder="linear-gradient(135deg,#faf9ff,#efe9ff)"></label>
                   <label class="field span-full"><span>Lapisan overlay CSS</span><input data-section="background" data-field="overlay" placeholder="rgba(0,0,0,.25)"></label>
                 </div>

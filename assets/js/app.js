@@ -10,56 +10,9 @@
     return document.getElementById(id);
   };
 
-  var BOARD_LIMIT = 8;
   var GRID_LIMIT = 8;
 
   var state = { products: [], categories: [], faqs: [], stats: null };
-  var lastBoard = new Map(); // slug -> "price|stock", used to flash changed rows
-
-  /* -------------------------------------------------------- price board */
-  function renderBoard() {
-    var rows = $("board-rows");
-    var count = $("board-count");
-    if (!rows) return;
-
-    var items = state.products.slice(0, BOARD_LIMIT);
-
-    if (!items.length) {
-      rows.innerHTML = '<div class="board-row"><div class="board-cell"><div class="board-sub">Belum ada produk aktif.</div></div></div>';
-      if (count) count.textContent = "0 produk";
-      return;
-    }
-
-    if (count) count.textContent = MP.formatNumber(state.products.length) + " produk aktif";
-
-    var next = new Map();
-    rows.innerHTML = items
-      .map(function (p) {
-        var stock = Number(p.stock) || 0;
-        var signature = p.price + "|" + stock;
-        var changed = lastBoard.size > 0 && lastBoard.get(p.slug) !== signature;
-        next.set(p.slug, signature);
-
-        var category = (p.categoryId && p.categoryId.name) || "Produk digital";
-        var stockLabel = stock <= 0 ? "Stok habis" : stock <= 5 ? "Sisa " + stock : "Stok " + MP.formatNumber(stock);
-
-        return (
-          '<a class="board-row' + (changed ? " is-fresh" : "") + '" href="product.html?slug=' + encodeURIComponent(p.slug) + '">' +
-          '<span class="board-cell">' +
-          '<span class="board-name">' + MP.escapeHTML(p.name) + "</span>" +
-          '<span class="board-sub">' + MP.escapeHTML(category) + "</span>" +
-          "</span>" +
-          '<span class="board-cell">' +
-          '<span class="board-price">' + MP.formatIDR(p.price) + "</span>" +
-          '<span class="board-stock">' + stockLabel + "</span>" +
-          "</span>" +
-          "</a>"
-        );
-      })
-      .join("");
-
-    lastBoard = next;
-  }
 
   /* ------------------------------------------------- products, by category */
   // "Kategori" is no longer a standalone section — it's the grouping used to
@@ -238,17 +191,246 @@
     });
   }
 
+  /* ------------------------------------------------------------------ hero */
+  // Everything visible in the hero is written by Admin Web and arrives through
+  // the same /api/settings payload the rest of the page uses, so a change made
+  // in the panel reaches this renderer over the existing Socket.IO connection
+  // without a refresh. The HTML holds fallback copy for the very first paint
+  // only; from here on this function owns the hero.
+  var heroTimer = null;
+  var heroIndex = 0;
+  var heroSlides = [];
+
+  function heroConfig(s) {
+    var home = (s && s.home) || {};
+    var hero = home.hero || {};
+    var heading = hero.heading || {};
+
+    // Lines the admin actually filled in. Falling back to the older flat
+    // `home.heading` keeps documents saved before the hero settings existed
+    // rendering correctly instead of showing an empty page.
+    var lines = [heading.line1, heading.line2, heading.line3].filter(function (l) {
+      return String(l || "").trim();
+    });
+    if (!lines.length && home.heading) lines = [home.heading];
+
+    return {
+      eyebrow: hero.eyebrow || {},
+      lines: lines,
+      accentText: String(heading.accentText || "").trim(),
+      accentColor: heading.accentColor || "",
+      description: hero.description || home.subtitle || home.description || "",
+      primary: hero.primaryButton || { enabled: true, text: home.ctaText, url: home.ctaLink },
+      secondary: hero.secondaryButton || {},
+      image: hero.image || {},
+      overlay: hero.overlay || {},
+      slides: Array.isArray(hero.slides) ? hero.slides : [],
+      autoplay: hero.autoplay || {},
+    };
+  }
+
+  // Wraps the admin's accent words inside an already-escaped line. Escaping
+  // first and matching the escaped needle means admin copy can contain < or &
+  // without ever injecting markup.
+  function withAccent(line, accentText, accentColor) {
+    var safe = MP.escapeHTML(line);
+    if (!accentText) return safe;
+    var needle = MP.escapeHTML(accentText);
+    var at = safe.toLowerCase().indexOf(needle.toLowerCase());
+    if (at < 0) return safe;
+    var style = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(accentColor) ? ' style="color:' + accentColor + '"' : "";
+    return (
+      safe.slice(0, at) +
+      '<span class="hero-accent"' + style + ">" + safe.slice(at, at + needle.length) + "</span>" +
+      safe.slice(at + needle.length)
+    );
+  }
+
+  // A button the admin switched off disappears; one they left on keeps the
+  // fallback label from the markup until they type their own, so the hero is
+  // never rendered with a blank, button-shaped hole in it.
+  function setButton(id, textId, config, fallbackHref) {
+    var btn = $(id);
+    var label = $(textId);
+    if (!btn) return;
+
+    if (config.enabled === false) {
+      btn.hidden = true;
+      return;
+    }
+
+    btn.hidden = false;
+    var text = String(config.text || "").trim();
+    if (label && text) label.textContent = text;
+    btn.setAttribute("href", config.url || fallbackHref);
+  }
+
+  function pad2(n) {
+    return (n < 10 ? "0" : "") + n;
+  }
+
+  function setOverlayText(id, value) {
+    var el = $(id);
+    if (!el) return;
+    el.textContent = value || "";
+    el.hidden = !value;
+  }
+
+  // The counter is always derived: one enabled slide reads 01 / 01, four read
+  // 01 / 04. It is never written into the markup.
+  function renderHeroFrame(cfg) {
+    var total = heroSlides.length;
+    var current = total ? heroSlides[heroIndex] : {};
+    var overlay = cfg.overlay || {};
+    var showOverlay = overlay.enabled !== false;
+
+    document.querySelectorAll("#hero-slides .hero-slide").forEach(function (el, i) {
+      el.classList.toggle("is-current", i === heroIndex);
+    });
+
+    if (!showOverlay) {
+      ["hero-art-tl", "hero-art-tr", "hero-art-bl", "hero-art-br"].forEach(function (id) {
+        setOverlayText(id, "");
+      });
+      return;
+    }
+
+    setOverlayText("hero-art-tl", current.topLeft || overlay.topLeft || "");
+    setOverlayText("hero-art-bl", current.bottomLeft || overlay.bottomLeft || "");
+    setOverlayText("hero-art-br", current.bottomRight || overlay.bottomRight || "");
+
+    var manualTopRight = current.topRight || overlay.topRight || "";
+    var counter = total ? pad2(heroIndex + 1) + " / " + pad2(total) : "";
+    setOverlayText("hero-art-tr", manualTopRight || counter);
+  }
+
+  function stopHeroAutoplay() {
+    if (heroTimer) clearInterval(heroTimer);
+    heroTimer = null;
+  }
+
+  function startHeroAutoplay(cfg) {
+    stopHeroAutoplay();
+    if (heroSlides.length < 2) return;
+    if (cfg.autoplay && cfg.autoplay.enabled === false) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    var interval = Number(cfg.autoplay && cfg.autoplay.intervalMs) || 6000;
+    heroTimer = setInterval(function () {
+      // Nothing to animate while the tab is in the background — let the
+      // browser throttle instead of queueing transitions nobody sees.
+      if (document.hidden) return;
+      heroIndex = (heroIndex + 1) % heroSlides.length;
+      renderHeroFrame(cfg);
+    }, Math.max(2500, interval));
+  }
+
+  function renderHero(s) {
+    var hero = $("hero");
+    if (!hero) return;
+    var cfg = heroConfig(s);
+
+    var eyebrow = $("hero-eyebrow");
+    if (eyebrow) {
+      var eyebrowText = String(cfg.eyebrow.text || "").trim();
+      eyebrow.textContent = eyebrowText;
+      eyebrow.hidden = !eyebrowText || cfg.eyebrow.enabled === false;
+    }
+
+    var title = $("hero-title");
+    if (title && cfg.lines.length) {
+      title.innerHTML = cfg.lines
+        .map(function (line) {
+          return '<span class="hero-line">' + withAccent(line, cfg.accentText, cfg.accentColor) + "</span>";
+        })
+        .join("");
+    }
+
+    if (cfg.description && $("hero-description")) $("hero-description").textContent = cfg.description;
+
+    setButton("hero-cta-primary", "hero-cta-primary-text", cfg.primary, "products.html");
+    setButton("hero-cta-secondary", "hero-cta-secondary-text", cfg.secondary, "#contact");
+
+    // Enabled slides first; a single uploaded image is treated as one slide so
+    // the counter, the overlay, and the markup stay on one code path.
+    heroSlides = cfg.slides
+      .filter(function (slide) {
+        return slide && slide.enabled !== false && slide.image;
+      })
+      .slice()
+      .sort(function (a, b) {
+        return (a.sortOrder || 0) - (b.sortOrder || 0);
+      });
+
+    if (!heroSlides.length && cfg.image.url) {
+      heroSlides = [{ image: cfg.image.url, alt: cfg.image.alt }];
+    }
+
+    var wrap = $("hero-slides");
+    if (wrap) {
+      wrap.innerHTML = heroSlides.length
+        ? heroSlides
+            .map(function (slide, i) {
+              return (
+                '<div class="hero-slide' + (i === 0 ? " is-current" : "") + '">' +
+                '<img src="' + MP.escapeHTML(slide.image) + '" alt="' + MP.escapeHTML(slide.alt || "") + '"' +
+                (i === 0 ? "" : ' loading="lazy"') + ' decoding="async">' +
+                "</div>"
+              );
+            })
+            .join("")
+        : // No artwork uploaded yet: a CSS-only orb keeps the hero looking
+          // finished instead of showing an empty purple rectangle.
+          '<div class="hero-slide is-current"><div class="hero-orb"></div></div>';
+    }
+
+    if (heroIndex >= heroSlides.length) heroIndex = 0;
+
+    var nav = $("hero-art-nav");
+    if (nav) nav.hidden = heroSlides.length < 2;
+
+    renderHeroFrame(cfg);
+    startHeroAutoplay(cfg);
+
+    // One entrance, the first time the hero has real content.
+    requestAnimationFrame(function () {
+      hero.classList.add("is-ready");
+    });
+
+    return cfg;
+  }
+
+  function bindHero(getConfig) {
+    var art = $("hero-art");
+    var nav = $("hero-art-nav");
+    if (!art || !nav) return;
+
+    // One delegated listener for the page lifetime — re-rendering the slides
+    // on a realtime settings update can never stack handlers.
+    nav.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-slide]");
+      if (!btn || heroSlides.length < 2) return;
+      var step = btn.dataset.slide === "prev" ? -1 : 1;
+      heroIndex = (heroIndex + step + heroSlides.length) % heroSlides.length;
+      var cfg = getConfig();
+      renderHeroFrame(cfg);
+      startHeroAutoplay(cfg);
+    });
+
+    art.addEventListener("mouseenter", stopHeroAutoplay);
+    art.addEventListener("mouseleave", function () {
+      startHeroAutoplay(getConfig());
+    });
+  }
+
   /* ------------------------------------------- settings-driven home copy */
+  var lastHeroConfig = null;
+
   function applyHomeSettings(s) {
     if (!s) return;
-    var home = s.home || {};
     var contact = s.contact || {};
 
-    if (home.heading && $("hero-heading")) $("hero-heading").textContent = home.heading;
-    var lede = home.subtitle || home.description;
-    if (lede && $("hero-description")) $("hero-description").textContent = lede;
-    if (home.ctaText && $("hero-cta-text")) $("hero-cta-text").textContent = home.ctaText;
-    if (home.ctaLink && $("hero-cta")) $("hero-cta").setAttribute("href", home.ctaLink);
+    lastHeroConfig = renderHero(s) || lastHeroConfig;
 
     if (contact.title && $("contact-title")) $("contact-title").textContent = contact.title;
     if (contact.description && $("contact-description")) $("contact-description").textContent = contact.description;
@@ -289,7 +471,6 @@
     results.forEach(function (r) {
       if (r.status === "rejected") console.error("Gagal memuat katalog:", r.reason);
     });
-    renderBoard();
     renderProducts();
   }
 
@@ -342,17 +523,6 @@
     });
   }
 
-  /* --------------------------------------------------------------- search */
-  function setupSearch() {
-    var form = $("hero-search");
-    if (!form) return;
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      var q = ($("hero-search-input").value || "").trim();
-      window.location.href = q ? "products.html?q=" + encodeURIComponent(q) : "products.html";
-    });
-  }
-
   /* --------------------------------------------------- active nav on scroll */
   function setupScrollSpy() {
     var sections = Array.prototype.slice.call(document.querySelectorAll("main section[id]"));
@@ -382,7 +552,9 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     bindFAQ();
-    setupSearch();
+    bindHero(function () {
+      return lastHeroConfig || heroConfig(MP.getSettings());
+    });
     setupScrollSpy();
     MP.onSettings(applyHomeSettings);
     loadAll()
