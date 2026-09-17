@@ -84,9 +84,13 @@ async function applyPaymentStatus({ orderCode, newStatus, paidAt }) {
   const eventKey =
     newStatus === "PAID" ? "paymentSuccess" : newStatus === "FAILED" ? "paymentFailed" : newStatus === "EXPIRED" ? "paymentExpired" : null;
   if (eventKey) {
-    await notificationService.notifyOrderEvent(order, eventKey).catch((err) =>
-      logger.error("Notification failed after payment status change", { orderCode, message: err.message })
-    );
+    // Diantre, bukan di-await: webhook KlikQRIS harus dibalas 200 secepatnya.
+    // Menunggu Fonnte + Resend (masing-masing sampai 20 detik, plus retry) di
+    // dalam request webhook membuat gateway menganggap webhook gagal dan
+    // mengirimnya ulang — justru memperbanyak duplikat yang ingin dihindari.
+    // Status pembayaran sudah tersimpan di atas, jadi notifikasi ini bekerja
+    // dari state yang sudah final, dan idempotency-nya dijaga NotificationLog.
+    notificationService.queueOrderEvent(order, eventKey, { transaction });
   }
 
   return { handled: true, order, transaction, duplicate: false };
@@ -148,4 +152,45 @@ const refreshStatus = asyncHandler(async (req, res) => {
   res.json({ status: true, data: { status: newStatus } });
 });
 
-module.exports = { klikqrisWebhook, refreshStatus };
+/**
+ * Menutup transaksi yang sudah lewat batas waktu.
+ *
+ * Tanpa ini, PAYMENT_EXPIRED praktis tidak pernah terkirim: satu-satunya
+ * pemicunya adalah webhook EXPIRED dari KlikQRIS atau pembeli yang kebetulan
+ * membuka lagi halaman pembayaran. Pembeli yang menutup tab setelah checkout
+ * — kasus yang paling umum — tidak pernah menerima apa pun.
+ *
+ * Ini bukan sistem notifikasi kedua: ia hanya memanggil applyPaymentStatus()
+ * yang sama, sehingga status, Socket.IO, dan idempotency-nya identik dengan
+ * jalur webhook.
+ */
+async function sweepExpiredPayments() {
+  const now = new Date();
+  const stale = await Transaction.find({ status: "PENDING", expiredAt: { $ne: null, $lt: now } })
+    .select("transactionId")
+    .limit(50)
+    .lean();
+
+  for (const tx of stale) {
+    try {
+      await applyPaymentStatus({ orderCode: tx.transactionId, newStatus: "EXPIRED" });
+      logger.info("Transaksi kedaluwarsa ditutup oleh sweeper", { orderCode: tx.transactionId });
+    } catch (err) {
+      logger.error("Gagal menutup transaksi kedaluwarsa", { orderCode: tx.transactionId, message: err.message });
+    }
+  }
+  return stale.length;
+}
+
+// Interval, bukan cron eksternal, supaya tidak ada layanan baru yang harus
+// di-deploy. `unref()` menjaga proses tetap bisa keluar dengan bersih.
+function startExpirySweeper(intervalMs = 5 * 60 * 1000) {
+  const timer = setInterval(() => {
+    sweepExpiredPayments().catch((err) => logger.error("Expiry sweeper gagal", { message: err.message }));
+  }, intervalMs);
+  if (typeof timer.unref === "function") timer.unref();
+  logger.info("Expiry sweeper aktif", { intervalMs });
+  return timer;
+}
+
+module.exports = { klikqrisWebhook, refreshStatus, sweepExpiredPayments, startExpirySweeper };

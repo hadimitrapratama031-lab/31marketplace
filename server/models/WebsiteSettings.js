@@ -137,10 +137,15 @@ const WebsiteSettingsSchema = new mongoose.Schema(
     // this schema change if the local/production DB already has contact data.
     contact: {
       whatsapp: {
+        // Saklar per channel: admin bisa menonaktifkan WhatsApp tanpa
+        // menghapus nomornya. `contact.enabled` di bawah tetap ada dan
+        // mengatur tampil/tidaknya seluruh blok kontak.
+        enabled: { type: Boolean, default: true },
         number: { type: String, default: "" }, // digits only; wa.me link is built from this
         icon: { type: String, default: "" }, // R2 URL of the admin-uploaded WhatsApp logo
       },
       discord: {
+        enabled: { type: Boolean, default: true },
         url: { type: String, default: "" },
         icon: { type: String, default: "" }, // R2 URL of the admin-uploaded Discord logo
       },

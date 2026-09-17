@@ -16,6 +16,7 @@ const { publicApiLimiter } = require("./middlewares/rateLimit");
 const logger = require("./utils/logger");
 const apiRouter = require("./routes");
 const { resolveFrontendDir } = require("./config/paths");
+const { startExpirySweeper } = require("./controllers/payment.controller");
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -248,6 +249,11 @@ async function start() {
     checkRequiredEnv();
     await connectDB();
     initSocket(httpServer, allowedOrigins.length ? allowedOrigins : "*");
+
+    // Menutup transaksi yang lewat batas waktu, supaya notifikasi
+    // PAYMENT_EXPIRED tetap terkirim walau gateway tidak mengirim webhook
+    // EXPIRED dan pembeli tidak pernah membuka lagi halaman pembayaran.
+    startExpirySweeper();
 
     httpServer.listen(PORT, HOST, () => {
       logger.info(`Server started`, { port: PORT, host: HOST, env: process.env.NODE_ENV || "development" });

@@ -4,6 +4,7 @@ const klikqrisService = require("../services/klikqris.service");
 const fonnteService = require("../services/fonnte.service");
 const resendService = require("../services/resend.service");
 const r2Service = require("../services/r2.service");
+const notificationService = require("../services/notification.service");
 const asyncHandler = require("../utils/asyncHandler");
 const { emitEvent } = require("../services/socket.service");
 
@@ -115,7 +116,24 @@ const updateTemplates = asyncHandler(async (req, res) => {
   res.json({ status: true, data: settings.templates });
 });
 
+// ADMIN — riwayat pengiriman notifikasi. Memakai NotificationLog existing
+// (yang memang sudah jadi kunci idempotency), bukan koleksi log baru.
+const listNotificationLogs = asyncHandler(async (req, res) => {
+  const { orderCode, event, channel, status, page, limit } = req.query;
+  const result = await notificationService.listLogs({ orderCode, event, channel, status, page, limit });
+  res.json({ status: true, data: result.rows, pagination: result.pagination });
+});
+
+// ADMIN — kirim ulang SATU channel yang gagal. Channel lain pada event yang
+// sama tidak ikut dikirim ulang, termasuk yang sudah berhasil.
+const retryNotification = asyncHandler(async (req, res) => {
+  const result = await notificationService.retryLog(req.params.id);
+  res.status(result.success ? 200 : 400).json({ status: result.success, message: result.message, data: result.data });
+});
+
 module.exports = {
+  listNotificationLogs,
+  retryNotification,
   getStatus,
   updateKlikQris,
   updateFonnte,

@@ -19,6 +19,8 @@ router.post("/resend/test", ctrl.testResend);
 router.post("/r2/test", ctrl.testR2);
 
 router.put("/notifications", ctrl.updateNotifications);
+router.get("/notifications/logs", ctrl.listNotificationLogs);
+router.post("/notifications/logs/:id/retry", requireRole("superadmin", "admin"), ctrl.retryNotification);
 router.get("/templates", ctrl.getTemplates);
 router.put("/templates", ctrl.updateTemplates);
 

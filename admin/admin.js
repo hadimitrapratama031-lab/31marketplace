@@ -30,6 +30,9 @@
     ratingFilter: "",
     integrations: null,
     templates: null,
+    notifLogs: [],
+    notifLogsPagination: { page: 1, limit: 30, total: 0 },
+    notifLogFilters: { orderCode: "", event: "", channel: "", status: "" },
     notifications: [],
     unread: 0,
     productView: "grid",
@@ -1782,6 +1785,112 @@
     renderIntegrationStatus();
     fillIntegrationForms();
     fillTemplateForms();
+    // Riwayat pengiriman dimuat terpisah: kalau endpointnya bermasalah, tab
+    // Integrasi tetap terbuka dan bisa dipakai, hanya tabelnya yang kosong.
+    await loadNotificationLogs().catch((err) => showToast(err.message, "error"));
+  }
+
+  /* ------------------------------------------------- riwayat notifikasi */
+
+  const NOTIF_EVENT_LABEL = {
+    orderCreated: "Pesanan dibuat",
+    paymentPending: "Menunggu pembayaran",
+    paymentSuccess: "Pembayaran berhasil",
+    paymentFailed: "Pembayaran gagal",
+    paymentExpired: "Pembayaran kedaluwarsa",
+    orderCompleted: "Pesanan selesai",
+  };
+
+  // Status pengiriman per channel — sengaja dibedakan dari status order
+  // supaya "email gagal" tidak pernah terbaca sebagai "pesanan gagal".
+  const NOTIF_STATUS = {
+    sent: { cls: "st-success", text: "Terkirim" },
+    failed: { cls: "st-danger", text: "Gagal" },
+    sending: { cls: "st-pending", text: "Dikirim…" },
+    pending: { cls: "st-neutral", text: "Menunggu" },
+  };
+
+  async function loadNotificationLogs() {
+    const f = state.notifLogFilters;
+    const params = new URLSearchParams();
+    if (f.orderCode) params.set("orderCode", f.orderCode);
+    if (f.event) params.set("event", f.event);
+    if (f.channel) params.set("channel", f.channel);
+    if (f.status) params.set("status", f.status);
+    params.set("page", state.notifLogsPagination.page);
+    params.set("limit", state.notifLogsPagination.limit);
+
+    const res = await api("/integrations/notifications/logs?" + params.toString());
+    state.notifLogs = res.data || [];
+    state.notifLogsPagination = res.pagination || state.notifLogsPagination;
+    renderNotificationLogs();
+  }
+
+  function renderNotificationLogs() {
+    const body = $("notifLogsTable");
+    if (!body) return;
+
+    body.innerHTML =
+      state.notifLogs
+        .map((row) => {
+          const st = NOTIF_STATUS[row.status] || NOTIF_STATUS.pending;
+          // Waktu yang ditampilkan adalah waktu kejadian terakhir yang nyata:
+          // saat terkirim, saat gagal, atau saat baris dibuat.
+          const when = row.sentAt || row.failedAt || row.createdAt;
+          // Kirim ulang hanya masuk akal untuk yang belum berhasil.
+          const retry =
+            row.status === "sent"
+              ? ""
+              : '<button class="btn btn-icon btn-sm" type="button" data-retry-notif="' +
+                esc(row._id) +
+                '" title="Kirim ulang" aria-label="Kirim ulang">' +
+                ico("refresh", "ico-sm") +
+                "</button>";
+          return (
+            "<tr><td><b>" +
+            esc(row.orderCode || "—") +
+            "</b></td><td>" +
+            esc(NOTIF_EVENT_LABEL[row.event] || row.event) +
+            '</td><td class="shrink">' +
+            esc(row.channel === "whatsapp" ? "WhatsApp" : "Email") +
+            "</td><td>" +
+            esc(row.recipient || "—") +
+            '</td><td class="shrink"><span class="st ' +
+            st.cls +
+            '"><i></i>' +
+            esc(st.text) +
+            '</span></td><td class="num shrink">' +
+            esc(row.attempts || 0) +
+            "</td>" +
+            dateCell(when) +
+            '<td class="sub">' +
+            esc(row.error || "—") +
+            '</td><td class="cell-actions">' +
+            retry +
+            "</td></tr>"
+          );
+        })
+        .join("") ||
+      emptyRow(9, "Belum ada notifikasi yang dikirim. Baris akan muncul otomatis setelah ada pesanan.");
+
+    renderPager($("notifLogsPager"), state.notifLogsPagination, (page) => {
+      state.notifLogsPagination.page = page;
+      loadNotificationLogs().catch((err) => showToast(err.message, "error"));
+    });
+  }
+
+  async function retryNotification(id, button) {
+    await withBusy(button, "", async () => {
+      try {
+        const res = await api("/integrations/notifications/logs/" + id + "/retry", { method: "POST" });
+        showToast(res.message || "Notifikasi dikirim ulang.", "success");
+      } catch (err) {
+        // Pesan dari server adalah alasan asli dari provider — ditampilkan
+        // apa adanya, bukan diganti "gagal" yang tidak bisa ditindaklanjuti.
+        showToast(err.message, "error");
+      }
+      await loadNotificationLogs().catch(() => {});
+    });
   }
 
   function providerState(info, provider) {
@@ -2169,6 +2278,24 @@
         if (state.currentPage === "integrations") refreshCurrentPageDebounced();
       })
     );
+    // Hasil pengiriman tiap channel, dikirim notification.service.js begitu
+    // provider menjawab — tabel riwayat ikut hidup tanpa perlu ditekan ulang.
+    socket.on("notification:log", (payload) => {
+      if (payload && payload.status === "failed") {
+        pushNotification(
+          "error",
+          "Notifikasi gagal terkirim",
+          (payload.channel === "whatsapp" ? "WhatsApp" : "Email") +
+            " untuk " +
+            (payload.orderCode || "order") +
+            " gagal: " +
+            (payload.error || "tidak ada keterangan dari provider.")
+        );
+      }
+      if (state.currentPage === "integrations") {
+        loadNotificationLogs().catch(() => {});
+      }
+    });
     socket.on("website:settings:updated", () => {
       // Branding sidebar selalu disinkronkan; formnya hanya kalau tab Marketplace terbuka.
       api("/settings/admin")
@@ -2188,6 +2315,12 @@
       const nav = e.target.closest("[data-page]");
       if (nav) {
         showPage(nav.dataset.page);
+        return;
+      }
+
+      const retryNotif = e.target.closest("[data-retry-notif]");
+      if (retryNotif) {
+        retryNotification(retryNotif.dataset.retryNotif, retryNotif);
         return;
       }
 
@@ -2569,6 +2702,30 @@
     });
 
     $("r2Test").addEventListener("click", () => testIntegration("r2", $("r2Test")));
+
+    $("notifLogsRefresh").addEventListener("click", () =>
+      withBusy($("notifLogsRefresh"), "Memuat…", async () => {
+        state.notifLogsPagination.page = 1;
+        await loadNotificationLogs().catch((err) => showToast(err.message, "error"));
+      })
+    );
+
+    const applyNotifFilters = () => {
+      state.notifLogFilters = {
+        orderCode: $("notifLogOrder").value.trim(),
+        event: $("notifLogEvent").value,
+        channel: $("notifLogChannel").value,
+        status: $("notifLogStatus").value,
+      };
+      // Filter apa pun mengembalikan ke halaman 1 — kalau tidak, hasil yang
+      // menyusut bisa mendarat di halaman yang sudah tidak ada isinya.
+      state.notifLogsPagination.page = 1;
+      loadNotificationLogs().catch((err) => showToast(err.message, "error"));
+    };
+    $("notifLogOrder").addEventListener("input", debounce(applyNotifFilters, 350));
+    ["notifLogEvent", "notifLogChannel", "notifLogStatus"].forEach((id) =>
+      $(id).addEventListener("change", applyNotifFilters)
+    );
 
     $("notifSave").addEventListener("click", () =>
       withBusy($("notifSave"), "Menyimpan…", async () => {

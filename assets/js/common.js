@@ -292,8 +292,16 @@
     });
   }
 
-  function waHref(number) {
-    var digits = String(number || "").replace(/\D/g, "");
+  // Admin Web boleh menyimpan nomor polos ("6281…") ATAU URL wa.me lengkap.
+  // Versi lama membuang semua non-digit lebih dulu, sehingga sebuah URL
+  // berubah jadi deretan angka acak dan menghasilkan tautan rusak.
+  function waHref(value) {
+    var raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^https?:\/\//i.test(raw)) return raw;
+    var digits = raw.replace(/\D/g, "");
+    // 08xx → 628xx, supaya nomor lokal yang diketik admin tetap valid.
+    if (digits.charAt(0) === "0") digits = "62" + digits.slice(1);
     return digits ? "https://wa.me/" + digits : "";
   }
 
@@ -374,9 +382,13 @@
     var contact = (s && s.contact) || {};
     var wa = contact.whatsapp || {};
     var discord = contact.discord || {};
+    // `enabled` sengaja dibaca sebagai "!== false": dokumen lama yang belum
+    // punya field ini harus tetap tampil, bukan ikut hilang setelah upgrade.
+    var waOn = wa.enabled !== false;
+    var discordOn = discord.enabled !== false;
     return {
-      whatsapp: { href: waHref(wa.number), icon: wa.icon || "" },
-      discord: { href: discord.url || "", icon: discord.icon || "" },
+      whatsapp: { href: waOn ? waHref(wa.number) : "", icon: wa.icon || "" },
+      discord: { href: discordOn ? discord.url || "" : "", icon: discord.icon || "" },
     };
   }
 
@@ -385,8 +397,12 @@
   // when no icon has been set — never breaks the layout either way.
   function setGlyphImage(selector, iconUrl) {
     var el = document.querySelector(selector);
-    if (!el || !iconUrl) return;
-    el.innerHTML = '<img src="' + escapeHTML(iconUrl) + '" alt="">';
+    if (!el) return;
+    // Markup awal disimpan sekali, supaya kalau admin MENGHAPUS logonya kotak
+    // ini kembali ke badge teks lewat Socket.IO — bukan menyisakan gambar lama
+    // sampai halaman di-reload manual.
+    if (el.dataset.glyphFallback === undefined) el.dataset.glyphFallback = el.innerHTML;
+    el.innerHTML = iconUrl ? '<img src="' + escapeHTML(iconUrl) + '" alt="">' : el.dataset.glyphFallback;
   }
 
   /* -------------------------------------------------------- page chrome */

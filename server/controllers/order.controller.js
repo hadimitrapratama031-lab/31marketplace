@@ -108,9 +108,13 @@ const createOrder = asyncHandler(async (req, res) => {
     rawCreateResponse: kqData,
   });
 
-  await notificationService.notifyOrderEvent(order, "orderCreated").catch((err) =>
-    logger.error("orderCreated notification failed", { orderCode: order.orderCode, message: err.message })
-  );
+  // Dipanggil SETELAH order dan transaction benar-benar tersimpan, sehingga
+  // template punya batas waktu pembayaran dan link bayar yang asli. Antre di
+  // latar belakang: pembeli tidak perlu menunggu dua panggilan provider
+  // (Fonnte + Resend) sebelum halaman pembayaran terbuka, dan kegagalan
+  // pengiriman tidak boleh menggagalkan checkout yang sudah sah. Jaminan
+  // terkirimnya ada di NotificationLog, bukan di request ini.
+  notificationService.queueOrderEvent(order, "orderCreated", { transaction });
 
   res.status(201).json({
     status: true,
