@@ -12,4 +12,8 @@ const RatingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Daftar review Admin Web selalu terurut terbaru dan sering difilter status.
+RatingSchema.index({ status: 1, createdAt: -1 });
+RatingSchema.index({ createdAt: -1 });
+
 module.exports = mongoose.model("Rating", RatingSchema);

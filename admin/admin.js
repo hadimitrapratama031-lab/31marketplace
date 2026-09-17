@@ -18,21 +18,29 @@
     categories: [],
     products: [],
     orders: [],
-    ordersPagination: { page: 1, limit: 30, total: 0 },
+    ordersPagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
     transactions: [],
-    txPagination: { page: 1, limit: 30, total: 0 },
+    txPagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
     txStatus: "",
     summary: null,
     customers: [],
-    customersPagination: { page: 1, limit: 30, total: 0 },
+    customersPagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
+    productsPagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
+    productSort: "order",
     faqs: [],
+    faqPager: { page: 1, limit: 25, total: 0, totalPages: 1 },
+    categoryPager: { page: 1, limit: 25, total: 0, totalPages: 1 },
+    adminsPager: { page: 1, limit: 25, total: 0, totalPages: 1 },
+    chatPager: { page: 1, limit: 25, total: 0, totalPages: 1 },
+    admins: [],
     ratings: [],
+    ratingsPagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
     ratingFilter: "",
     integrations: null,
     liveChatConfig: null,
     templates: null,
     notifLogs: [],
-    notifLogsPagination: { page: 1, limit: 30, total: 0 },
+    notifLogsPagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
     notifLogFilters: { orderCode: "", event: "", channel: "", status: "" },
     notifications: [],
     unread: 0,
@@ -336,6 +344,156 @@
     return found ? found.name : "Tanpa kategori";
   }
 
+  /* ========================================================================
+     PAGINATION — satu sistem untuk seluruh Admin Web
+     Dua bentuk yang memakai UI dan perilaku yang sama:
+       server  : backend yang memotong (orders, pembayaran, produk, customer,
+                 review, log notifikasi, percakapan chat)
+       lokal   : koleksi kecil yang memang dimuat utuh (kategori, FAQ, admin)
+     ===================================================================== */
+  const PAGE_SIZE = 25;
+
+  function makePager(limit) {
+    return { page: 1, limit: limit || PAGE_SIZE, total: 0, totalPages: 1 };
+  }
+
+  /** Normalisasi metadata dari backend, apa pun yang sempat hilang. */
+  function syncPager(pager, meta) {
+    const next = Object.assign({}, pager, meta || {});
+    next.limit = Number(next.limit) || PAGE_SIZE;
+    next.total = Number(next.total) || 0;
+    next.totalPages = Math.max(1, Number(next.totalPages) || Math.ceil(next.total / next.limit) || 1);
+    next.page = Math.min(Math.max(1, Number(next.page) || 1), next.totalPages);
+    return next;
+  }
+
+  /**
+   * Potongan halaman untuk daftar yang datanya sudah ada di browser.
+   * Halaman dijepit ke rentang yang valid, jadi menghapus baris terakhir di
+   * halaman 4 memindahkan admin ke halaman 3 — bukan menampilkan halaman kosong.
+   */
+  function paginateLocal(items, pager) {
+    const limit = pager.limit || PAGE_SIZE;
+    const total = items.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(Math.max(1, pager.page || 1), totalPages);
+
+    pager.total = total;
+    pager.totalPages = totalPages;
+    pager.page = page;
+
+    return items.slice((page - 1) * limit, page * limit);
+  }
+
+  /**
+   * Deretan nomor halaman dengan elipsis: selalu halaman pertama & terakhir,
+   * ditambah tetangga halaman aktif. Jumlah tombolnya tetap walau ada 400
+   * halaman, sehingga baris pagination tidak pernah membungkus ke bawah.
+   */
+  function pageNumbers(current, totalPages) {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+
+    const out = [1];
+    const from = Math.max(2, current - 1);
+    const to = Math.min(totalPages - 1, current + 1);
+
+    if (from > 2) out.push("…");
+    for (let i = from; i <= to; i += 1) out.push(i);
+    if (to < totalPages - 1) out.push("…");
+    out.push(totalPages);
+    return out;
+  }
+
+  function renderPager(container, pagination, onGo) {
+    if (!container) return;
+    const limit = pagination.limit || PAGE_SIZE;
+    const total = Number(pagination.total) || 0;
+    const totalPages = Math.max(1, Number(pagination.totalPages) || Math.ceil(total / limit) || 1);
+    const page = Math.min(Math.max(1, pagination.page || 1), totalPages);
+
+    if (!total) {
+      container.innerHTML = "";
+      container.onclick = null;
+      return;
+    }
+
+    const from = (page - 1) * limit + 1;
+    const to = Math.min(total, page * limit);
+
+    const numbers =
+      totalPages > 1
+        ? pageNumbers(page, totalPages)
+            .map((n) =>
+              n === "…"
+                ? '<span class="pager-gap">…</span>'
+                : '<button class="pager-num' +
+                  (n === page ? " active" : "") +
+                  '" type="button" data-pg="' +
+                  n +
+                  '"' +
+                  (n === page ? ' aria-current="page"' : "") +
+                  ">" +
+                  n +
+                  "</button>"
+            )
+            .join("")
+        : "";
+
+    container.innerHTML =
+      '<span class="pager-info">Menampilkan ' +
+      from +
+      "–" +
+      to +
+      " dari " +
+      total +
+      " data</span>" +
+      (totalPages > 1
+        ? '<span class="pager-nav">' +
+          '<button class="btn btn-sm btn-outline" type="button" data-pg="prev"' +
+          (page <= 1 ? " disabled" : "") +
+          ' aria-label="Halaman sebelumnya">' +
+          ico("chevron-left", "ico-sm") +
+          "Sebelumnya</button>" +
+          numbers +
+          '<button class="btn btn-sm btn-outline" type="button" data-pg="next"' +
+          (page >= totalPages ? " disabled" : "") +
+          ' aria-label="Halaman berikutnya">Berikutnya' +
+          ico("chevron-right", "ico-sm") +
+          "</button></span>"
+        : "");
+
+    container.onclick = (e) => {
+      const btn = e.target.closest("[data-pg]");
+      if (!btn || btn.disabled) return;
+      const raw = btn.dataset.pg;
+      const target = raw === "prev" ? page - 1 : raw === "next" ? page + 1 : Number(raw);
+      if (!target || target === page || target < 1 || target > totalPages) return;
+      onGo(target);
+    };
+  }
+
+  /**
+   * Loading hanya di area daftar, bukan seluruh halaman: kerangka baris
+   * menahan tinggi tabel supaya konten di bawahnya tidak melompat saat
+   * halaman berganti.
+   */
+  function setTableLoading(tbodyId, colspan, rows) {
+    const body = $(tbodyId);
+    if (!body) return;
+    const count = rows || 5;
+    body.innerHTML = Array.from({ length: count })
+      .map(() => '<tr class="row-skeleton"><td colspan="' + colspan + '"><span class="skeleton-bar"></span></td></tr>')
+      .join("");
+  }
+
+  function setBoxLoading(containerId, count) {
+    const box = $(containerId);
+    if (!box) return;
+    box.innerHTML = Array.from({ length: count || 4 })
+      .map(() => '<div class="box-skeleton"><span class="skeleton-bar"></span></div>')
+      .join("");
+  }
+
   /* ---------------------------------------------------------------- router */
   const PAGES = {
     dashboard: { title: "Dashboard", group: "Overview" },
@@ -507,20 +665,32 @@
     const params = new URLSearchParams();
     const status = $("orderStatusFilter").value;
     const paymentStatus = $("paymentStatusFilter").value;
+    const q = ($("orderSearch").value || "").trim();
     if (status) params.set("status", status);
     if (paymentStatus) params.set("paymentStatus", paymentStatus);
+    // Pencarian dikirim ke backend, bukan disaring dari halaman yang tampil —
+    // kalau tidak, order yang ada di halaman lain tidak akan pernah ketemu.
+    if (q) params.set("q", q);
     params.set("page", String(state.ordersPagination.page));
     params.set("limit", String(state.ordersPagination.limit));
 
+    setTableLoading("ordersTable", 9);
     const res = await api("/orders/admin/all?" + params.toString());
     state.orders = res.data;
-    state.ordersPagination = res.pagination;
+    state.ordersPagination = syncPager(state.ordersPagination, res.pagination);
+
+    // Halaman jadi tidak valid setelah data berkurang (hapus/filter): mundur
+    // ke halaman valid terakhir, bukan menampilkan tabel kosong.
+    if (!state.orders.length && state.ordersPagination.page > 1) {
+      state.ordersPagination.page = state.ordersPagination.totalPages;
+      return loadOrders();
+    }
     renderOrders();
   }
 
   function renderOrders() {
-    const q = ($("orderSearch").value || "").toLowerCase().trim();
-    const list = q ? state.orders.filter((o) => orderMatches(o, q)) : state.orders;
+    const q = ($("orderSearch").value || "").trim();
+    const list = state.orders;
 
     $("ordersTable").innerHTML =
       list
@@ -558,64 +728,30 @@
     });
   }
 
-  function orderMatches(o, q) {
-    return [o.orderCode, o.customer.name, o.customer.email, o.customer.whatsapp, o.product.name]
-      .join(" ")
-      .toLowerCase()
-      .includes(q);
-  }
-
-  function renderPager(container, pagination, onGo) {
-    const pages = Math.max(1, Math.ceil(pagination.total / pagination.limit));
-    if (pages <= 1) {
-      container.innerHTML = "";
-      return;
-    }
-    const from = (pagination.page - 1) * pagination.limit + 1;
-    const to = Math.min(pagination.total, pagination.page * pagination.limit);
-    container.innerHTML =
-      '<span class="pager-info">' +
-      from +
-      "–" +
-      to +
-      " dari " +
-      pagination.total +
-      ' data</span><span class="pager-nav"><button class="btn btn-sm btn-outline" type="button" data-pg="prev"' +
-      (pagination.page <= 1 ? " disabled" : "") +
-      ">" +
-      ico("chevron-left", "ico-sm") +
-      'Sebelumnya</button><span class="pager-info">Halaman ' +
-      pagination.page +
-      " dari " +
-      pages +
-      '</span><button class="btn btn-sm btn-outline" type="button" data-pg="next"' +
-      (pagination.page >= pages ? " disabled" : "") +
-      ">Berikutnya" +
-      ico("chevron-right", "ico-sm") +
-      "</button></span>";
-
-    container.onclick = (e) => {
-      const btn = e.target.closest("[data-pg]");
-      if (!btn || btn.disabled) return;
-      onGo(btn.dataset.pg === "prev" ? pagination.page - 1 : pagination.page + 1);
-    };
-  }
-
   /* ---------------------------------------------------------- transactions */
   async function loadTransactions() {
     const params = new URLSearchParams();
     if (state.txStatus) params.set("paymentStatus", state.txStatus);
+    const txq = ($("txSearch").value || "").trim();
+    if (txq) params.set("q", txq);
     params.set("page", String(state.txPagination.page));
     params.set("limit", String(state.txPagination.limit));
 
+    setTableLoading("txTable", 8);
     const [res, summary] = await Promise.all([
       api("/orders/admin/all?" + params.toString()),
       api("/orders/admin/summary"),
     ]);
 
     state.transactions = res.data;
-    state.txPagination = res.pagination;
+    state.txPagination = syncPager(state.txPagination, res.pagination);
     state.summary = summary.data;
+
+    if (!state.transactions.length && state.txPagination.page > 1) {
+      state.txPagination.page = state.txPagination.totalPages;
+      return loadTransactions();
+    }
+
     renderTxStats(summary.data);
     renderTransactions();
   }
@@ -643,8 +779,8 @@
   }
 
   function renderTransactions() {
-    const q = ($("txSearch").value || "").toLowerCase().trim();
-    const list = q ? state.transactions.filter((o) => orderMatches(o, q)) : state.transactions;
+    const q = ($("txSearch").value || "").trim();
+    const list = state.transactions;
 
     $("txTable").innerHTML =
       list
@@ -750,11 +886,45 @@
 
   /* -------------------------------------------------------------- products */
   async function loadProducts() {
-    const [products, categories] = await Promise.all([api("/products/admin/all"), api("/categories/admin/all")]);
-    state.products = products.data;
-    state.categories = categories.data;
-    syncCategoryOptions();
+    // Kategori dimuat lebih dulu supaya dropdown filter sudah punya isinya
+    // sebelum nilai filter dipakai untuk meminta halaman produk.
+    if (!state.categories.length) {
+      const categories = await api("/categories/admin/all");
+      state.categories = categories.data;
+      syncCategoryOptions();
+    }
+
+    const params = new URLSearchParams();
+    const q = ($("productSearch").value || "").trim();
+    const cat = $("categoryFilter").value;
+    const status = $("productStatusFilter").value;
+    if (q) params.set("q", q);
+    if (cat) params.set("categoryId", cat);
+    if (status) params.set("status", status);
+    params.set("sort", state.productSort);
+    params.set("page", String(state.productsPagination.page));
+    params.set("limit", String(state.productsPagination.limit));
+
+    if (state.productView === "grid") setBoxLoading("productGrid", 6);
+    else setTableLoading("productTable", 7);
+
+    const res = await api("/products/admin/all?" + params.toString());
+    state.products = res.data;
+    state.productsPagination = syncPager(state.productsPagination, res.pagination);
+
+    if (!state.products.length && state.productsPagination.page > 1) {
+      state.productsPagination.page = state.productsPagination.totalPages;
+      return loadProducts();
+    }
+
     renderProducts();
+  }
+
+  function reloadProducts(resetPage) {
+    // Setiap perubahan pencarian/filter selalu kembali ke halaman 1: hasil
+    // pencarian yang cuma 1 halaman tidak boleh dibuka di halaman 5.
+    if (resetPage !== false) state.productsPagination.page = 1;
+    loadProducts().catch((err) => showToast(err.message, "error"));
   }
 
   function syncCategoryOptions() {
@@ -773,26 +943,28 @@
     if (state.categories.some((c) => c._id === keepModal)) modalSelect.value = keepModal;
   }
 
+  // Pencarian, filter kategori, dan filter status semuanya dikerjakan database
+  // (lihat loadProducts) — halaman ini hanya menggambar apa yang dikirim.
   function filteredProducts() {
-    const q = ($("productSearch").value || "").toLowerCase().trim();
-    const cat = $("categoryFilter").value;
-    const status = $("productStatusFilter").value;
-    return state.products.filter(
-      (p) =>
-        (!q || p.name.toLowerCase().includes(q)) &&
-        (!cat || String(categoryIdOf(p)) === cat) &&
-        (!status || p.status === status)
-    );
+    return state.products;
+  }
+
+  function goProductPage(page) {
+    state.productsPagination.page = page;
+    loadProducts().catch((err) => showToast(err.message, "error"));
   }
 
   function renderProducts() {
     const list = filteredProducts();
+    const hasFilter = Boolean(
+      ($("productSearch").value || "").trim() || $("categoryFilter").value || $("productStatusFilter").value
+    );
     const isGrid = state.productView === "grid";
     $("productGrid").hidden = !isGrid;
     $("productTableWrap").hidden = isGrid;
 
     if (!list.length) {
-      const empty = state.products.length
+      const empty = hasFilter
         ? emptyState("search", "Produk tidak ditemukan", "Coba ubah kata kunci atau filter yang dipakai.")
         : emptyState(
             "package",
@@ -801,7 +973,8 @@
             '<button class="btn btn-primary" type="button" data-open-product>' + ico("plus") + "Tambah produk</button>"
           );
       $("productGrid").innerHTML = '<div class="panel" style="grid-column:1/-1">' + empty + "</div>";
-      $("productTable").innerHTML = emptyRow(7, state.products.length ? "Produk tidak ditemukan." : "Belum ada produk.");
+      $("productTable").innerHTML = emptyRow(7, hasFilter ? "Produk tidak ditemukan." : "Belum ada produk.");
+      renderPager($("productsPager"), state.productsPagination, goProductPage);
       return;
     }
 
@@ -874,6 +1047,8 @@
           "</button></div></td></tr>"
       )
       .join("");
+
+    renderPager($("productsPager"), state.productsPagination, goProductPage);
   }
 
   /* --- form produk --- */
@@ -996,20 +1171,25 @@
 
   /* ------------------------------------------------------------ categories */
   async function loadCategories() {
-    const [categories, products] = await Promise.all([api("/categories/admin/all"), api("/products/admin/all")]);
+    setTableLoading("categoriesTable", 7);
+    // Jumlah produk per kategori sekarang datang dari agregasi database, jadi
+    // halaman ini tidak lagi mengunduh seluruh katalog hanya untuk menghitung.
+    const categories = await api("/categories/admin/all");
     state.categories = categories.data;
-    state.products = products.data;
     syncCategoryOptions();
     renderCategories();
   }
 
-  function productCountOf(categoryId) {
-    return state.products.filter((p) => String(categoryIdOf(p)) === String(categoryId)).length;
+  function productCountOf(category) {
+    return Number(category && category.productCount) || 0;
   }
 
   function renderCategories() {
     const q = ($("categorySearch").value || "").toLowerCase().trim();
-    const list = q ? state.categories.filter((c) => (c.name || "").toLowerCase().includes(q)) : state.categories;
+    const matched = q ? state.categories.filter((c) => (c.name || "").toLowerCase().includes(q)) : state.categories;
+    // Kategori jumlahnya kecil dan sudah dimuat utuh, jadi dipotong di browser
+    // memakai paginator yang sama — bukan endpoint baru.
+    const list = paginateLocal(matched, state.categoryPager);
 
     $("categoriesTable").innerHTML =
       list
@@ -1024,7 +1204,7 @@
             '</code></td><td class="truncate" style="max-width:260px">' +
             esc(c.description || "—") +
             '</td><td class="num">' +
-            productCountOf(c._id) +
+            productCountOf(c) +
             '</td><td class="num">' +
             c.sortOrder +
             "</td><td>" +
@@ -1041,6 +1221,11 @@
         )
         .join("") ||
       emptyRow(7, state.categories.length ? "Kategori tidak ditemukan." : "Belum ada kategori. Buat satu untuk mulai menata produk.");
+
+    renderPager($("categoriesPager"), state.categoryPager, (page) => {
+      state.categoryPager.page = page;
+      renderCategories();
+    });
   }
 
   function slugPreview(value) {
@@ -1097,7 +1282,7 @@
 
   async function deleteCategory(id) {
     const c = state.categories.find((x) => x._id === id);
-    const count = productCountOf(id);
+    const count = productCountOf(c);
     const ok = await confirmAction({
       title: "Hapus kategori",
       html:
@@ -1594,10 +1779,18 @@
 
   /* ------------------------------------------------------------------- faq */
   async function loadFaqs() {
+    setBoxLoading("faqAdmin", 4);
     const res = await api("/faq/admin/all");
     state.faqs = res.data;
+    renderFaqs();
+  }
+
+  function renderFaqs() {
+    // FAQ dimuat utuh (jumlahnya puluhan, bukan ribuan) lalu dipotong di sini
+    // dengan paginator yang sama seperti tabel lain.
+    const page = paginateLocal(state.faqs, state.faqPager);
     $("faqAdmin").innerHTML =
-      res.data
+      page
         .map(
           (f) =>
             '<div class="faq-item"><span class="faq-order">' +
@@ -1625,6 +1818,11 @@
         "Tambahkan pertanyaan yang paling sering ditanyakan pembeli.",
         '<button class="btn btn-primary" type="button" data-open-faq>' + ico("plus") + "Tambah FAQ</button>"
       );
+
+    renderPager($("faqPager"), state.faqPager, (p2) => {
+      state.faqPager.page = p2;
+      renderFaqs();
+    });
   }
 
   function openFaqModal(id) {
@@ -1682,18 +1880,36 @@
   /* --------------------------------------------------------------- ratings */
   async function loadRatings() {
     const status = state.ratingFilter;
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    params.set("page", String(state.ratingsPagination.page));
+    params.set("limit", String(state.ratingsPagination.limit));
+
+    setBoxLoading("reviewAdmin", 4);
     const [res, stats] = await Promise.all([
-      api("/ratings/admin/all" + (status ? "?status=" + status : "")),
+      api("/ratings/admin/all?" + params.toString()),
       api("/statistics"),
     ]);
     state.ratings = res.data;
+    state.ratingsPagination = syncPager(state.ratingsPagination, res.pagination);
 
-    const approved = res.data.filter((r) => r.status === "approved");
+    if (!state.ratings.length && state.ratingsPagination.page > 1) {
+      state.ratingsPagination.page = state.ratingsPagination.totalPages;
+      return loadRatings();
+    }
+
     $("ratingAvg").textContent = stats.data.ratingCount ? stats.data.averageRating : "—";
     $("ratingStars").innerHTML = starsInner(stats.data.ratingCount ? stats.data.averageRating : 0);
     $("ratingTotal").textContent = stats.data.ratingCount + " review disetujui";
 
-    const buckets = [5, 4, 3, 2, 1].map((n) => ({ n, count: approved.filter((r) => Math.round(r.rating) === n).length }));
+    // Sebaran bintang dihitung backend atas SELURUH review approved, jadi
+    // grafiknya tidak lagi ikut berubah saat admin memfilter status atau
+    // berpindah halaman.
+    const dist = res.distribution || [];
+    const buckets = [5, 4, 3, 2, 1].map((n) => ({
+      n,
+      count: (dist.find((d) => Number(d.rating) === n) || {}).count || 0,
+    }));
     const maxBucket = Math.max.apply(null, buckets.map((b) => b.count).concat([1]));
     $("ratingBars").innerHTML = buckets
       .map(
@@ -1708,15 +1924,19 @@
       )
       .join("");
 
-    const pending = state.ratings.filter((r) => r.status === "pending").length;
+    // Badge memakai hitungan pending dari seluruh database, bukan dari baris
+    // yang kebetulan ada di halaman ini.
+    const pending = Number(res.pendingTotal) || 0;
     const badge = $("ratingBadge");
-    badge.textContent = String(pending);
+    badge.textContent = pending > 99 ? "99+" : String(pending);
     badge.hidden = !pending;
 
     $("reviewAdmin").innerHTML =
       res.data
         .map((r) => {
-          const product = r.productId ? state.products.find((p) => p._id === String(r.productId)) : null;
+          // productId sekarang sudah di-populate backend, jadi nama produk tidak
+          // lagi bergantung pada katalog yang kebetulan termuat di halaman lain.
+          const product = r.productId && typeof r.productId === "object" ? r.productId : null;
           return (
             '<article class="review"><div class="review-top"><div class="review-who"><span class="review-avatar">' +
             (r.avatar ? '<img src="' + esc(r.avatar) + '" alt="">' : esc(initials(r.user))) +
@@ -1756,6 +1976,11 @@
       '<div class="panel" style="grid-column:1/-1">' +
         emptyState("star", "Belum ada review", "Review dari pembeli akan muncul di sini untuk dimoderasi.") +
         "</div>";
+
+    renderPager($("reviewPager"), state.ratingsPagination, (page) => {
+      state.ratingsPagination.page = page;
+      loadRatings().catch((err) => showToast(err.message, "error"));
+    });
   }
 
   async function setRatingStatus(id, status) {
@@ -2184,8 +2409,11 @@
 
     $("adminsNote").textContent = "Kelola siapa saja yang bisa masuk ke Admin Console.";
     const res = await api("/admins");
+    state.admins = res.data;
+    // Tim admin biasanya hanya beberapa akun, jadi dipotong di browser dengan
+    // paginator yang sama — tidak perlu endpoint baru.
     $("adminsTable").innerHTML =
-      res.data
+      paginateLocal(state.admins, state.adminsPager)
         .map(
           (a) =>
             '<tr><td><div class="cell-media"><span class="review-avatar">' +
@@ -2213,6 +2441,11 @@
             "</td></tr>"
         )
         .join("") || emptyRow(6, "Belum ada akun admin lain.");
+
+    renderPager($("adminsPager"), state.adminsPager, (page) => {
+      state.adminsPager.page = page;
+      loadAccountPage().catch((err) => showToast(err.message, "error"));
+    });
   }
 
   async function toggleAdminActive(id, active) {
@@ -2345,11 +2578,21 @@
   }
 
   async function loadChatConversations() {
-    const params = new URLSearchParams({ limit: "40" });
+    const params = new URLSearchParams();
+    params.set("page", String(state.chatPager.page));
+    params.set("limit", String(state.chatPager.limit));
     if (state.chat.query) params.set("q", state.chat.query);
+
     const res = await api("/chat/admin/conversations?" + params.toString());
     state.chat.conversations = res.data || [];
+    state.chatPager = syncPager(state.chatPager, res.pagination);
     state.chat.unread = res.unread || 0;
+
+    if (!state.chat.conversations.length && state.chatPager.page > 1) {
+      state.chatPager.page = state.chatPager.totalPages;
+      return loadChatConversations();
+    }
+
     renderChatBadge();
     renderChatList();
   }
@@ -2358,7 +2601,12 @@
     const box = $("chatList");
     if (!state.chat.conversations.length) {
       box.innerHTML =
-        '<div class="chat-list-empty">Belum ada percakapan aktif. Thread hilang sendiri 24 jam setelah pesan terakhirnya.</div>';
+        '<div class="chat-list-empty">' +
+        (state.chat.query
+          ? "Tidak ada percakapan yang cocok dengan pencarian."
+          : "Belum ada percakapan aktif. Thread hilang sendiri 24 jam setelah pesan terakhirnya.") +
+        "</div>";
+      renderPager($("chatPager"), state.chatPager, goChatPage);
       return;
     }
 
@@ -2388,6 +2636,13 @@
         );
       })
       .join("");
+
+    renderPager($("chatPager"), state.chatPager, goChatPage);
+  }
+
+  function goChatPage(page) {
+    state.chatPager.page = page;
+    loadChatConversations().catch((err) => showToast(err.message, "error"));
   }
 
   async function openConversation(id, options = {}) {
@@ -2562,6 +2817,7 @@
       "input",
       debounce((e) => {
         state.chat.query = e.target.value.trim();
+        state.chatPager.page = 1; // pencarian selalu mulai dari halaman 1
         loadChatConversations().catch(() => {});
       }, 300)
     );
@@ -2657,16 +2913,25 @@
   }
 
   /* ---------------------------------------------------------- global search */
-  function runGlobalSearch() {
-    const q = ($("globalSearch").value || "").toLowerCase().trim();
+  /**
+   * Pencarian cepat sekarang bertanya ke database, bukan menyaring daftar yang
+   * kebetulan sedang dimuat. Sejak halaman Produk dan Pesanan dipotong 25 baris
+   * per halaman, menyaring state lokal berarti hanya mencari di dalam halaman
+   * yang sedang tampil — produk ke-30 tidak akan pernah muncul.
+   */
+  let searchToken = 0;
+
+  async function runGlobalSearch() {
+    const q = ($("globalSearch").value || "").trim();
     const box = $("globalResults");
     if (!q) {
       box.classList.remove("open");
       return;
     }
 
+    const lower = q.toLowerCase();
     const pages = Object.keys(PAGES)
-      .filter((k) => PAGES[k].title.toLowerCase().includes(q))
+      .filter((k) => PAGES[k].title.toLowerCase().includes(lower))
       .slice(0, 3)
       .map(
         (k) =>
@@ -2681,37 +2946,41 @@
           "</small></div></button>"
       );
 
-    const products = state.products
-      .filter((p) => p.name.toLowerCase().includes(q))
-      .slice(0, 5)
-      .map(
-        (p) =>
-          '<button class="pop-item" type="button" data-go-product="' +
-          p._id +
-          '">' +
-          ico("package", "ico-sm") +
-          "<div><b>" +
-          esc(p.name) +
-          "</b><small>" +
-          esc(formatIDR(p.price) + " · " + p.stock + " stok") +
-          "</small></div></button>"
-      );
+    // Balasan yang datang terlambat dari ketikan sebelumnya diabaikan, supaya
+    // hasil lama tidak menimpa hasil kata kunci yang baru.
+    const token = ++searchToken;
+    const query = encodeURIComponent(q);
+    const [productRes, orderRes] = await Promise.all([
+      api("/products/admin/all?page=1&limit=5&q=" + query).catch(() => null),
+      api("/orders/admin/all?page=1&limit=5&q=" + query).catch(() => null),
+    ]);
+    if (token !== searchToken) return;
 
-    const orders = state.orders
-      .filter((o) => orderMatches(o, q))
-      .slice(0, 5)
-      .map(
-        (o) =>
-          '<button class="pop-item" type="button" data-order-detail="' +
-          o._id +
-          '">' +
-          ico("receipt", "ico-sm") +
-          "<div><b>" +
-          esc(o.orderCode) +
-          "</b><small>" +
-          esc((o.customer.name || o.customer.email) + " · " + formatIDR(o.total)) +
-          "</small></div></button>"
-      );
+    const products = ((productRes && productRes.data) || []).map(
+      (p) =>
+        '<button class="pop-item" type="button" data-go-product="' +
+        p._id +
+        '">' +
+        ico("package", "ico-sm") +
+        "<div><b>" +
+        esc(p.name) +
+        "</b><small>" +
+        esc(formatIDR(p.price) + " · " + p.stock + " stok") +
+        "</small></div></button>"
+    );
+
+    const orders = ((orderRes && orderRes.data) || []).map(
+      (o) =>
+        '<button class="pop-item" type="button" data-order-detail="' +
+        o._id +
+        '">' +
+        ico("receipt", "ico-sm") +
+        "<div><b>" +
+        esc(o.orderCode) +
+        "</b><small>" +
+        esc((o.customer.name || o.customer.email) + " · " + formatIDR(o.total)) +
+        "</small></div></button>"
+    );
 
     const all = pages.concat(products, orders);
     box.innerHTML = all.length
@@ -3165,7 +3434,9 @@
     );
 
     // Pesanan
-    $("orderSearch").addEventListener("input", debounce(renderOrders, 200));
+    // Setiap pencarian/filter mengulang permintaan dari halaman 1 — hasil
+    // pencarian yang cuma satu halaman tidak boleh dibuka di halaman 5.
+    $("orderSearch").addEventListener("input", debounce(() => reloadOrders(), 350));
     const reloadOrders = () => {
       state.ordersPagination.page = 1;
       loadOrders().catch((err) => showToast(err.message, "error"));
@@ -3174,7 +3445,13 @@
     $("paymentStatusFilter").addEventListener("change", reloadOrders);
 
     // Pembayaran
-    $("txSearch").addEventListener("input", debounce(renderTransactions, 200));
+    $("txSearch").addEventListener(
+      "input",
+      debounce(() => {
+        state.txPagination.page = 1;
+        loadTransactions().catch((err) => showToast(err.message, "error"));
+      }, 350)
+    );
     $("txSeg").addEventListener("click", (e) => {
       const btn = e.target.closest("[data-tx-status]");
       if (!btn) return;
@@ -3185,9 +3462,9 @@
     });
 
     // Produk
-    $("productSearch").addEventListener("input", debounce(renderProducts, 200));
-    $("categoryFilter").addEventListener("change", renderProducts);
-    $("productStatusFilter").addEventListener("change", renderProducts);
+    $("productSearch").addEventListener("input", debounce(() => reloadProducts(), 350));
+    $("categoryFilter").addEventListener("change", () => reloadProducts());
+    $("productStatusFilter").addEventListener("change", () => reloadProducts());
     $("productView").addEventListener("click", (e) => {
       const btn = e.target.closest("[data-view]");
       if (!btn) return;
@@ -3247,7 +3524,13 @@
     });
 
     // Kategori & FAQ
-    $("categorySearch").addEventListener("input", debounce(renderCategories, 200));
+    $("categorySearch").addEventListener(
+      "input",
+      debounce(() => {
+        state.categoryPager.page = 1;
+        renderCategories();
+      }, 200)
+    );
     $("categoryForm").addEventListener("submit", submitCategory);
     $("cIcon").addEventListener("input", updateCategoryPreview);
     $("cName").addEventListener("input", updateCategoryPreview);
@@ -3269,6 +3552,7 @@
       qsa("button", $("ratingSeg")).forEach((b) => b.classList.toggle("active", b === btn));
       state.ratingFilter = btn.dataset.ratingFilter;
       $("ratingStatusFilter").value = state.ratingFilter;
+      state.ratingsPagination.page = 1;
       loadRatings().catch((err) => showToast(err.message, "error"));
     });
 

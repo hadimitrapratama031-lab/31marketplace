@@ -49,6 +49,10 @@ async function applyPaymentStatus({ orderCode, newStatus, paidAt }) {
     return { handled: true, order, transaction, duplicate: true };
   }
 
+  // Dicatat SEBELUM status diubah: dipakai di bawah untuk tahu apakah order ini
+  // perlu dicabut dari Floating Order Success.
+  const wasSuccessful = orderFeed.isSuccessful(order);
+
   transaction.status = newStatus === "PAID" ? "SUCCESS" : newStatus;
   if (paidAt) transaction.paidAt = new Date(paidAt);
   await transaction.save();
@@ -89,6 +93,11 @@ async function applyPaymentStatus({ orderCode, newStatus, paidAt }) {
   // jadi webhook yang dikirim ulang KlikQRIS tidak memunculkan kartu kedua.
   if (orderFeed.isSuccessful(order)) {
     emitEvent("order:success:public", orderFeed.toPublicOrder(order));
+  } else if (wasSuccessful) {
+    // Order yang tadinya sukses lalu tidak lagi memenuhi syarat harus keluar
+    // dari antrean di semua browser yang sedang terbuka. Yang dikirim hanya id
+    // publiknya — payload ini pun tidak pernah memuat kode order.
+    emitEvent("order:success:revoked", { id: orderFeed.publicId(order._id) });
   }
 
   const eventKey =

@@ -7,6 +7,8 @@ const upload = require("../middlewares/upload");
 router.get("/", ctrl.listPublic);
 // Keep the admin collection route before /:slug so "admin" is not consumed as a slug.
 router.get("/admin/all", requireAdminAuth, ctrl.listAdmin);
+// Setelah /admin/all supaya "all" tidak pernah ditangkap sebagai :id.
+router.get("/admin/:id", requireAdminAuth, ctrl.getAdminById);
 router.get("/:slug", ctrl.getPublicBySlug);
 router.post("/admin", requireAdminAuth, upload.single("image"), ctrl.create);
 router.put("/admin/:id", requireAdminAuth, upload.single("image"), ctrl.update);

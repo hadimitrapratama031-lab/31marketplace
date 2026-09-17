@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const Category = require("../models/Category");
 const asyncHandler = require("../utils/asyncHandler");
@@ -33,9 +34,70 @@ const getPublicBySlug = asyncHandler(async (req, res) => {
 });
 
 // ADMIN
+/**
+ * ADMIN — daftar produk.
+ *
+ * Pagination bersifat OPT-IN: tanpa `page`, endpoint ini tetap membalas
+ * seluruh produk persis seperti sebelumnya. Itu disengaja supaya pemanggil
+ * lama (skrip, integrasi) tidak ikut berubah perilakunya hanya karena halaman
+ * Produk sekarang meminta 25 baris.
+ *
+ * `sort` dibatasi ke daftar kolom yang dikenal — nilai dari query tidak pernah
+ * masuk ke objek sort apa adanya, supaya tidak bisa dipakai menyusun query
+ * yang tidak diinginkan.
+ */
+const SORTS = {
+  order: { sortOrder: 1, createdAt: -1 },
+  newest: { createdAt: -1 },
+  sold: { sold: -1, createdAt: -1 },
+  stock: { stock: 1, createdAt: -1 },
+};
+
 const listAdmin = asyncHandler(async (req, res) => {
-  const products = await Product.find().sort({ sortOrder: 1, createdAt: -1 }).populate("categoryId", "name slug");
-  res.json({ status: true, data: products });
+  const { page, limit = 25, q, categoryId, status, sort = "order" } = req.query;
+
+  const filter = {};
+  if (status === "active" || status === "inactive") filter.status = status;
+  if (categoryId && mongoose.isValidObjectId(categoryId)) filter.categoryId = categoryId;
+  if (q && String(q).trim()) {
+    const rx = new RegExp(String(q).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [{ name: rx }, { slug: rx }];
+  }
+
+  const order = SORTS[sort] || SORTS.order;
+
+  // Tanpa `page`: perilaku lama, seluruh hasil.
+  if (page === undefined) {
+    const products = await Product.find(filter).sort(order).populate("categoryId", "name slug");
+    return res.json({ status: true, data: products });
+  }
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 25));
+
+  const [products, total] = await Promise.all([
+    Product.find(filter)
+      .sort(order)
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .populate("categoryId", "name slug"),
+    Product.countDocuments(filter),
+  ]);
+
+  res.json({
+    status: true,
+    data: products,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.max(1, Math.ceil(total / limitNum)) },
+  });
+});
+
+// ADMIN — satu produk berdasarkan id. Dipakai modal edit supaya halaman Produk
+// tidak perlu menyimpan seluruh katalog di memori hanya untuk membuka satu form.
+const getAdminById = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new AppError("Produk tidak valid.", 400);
+  const product = await Product.findById(req.params.id).populate("categoryId", "name slug");
+  if (!product) throw new AppError("Produk tidak ditemukan.", 404);
+  res.json({ status: true, data: product });
 });
 
 const create = asyncHandler(async (req, res) => {
@@ -166,4 +228,5 @@ const remove = asyncHandler(async (req, res) => {
   res.json({ status: true, message: "Produk dihapus." });
 });
 
-module.exports = { listPublic, getPublicBySlug, listAdmin, create, update, remove };
+module.exports = {
+  getAdminById, listPublic, getPublicBySlug, listAdmin, create, update, remove };

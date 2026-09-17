@@ -76,13 +76,13 @@ function isSuccessful(order) {
 }
 
 /**
- * Riwayat order sukses terbaru untuk tampilan pertama widget.
+ * Order sukses yang sudah ada, untuk mengisi antrean carousel saat Marketplace
+ * dibuka — bukan cuma order yang kebetulan terjadi selagi halaman terbuka.
  *
- * Ini tetap data asli — bukan pemanis. Kartunya menampilkan waktu relatif
- * ("2 jam lalu") supaya order lama tidak menyamar sebagai pembelian yang baru
- * saja terjadi.
+ * Ini tetap data asli. Kartunya menampilkan waktu relatif ("2 jam lalu") supaya
+ * order lama tidak menyamar sebagai pembelian yang baru saja terjadi.
  */
-async function recentSuccessfulOrders({ limit = 6, withinHours = 72 } = {}) {
+async function recentSuccessfulOrders({ limit = 20, withinHours = 720 } = {}) {
   const since = new Date(Date.now() - withinHours * 60 * 60 * 1000);
 
   try {
@@ -92,7 +92,7 @@ async function recentSuccessfulOrders({ limit = 6, withinHours = 72 } = {}) {
       updatedAt: { $gte: since },
     })
       .sort({ updatedAt: -1 })
-      .limit(Math.min(Math.max(Number(limit) || 6, 1), 10))
+      .limit(Math.min(Math.max(Number(limit) || 20, 1), 30))
       .select("customer.name product quantity total status paymentStatus createdAt updatedAt")
       .lean();
 

@@ -2983,7 +2983,104 @@ td.empty-cell {
 .pager-nav {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Nomor halaman: kotak berukuran tetap supaya deretannya tidak bergeser saat
+   angka berpindah dari 1 digit ke 2 digit. */
+.pager-num {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font: 500 var(--fs-12) / 30px inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.pager-num:hover {
+  border-color: var(--brand-line);
+  color: var(--brand);
+}
+
+.pager-num.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  font-weight: 600;
+  cursor: default;
+}
+
+.pager-gap {
+  min-width: 20px;
+  text-align: center;
+  color: var(--text-4);
+  font-size: var(--fs-12);
+  user-select: none;
+}
+
+/* Versi ramping untuk kolom sempit (daftar percakapan Live Chat). */
+.pager-compact {
+  margin-top: 0;
+  padding: var(--s2) var(--s3);
+  border-top: 1px solid var(--line-soft);
+  justify-content: center;
+  gap: var(--s2);
+}
+
+.pager-compact .pager-info {
+  display: none;
+}
+
+/* Loading hanya di area daftar: kerangka baris menahan tinggi tabel supaya
+   halaman tidak melompat saat berpindah halaman. */
+.row-skeleton td {
+  padding: 14px var(--s4);
+}
+
+.skeleton-bar {
+  display: block;
+  height: 12px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(100deg, var(--surface-3) 30%, var(--line-soft) 50%, var(--surface-3) 70%);
+  background-size: 300% 100%;
+  animation: pager-shimmer 1.2s linear infinite;
+}
+
+.box-skeleton {
+  padding: var(--s5);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+@keyframes pager-shimmer {
+  to {
+    background-position: -300% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-bar {
+    animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  /* Di layar sempit nomor halaman dilipat, sisakan Sebelumnya/Berikutnya. */
+  .pager-num,
+  .pager-gap {
+    display: none;
+  }
+
+  .pager-num.active {
+    display: inline-block;
+  }
 }
 
 .hint-line {

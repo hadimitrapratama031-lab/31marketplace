@@ -91,15 +91,28 @@
      jadi tidak ada yang perlu disaring di sisi browser.
      ==================================================================== */
   var orderFeed = (function () {
-    var HOLD_MS = 6500; // lama satu kartu tampil
-    var GAP_MS = 2600; // jeda antar kartu, supaya tidak terasa spam
-    var MAX_QUEUE = 3; // antrean pendek: order ke-4 yang datang beruntun dibuang
+    // Ritme yang diminta: tampil 4 detik, jeda 1,5 detik, lalu order berikutnya.
+    var HOLD_MS = 4000;
+    var GAP_MS = 1500;
 
     var host = null;
-    var queue = [];
-    var seen = new Set(); // dedupe: id yang sama tidak pernah tampil dua kali
-    var showing = false;
+    var card = null;
+
+    // SATU sumber data, urutannya tetap: order lama dulu (urut dari yang paling
+    // lama), order baru menyusul di belakang. Tidak pernah diacak.
+    var orders = [];
+    var ids = new Set(); // dedupe berdasarkan id order — reconnect tidak menambah salinan
+    var cursor = 0; // penunjuk carousel; looping dilakukan di sini, BUKAN dengan
+    // menggandakan isi antrean
+
+    // Satu controller aktif. Kalau init terpanggil dua kali (mis. skrip termuat
+    // dua kali), siklus kedua tidak pernah dimulai — itulah yang biasanya
+    // membuat notifikasi muncul dobel dan makin cepat.
+    var started = false;
+    var running = false;
     var timer = null;
+    var paused = false;
+    var destroyed = false;
 
     function mount() {
       host = el("div", "mp-float mp-float-order");
@@ -107,7 +120,12 @@
       document.body.appendChild(host);
     }
 
-    function card(order) {
+    function basePath() {
+      // rating/ dan cek-pesanan/ berada satu folder lebih dalam.
+      return /\/(rating|cek-pesanan)\//.test(window.location.pathname) ? "../" : "";
+    }
+
+    function buildCard(order) {
       var href = order.productSlug ? basePath() + "product.html?slug=" + encodeURIComponent(order.productSlug) : null;
       var node = el(href ? "a" : "div", "mp-order-card");
       if (href) node.href = href;
@@ -129,91 +147,196 @@
         '<span class="mp-order-rail"></span>' +
         '<button class="mp-order-close" type="button" aria-label="Tutup">×</button>';
 
+      node.dataset.orderId = order.id;
+
       node.querySelector(".mp-order-close").addEventListener("click", function (e) {
         e.preventDefault();
         e.stopPropagation();
-        hide(node);
+        advance();
       });
 
-      // Hover menahan hitungan mundur — pembeli yang sedang membaca kartunya
-      // tidak kehilangan isinya di tengah kalimat.
+      // Menahan hitungan mundur selama kursor di atas kartu: pembeli yang
+      // sedang membacanya tidak kehilangan isinya di tengah kalimat. Siklusnya
+      // tidak berhenti — hanya tertunda sampai kursor pergi.
       node.addEventListener("mouseenter", function () {
+        paused = true;
         clearTimeout(timer);
       });
       node.addEventListener("mouseleave", function () {
-        timer = setTimeout(function () {
-          hide(node);
-        }, 1200);
+        if (!paused || destroyed) return;
+        paused = false;
+        schedule(advance, 900);
       });
 
       return node;
     }
 
-    function basePath() {
-      // rating/ dan cek-pesanan/ berada satu folder lebih dalam.
-      return /\/(rating|cek-pesanan)\//.test(window.location.pathname) ? "../" : "";
+    function schedule(fn, delay) {
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        timer = null;
+        if (!destroyed) fn();
+      }, delay);
     }
 
-    function hide(node) {
-      clearTimeout(timer);
-      if (!node || !node.isConnected) {
-        showing = false;
-        setTimeout(next, GAP_MS);
+    function hideCard(then) {
+      if (!card) {
+        then();
         return;
       }
-      node.classList.add("is-out");
+      var leaving = card;
+      card = null;
+      leaving.classList.add("is-out");
       setTimeout(function () {
-        node.remove();
-        showing = false;
-        setTimeout(next, GAP_MS);
+        leaving.remove();
+        if (!destroyed) then();
       }, 200);
     }
 
-    function next() {
-      if (showing || !queue.length || !host) return;
-      showing = true;
-      var node = card(queue.shift());
-      host.appendChild(node);
-      timer = setTimeout(function () {
-        hide(node);
-      }, HOLD_MS);
+    /** Menutup kartu yang tampil, menunggu jeda, lalu menampilkan order berikutnya. */
+    function advance() {
+      clearTimeout(timer);
+      hideCard(function () {
+        schedule(showNext, GAP_MS);
+      });
     }
 
-    function push(order) {
-      if (!order || !order.id || seen.has(order.id)) return;
-      seen.add(order.id);
-      if (queue.length >= MAX_QUEUE) queue.shift();
-      queue.push(order);
-      next();
+    /**
+     * Menampilkan order pada posisi cursor, lalu memajukan cursor satu langkah.
+     * Saat cursor melewati order terakhir, ia kembali ke 0 — itulah loopnya.
+     * Dengan satu order pun ini tetap berjalan: 0 -> 0 -> 0.
+     */
+    function showNext() {
+      if (destroyed || !host) return;
+
+      if (!orders.length) {
+        // Tidak ada order sukses sama sekali: berhenti diam-diam, bukan
+        // menampilkan kartu kosong. Siklus dimulai lagi begitu ada order masuk.
+        running = false;
+        return;
+      }
+
+      if (cursor >= orders.length) cursor = 0;
+      var order = orders[cursor];
+      cursor += 1;
+
+      card = buildCard(order);
+      host.appendChild(card);
+      running = true;
+
+      if (!paused) schedule(advance, HOLD_MS);
+    }
+
+    function start() {
+      if (running || destroyed || !orders.length) return;
+      running = true;
+      schedule(showNext, 0);
+    }
+
+    /**
+     * Menambahkan order ke antrean data.
+     *
+     * Order baru SELALU masuk ke belakang dan tidak pernah memotong kartu yang
+     * sedang tampil: kartu berjalan menyelesaikan 4 detiknya, lalu order baru
+     * ikut giliran secara alami pada putaran berikutnya.
+     */
+    function push(order, options) {
+      if (!order || !order.id || ids.has(order.id)) return; // event ganda diabaikan
+      ids.add(order.id);
+      orders.push(order);
+      if (!(options && options.silent)) start();
+    }
+
+    /**
+     * Mengeluarkan order dari antrean saat statusnya tidak lagi SUCCESS.
+     * Kalau yang dicabut sedang tampil, kartunya langsung ditutup — menampilkan
+     * pembayaran yang sudah dibatalkan sebagai "berhasil" lebih buruk daripada
+     * kedipan kecil di pojok layar.
+     */
+    function revoke(payload) {
+      var id = payload && payload.id;
+      if (!id || !ids.has(id)) return;
+
+      var index = orders.findIndex(function (o) {
+        return o.id === id;
+      });
+      ids.delete(id);
+      if (index >= 0) {
+        orders.splice(index, 1);
+        // Cursor menunjuk ke posisi SETELAH kartu yang sedang tampil, jadi
+        // penghapusan sebelum posisi itu harus menggesernya agar tidak ada
+        // order yang terlewat satu putaran.
+        if (index < cursor) cursor -= 1;
+      }
+      if (cursor > orders.length) cursor = 0;
+
+      if (card && card.dataset.orderId === id) advance();
+      if (!orders.length) {
+        clearTimeout(timer);
+        hideCard(function () {});
+        running = false;
+      }
+    }
+
+    function destroy() {
+      destroyed = true;
+      clearTimeout(timer);
+      timer = null;
+      running = false;
+      if (card) card.remove();
+      card = null;
+      if (host) host.remove();
+      host = null;
     }
 
     async function init() {
+      if (started) return; // penjaga controller tunggal
+      started = true;
       mount();
 
-      // Muat pertama: satu order sukses terbaru yang benar-benar ada di
-      // database. Kartunya menulis waktu relatif ("2 jam lalu"), jadi order
-      // lama tidak pernah menyamar sebagai pembelian yang baru terjadi.
+      // Order lama: seluruh order SUCCESS yang sudah ada di database. Dibalik
+      // urutannya (backend mengirim terbaru dulu) supaya carousel berjalan dari
+      // yang paling lama ke yang paling baru, lalu order realtime menyusul di
+      // belakangnya secara alami.
       try {
-        var res = await MP.get("/orders/recent-success?limit=3");
+        var res = await MP.get("/orders/recent-success?limit=20");
         var rows = (res && res.data) || [];
-        if (rows.length) {
-          setTimeout(function () {
-            push(rows[0]);
-          }, 4000);
-          // Sisanya cukup ditandai sudah terlihat supaya tidak muncul lagi
-          // kalau backend mengirim ulang riwayat setelah reconnect.
-          rows.slice(1).forEach(function (row) {
-            seen.add(row.id);
+        rows
+          .slice()
+          .reverse()
+          .forEach(function (row) {
+            push(row, { silent: true });
           });
-        }
       } catch (err) {
-        /* riwayat opsional — realtime di bawah tetap jalan */
+        /* riwayat gagal dimuat — order realtime di bawah tetap mengisi antrean */
       }
 
       MP.on("order:success:public", push);
+      MP.on("order:success:revoked", revoke);
+
+      // Bersihkan timer saat halaman ditinggalkan / disembunyikan, supaya tidak
+      // ada timeout yang menggantung di bfcache.
+      window.addEventListener("pagehide", destroy, { once: true });
+
+      // Tab yang disembunyikan tidak perlu memutar carousel: menghemat kerja,
+      // dan mencegah puluhan order "lewat" tanpa pernah dilihat siapa pun.
+      document.addEventListener("visibilitychange", function () {
+        if (destroyed) return;
+        if (document.hidden) {
+          paused = true;
+          clearTimeout(timer);
+        } else if (paused) {
+          paused = false;
+          if (card) schedule(advance, HOLD_MS);
+          else if (running) schedule(showNext, GAP_MS);
+          else start();
+        }
+      });
+
+      start();
     }
 
-    return { init: init };
+    return { init: init, destroy: destroy };
   })();
 
   /* =======================================================================

@@ -19,9 +19,29 @@ const listPublic = asyncHandler(async (req, res) => {
 });
 
 // ADMIN
+/**
+ * ADMIN — daftar kategori beserta jumlah produknya.
+ *
+ * Jumlah produk dihitung lewat satu agregasi di database. Sebelumnya halaman
+ * Kategori mengambil SELURUH produk hanya untuk menghitung panjang array per
+ * kategori di browser — mahal, dan makin lama makin berat seiring katalog
+ * bertambah.
+ */
 const listAdmin = asyncHandler(async (req, res) => {
-  const categories = await Category.find().sort({ sortOrder: 1, createdAt: 1 });
-  res.json({ status: true, data: categories });
+  const [categories, counts] = await Promise.all([
+    Category.find().sort({ sortOrder: 1, createdAt: 1 }).lean(),
+    Product.aggregate([{ $group: { _id: "$categoryId", count: { $sum: 1 } } }]),
+  ]);
+
+  const countMap = counts.reduce((acc, row) => {
+    acc[String(row._id)] = row.count;
+    return acc;
+  }, {});
+
+  res.json({
+    status: true,
+    data: categories.map((c) => ({ ...c, productCount: countMap[String(c._id)] || 0 })),
+  });
 });
 
 const create = asyncHandler(async (req, res) => {

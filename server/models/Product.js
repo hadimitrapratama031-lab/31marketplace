@@ -25,5 +25,10 @@ const ProductSchema = new mongoose.Schema(
 );
 
 ProductSchema.index({ categoryId: 1, status: 1 });
+// Menopang urutan & filter daftar Produk di Admin Web. Tanpa ini, setiap
+// pindah halaman memaksa MongoDB mengurutkan seluruh koleksi di memori.
+ProductSchema.index({ sortOrder: 1, createdAt: -1 });
+ProductSchema.index({ sold: -1 });
+ProductSchema.index({ stock: 1 });
 
 module.exports = mongoose.model("Product", ProductSchema);

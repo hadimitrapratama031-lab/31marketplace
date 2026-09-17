@@ -63,11 +63,61 @@ const listPublic = asyncHandler(async (req, res) => {
 });
 
 // ADMIN
+/**
+ * ADMIN — daftar review.
+ *
+ * `distribution` dihitung dengan agregasi atas SELURUH review approved, bukan
+ * atas halaman yang sedang tampil. Sebelumnya grafik sebaran bintang dihitung
+ * dari array yang sudah tersaring status, jadi angkanya ikut berubah begitu
+ * admin memfilter "pending" — sekarang grafiknya selalu menggambarkan data
+ * yang sama dengan kartu rata-rata di sebelahnya.
+ */
 const listAdmin = asyncHandler(async (req, res) => {
-  const { status } = req.query;
-  const filter = status ? { status } : {};
-  const ratings = await Rating.find(filter).sort({ createdAt: -1 });
-  res.json({ status: true, data: ratings });
+  const { status, page, limit = 25, q } = req.query;
+
+  const filter = {};
+  if (status) filter.status = status;
+  if (q && String(q).trim()) {
+    const rx = new RegExp(String(q).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [{ user: rx }, { review: rx }];
+  }
+
+  const distributionAgg = await Rating.aggregate([
+    { $match: { status: "approved" } },
+    { $group: { _id: { $round: ["$rating", 0] }, count: { $sum: 1 } } },
+  ]);
+  const distribution = [5, 4, 3, 2, 1].map((n) => ({
+    rating: n,
+    count: (distributionAgg.find((row) => Number(row._id) === n) || {}).count || 0,
+  }));
+
+  if (page === undefined) {
+    const ratings = await Rating.find(filter).sort({ createdAt: -1 }).populate("productId", "name slug");
+    return res.json({ status: true, data: ratings, distribution });
+  }
+
+  const pageNum = Math.max(1, Number(page) || 1);
+  const limitNum = Math.min(100, Math.max(1, Number(limit) || 25));
+
+  const [ratings, total, pending] = await Promise.all([
+    Rating.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
+      .populate("productId", "name slug"),
+    Rating.countDocuments(filter),
+    Rating.countDocuments({ status: "pending" }),
+  ]);
+
+  res.json({
+    status: true,
+    data: ratings,
+    distribution,
+    // Badge "menunggu moderasi" harus menghitung seluruh review pending, bukan
+    // hanya yang kebetulan ada di halaman ini.
+    pendingTotal: pending,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.max(1, Math.ceil(total / limitNum)) },
+  });
 });
 
 const updateStatus = asyncHandler(async (req, res) => {

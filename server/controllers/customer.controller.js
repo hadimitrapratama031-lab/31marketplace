@@ -57,7 +57,11 @@ const listAdmin = asyncHandler(async (req, res) => {
     Customer.countDocuments(match),
   ]);
 
-  res.json({ status: true, data: customers, pagination: { page: pageNum, limit: limitNum, total } });
+  res.json({
+    status: true,
+    data: customers,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.max(1, Math.ceil(total / limitNum)) },
+  });
 });
 
 // ADMIN — single customer + their order history.

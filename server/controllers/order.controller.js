@@ -177,10 +177,24 @@ const recentSuccess = asyncHandler(async (req, res) => {
 
 // ADMIN — full order list with filters, real data from MongoDB.
 const listAdmin = asyncHandler(async (req, res) => {
-  const { status, paymentStatus, page = 1, limit = 30 } = req.query;
+  const { status, paymentStatus, q, page = 1, limit = 25 } = req.query;
   const filter = {};
   if (status) filter.status = status;
   if (paymentStatus) filter.paymentStatus = paymentStatus;
+
+  // Pencarian dipindahkan ke database. Sebelumnya Admin Web menyaring array
+  // halaman yang sedang tampil, sehingga mencari order yang kebetulan ada di
+  // halaman 7 selalu berakhir "tidak ditemukan".
+  if (q && String(q).trim()) {
+    const rx = new RegExp(String(q).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [
+      { orderCode: rx },
+      { "customer.name": rx },
+      { "customer.email": rx },
+      { "customer.whatsapp": rx },
+      { "product.name": rx },
+    ];
+  }
 
   const pageNum = Math.max(1, Number(page));
   const limitNum = Math.min(100, Math.max(1, Number(limit)));
@@ -193,7 +207,11 @@ const listAdmin = asyncHandler(async (req, res) => {
     Order.countDocuments(filter),
   ]);
 
-  res.json({ status: true, data: orders, pagination: { page: pageNum, limit: limitNum, total } });
+  res.json({
+    status: true,
+    data: orders,
+    pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.max(1, Math.ceil(total / limitNum)) },
+  });
 });
 
 // ADMIN — dashboard aggregates. Every number (including the month-over-month
