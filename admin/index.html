@@ -1466,7 +1466,16 @@
             <label class="field"><span>Status tayang</span>
               <select id="pStatus"><option value="active">Aktif</option><option value="inactive">Nonaktif</option></select>
             </label>
-            <label class="field span-full"><span>Deskripsi</span><textarea id="pDesc" placeholder="Penjelasan singkat produk"></textarea></label>
+            <label class="field span-full">
+              <span>Deskripsi singkat</span>
+              <textarea id="pShortDesc" maxlength="220" placeholder="Satu-dua kalimat ringkas untuk form beli di kanan halaman produk"></textarea>
+              <span class="hint">Tampil di form beli (kanan). Kosongkan untuk memakai potongan otomatis dari deskripsi lengkap.</span>
+            </label>
+            <label class="field span-full">
+              <span>Deskripsi lengkap</span>
+              <textarea id="pDesc" rows="6" placeholder="Penjelasan lengkap produk — tampil utuh di bagian &quot;Tentang produk&quot;"></textarea>
+              <span class="hint">Tampil apa adanya di bagian "Tentang produk", tidak dipotong.</span>
+            </label>
           </div>
         </div>
 

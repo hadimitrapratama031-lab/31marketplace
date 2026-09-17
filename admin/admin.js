@@ -912,6 +912,7 @@
     $("pStock").value = p ? p.stock : 0;
     $("pSortOrder").value = p ? p.sortOrder : 0;
     $("pDesc").value = p ? p.description || "" : "";
+    $("pShortDesc").value = p ? p.shortDescription || "" : "";
     $("pSoldHint").textContent = p
       ? "Sudah terjual " + p.sold + " unit. Angka ini dihitung otomatis dari order yang dibayar dan tidak bisa diubah manual."
       : "Jumlah terjual akan dihitung otomatis dari order yang dibayar.";
@@ -936,6 +937,7 @@
     form.append("stock", $("pStock").value);
     form.append("sortOrder", $("pSortOrder").value || "0");
     form.append("description", $("pDesc").value.trim());
+    form.append("shortDescription", $("pShortDesc").value.trim());
     if (pendingImageFile) form.append("image", pendingImageFile);
     else if (removeExistingImage) form.append("removeImage", "true");
 

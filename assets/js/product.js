@@ -52,12 +52,13 @@
 
     $("crumb-name").textContent = product.name;
     $("product-name").textContent = product.name;
-    // The buy panel only ever gets a short excerpt — the full description
-    // is rendered once, in "Tentang produk" below. Keeping the full text
-    // out of both places at once is what used to make this column so long
-    // and duplicate the copy already shown further down the page.
-    $("product-desc").textContent = MP.excerpt(product.description, 140);
-    $("product-desc").hidden = !product.description;
+    // Buy panel: admin-authored shortDescription is the source of truth.
+    // Older products that don't have one yet fall back to an excerpt of the
+    // full description, purely as a display fallback — never saved back,
+    // never shown instead of the full text in "Tentang produk" below.
+    var shortDesc = (product.shortDescription || "").trim() || MP.excerpt(product.description, 140);
+    $("product-desc").textContent = shortDesc;
+    $("product-desc").hidden = !shortDesc;
     $("product-price").textContent = MP.formatIDR(product.price);
     $("product-sold").textContent = MP.formatNumber(product.sold) + " terjual";
     $("product-category-line").textContent = categoryName;

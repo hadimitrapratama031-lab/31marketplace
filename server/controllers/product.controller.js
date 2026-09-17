@@ -39,7 +39,7 @@ const listAdmin = asyncHandler(async (req, res) => {
 });
 
 const create = asyncHandler(async (req, res) => {
-  const { name, categoryId, description, price, stock, status, sortOrder } = req.body;
+  const { name, categoryId, description, shortDescription, price, stock, status, sortOrder } = req.body;
   if (!name || !categoryId || price === undefined || stock === undefined) {
     throw new AppError("Nama, kategori, harga, dan stok wajib diisi.", 400);
   }
@@ -75,6 +75,7 @@ const create = asyncHandler(async (req, res) => {
     slug,
     categoryId,
     description: description || "",
+    shortDescription: shortDescription || "",
     image,
     imageKey,
     price: Number(price),
@@ -99,7 +100,7 @@ const update = asyncHandler(async (req, res) => {
   const product = await Product.findById(id);
   if (!product) throw new AppError("Produk tidak ditemukan.", 404);
 
-  const { name, categoryId, description, price, stock, status, sortOrder, removeImage } = req.body;
+  const { name, categoryId, description, shortDescription, price, stock, status, sortOrder, removeImage } = req.body;
   if (categoryId) {
     const category = await Category.findById(categoryId);
     if (!category) throw new AppError("Kategori tidak ditemukan.", 400);
@@ -107,6 +108,7 @@ const update = asyncHandler(async (req, res) => {
   }
   if (name !== undefined) product.name = name;
   if (description !== undefined) product.description = description;
+  if (shortDescription !== undefined) product.shortDescription = shortDescription;
   if (price !== undefined) product.price = Number(price);
   if (stock !== undefined) product.stock = Number(stock);
   if (status !== undefined) product.status = status;
