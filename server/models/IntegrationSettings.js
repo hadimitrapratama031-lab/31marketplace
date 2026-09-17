@@ -57,6 +57,20 @@ const IntegrationSettingsSchema = new mongoose.Schema(
       lastTestMessage: { type: String, default: "" },
     },
 
+    // Notifikasi Live Chat ke DM Discord admin.
+    //
+    // Yang disimpan di sini HANYA yang memang aman jadi konfigurasi aplikasi:
+    // saklar dan Discord User ID admin (ID publik, bukan rahasia). Token bot
+    // tetap di Railway ENV seperti integrasi lain — tidak pernah masuk
+    // database dan tidak pernah dikirim ke browser.
+    liveChat: {
+      discordEnabled: { type: Boolean, default: false },
+      adminDiscordUserId: { type: String, default: "" },
+      lastTestStatus: { type: String, enum: ["untested", "success", "error"], default: "untested" },
+      lastTestAt: { type: Date },
+      lastTestMessage: { type: String, default: "" },
+    },
+
     notifications: {
       whatsappEnabled: { type: Boolean, default: true },
       emailEnabled: { type: Boolean, default: true },

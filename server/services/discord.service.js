@@ -26,6 +26,10 @@ const API_BASE = "https://discord.com/api/v10";
 // #41F097). Dipertahankan apa adanya, bukan didekati dengan warna lain.
 const ACCENT_SUCCESS = 4321431;
 
+// Live Chat memakai warna identitas Marketplace (violet #6d3bee) supaya DM
+// chat langsung terbedakan dari DM pembayaran yang hijau.
+const ACCENT_CHAT = 7158766; // #6D3BEE
+
 function getConfig() {
   const botToken = String(process.env.DISCORD_BOT_TOKEN || "").trim();
   const channelId = String(process.env.DISCORD_CHANNEL_ID || "").trim();
@@ -126,7 +130,7 @@ function buildPaymentSuccessEmbed(ctx) {
 
   const embed = {
     author: logoUrl ? { name: storeName, icon_url: logoUrl } : { name: storeName },
-    description: "# :white_check_mark: Pembayaran Berhasil\n",
+    description: "** :white_check_mark: Pembayaran Berhasil**\n",
     color: ACCENT_SUCCESS,
     fields,
     timestamp: new Date().toISOString(),
@@ -137,6 +141,136 @@ function buildPaymentSuccessEmbed(ctx) {
   if (productImage) embed.image = { url: productImage };
 
   return embed;
+}
+
+/**
+ * Embed notifikasi Live Chat (spec "DISCORD DM ADMIN").
+ *
+ * Isinya persis yang diminta: nama customer, user ID, isi pesan, waktu — dan
+ * foto sebagai image embed kalau pesannya berisi lampiran. `openUrl` hanya
+ * ikut kalau sistem memang punya URL Admin Web yang bisa dibuka; tidak pernah
+ * mengarang link.
+ */
+function buildLiveChatEmbed(ctx) {
+  const fields = [
+    field("👤 Customer", ctx.customerName, false),
+    field("🆔 User ID", ctx.userId, false),
+    field("💬 Pesan", ctx.text || (ctx.hasImage ? "(mengirim foto)" : "(pesan kosong)"), false),
+    field("🕐 Waktu", ctx.time, false),
+  ].filter(Boolean);
+
+  if (ctx.openUrl) fields.push(field("🔗 Buka Live Chat", ctx.openUrl, false));
+
+  const embed = {
+    author: ctx.storeLogo ? { name: ctx.storeName || "Live Chat", icon_url: ctx.storeLogo } : { name: ctx.storeName || "Live Chat" },
+    description: "**:speech_balloon: Live Chat Baru**\n",
+    color: ACCENT_CHAT,
+    fields,
+    timestamp: new Date().toISOString(),
+    footer: { text: ctx.storeName || "Live Chat" },
+  };
+
+  // Foto customer dikirim sebagai image embed memakai URL yang sudah lewat
+  // proxy domain toko — bot Discord yang mengambilnya sendiri, dan kredensial
+  // R2 tidak pernah ikut ke mana pun.
+  if (ctx.imageUrl) embed.image = { url: ctx.imageUrl };
+
+  return embed;
+}
+
+/**
+ * Kirim DM ke akun Discord admin.
+ *
+ * DM WAJIB memakai bot: Discord tidak menyediakan cara mengirim DM lewat
+ * webhook channel, jadi mode webhook sengaja ditolak dengan pesan yang
+ * menjelaskan apa yang kurang, bukan diam-diam gagal.
+ *
+ * Dua langkah REST (tanpa gateway/websocket, jadi tetap tidak ada proses bot
+ * yang harus hidup terus):
+ *   1. POST /users/@me/channels  -> membuka (atau mengambil) channel DM
+ *   2. POST /channels/{id}/messages
+ */
+async function sendDirectMessage(userId, embed) {
+  const cfg = getConfig();
+  const targetId = String(userId || "").trim();
+
+  if (!targetId || !/^\d{5,25}$/.test(targetId)) {
+    return {
+      success: false,
+      permanent: true,
+      message: "Discord User ID admin belum diisi atau formatnya bukan ID numerik.",
+    };
+  }
+  if (!cfg.botToken) {
+    return {
+      success: false,
+      permanent: true,
+      message:
+        "DM Discord memerlukan bot. Isi DISCORD_BOT_TOKEN di Railway ENV — webhook channel tidak bisa mengirim DM.",
+    };
+  }
+
+  const headers = { Authorization: `Bot ${cfg.botToken}`, "Content-Type": "application/json" };
+
+  try {
+    const dm = await axios.post(
+      `${API_BASE}/users/@me/channels`,
+      { recipient_id: targetId },
+      { headers, timeout: TIMEOUT_MS }
+    );
+
+    const channelId = dm.data && dm.data.id;
+    if (!channelId) {
+      return { success: false, permanent: false, message: "Discord tidak mengembalikan channel DM." };
+    }
+
+    const sent = await axios.post(
+      `${API_BASE}/channels/${channelId}/messages`,
+      { embeds: [embed], allowed_mentions: { parse: [] } },
+      { headers, timeout: TIMEOUT_MS }
+    );
+
+    const id = sent.data && sent.data.id;
+    if (!id) {
+      return { success: false, permanent: false, message: "Discord membalas tanpa id pesan — DM tidak terkonfirmasi." };
+    }
+
+    logger.info("Discord DM terkirim", { messageId: id });
+    return { success: true, permanent: false, message: "", messageId: id };
+  } catch (err) {
+    const classified = classifyTransportError(err);
+    // 403 saat DM biasanya bukan token salah, melainkan admin menutup DM dari
+    // anggota server — pesannya dibedakan supaya admin tidak mengganti token
+    // yang sebenarnya sudah benar.
+    if (classified.httpStatus === 403) {
+      classified.message =
+        "Discord menolak DM (HTTP 403). Admin harus satu server dengan bot dan mengizinkan direct message dari anggota server.";
+    }
+    logger.error("Discord DM gagal", { httpStatus: classified.httpStatus, reason: classified.message });
+    return { success: false, ...classified };
+  }
+}
+
+/** Dipakai chat.service untuk setiap pesan baru dari customer. */
+async function sendLiveChatDM(adminUserId, ctx) {
+  return sendDirectMessage(adminUserId, buildLiveChatEmbed(ctx));
+}
+
+/** Tombol "Test DM" di Admin Web > Integrasi > Live Chat. */
+async function testLiveChatDM(adminUserId, storeName) {
+  const result = await sendDirectMessage(
+    adminUserId,
+    buildLiveChatEmbed({
+      storeName: storeName || "Live Chat",
+      customerName: "Test dari Admin Web",
+      userId: "—",
+      text: "Kalau DM ini sampai, notifikasi Live Chat sudah siap dipakai.",
+      time: new Date().toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" }),
+    })
+  );
+  return result.success
+    ? { success: true, message: "DM test terkirim ke akun Discord admin." }
+    : { success: false, message: result.message || "Gagal mengirim DM test." };
 }
 
 async function postEmbed(embed) {
@@ -223,6 +357,9 @@ function getStatus() {
   return {
     configured: cfg.configured,
     mode: cfg.mode,
+    // DM hanya mungkin lewat bot. Admin Web memakai ini untuk menjelaskan
+    // kenapa notifikasi Live Chat tidak bisa aktif walau Discord "terhubung".
+    dmCapable: Boolean(cfg.botToken),
     channelId: cfg.mode === "bot" ? cfg.channelId : null,
     // URL webhook memuat token di dalam path — tidak pernah dikirim ke frontend.
     webhookConfigured: Boolean(cfg.webhookUrl),
@@ -232,6 +369,10 @@ function getStatus() {
 module.exports = {
   sendPaymentSuccess,
   buildPaymentSuccessEmbed,
+  sendLiveChatDM,
+  buildLiveChatEmbed,
+  sendDirectMessage,
+  testLiveChatDM,
   testConnection,
   getStatus,
   getConfig,

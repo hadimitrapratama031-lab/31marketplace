@@ -16,5 +16,6 @@ router.use("/integrations", require("./integration.routes"));
 router.use("/admins", require("./admin.routes"));
 router.use("/webhooks", require("./webhook.routes"));
 router.use("/assets", require("./asset.routes"));
+router.use("/chat", require("./chat.routes"));
 
 module.exports = router;

@@ -29,6 +29,7 @@
     ratings: [],
     ratingFilter: "",
     integrations: null,
+    liveChatConfig: null,
     templates: null,
     notifLogs: [],
     notifLogsPagination: { page: 1, limit: 30, total: 0 },
@@ -36,6 +37,15 @@
     notifications: [],
     unread: 0,
     productView: "grid",
+    chat: {
+      conversations: [],
+      activeId: null,
+      messages: [],
+      seen: new Set(),
+      query: "",
+      unread: 0,
+      soundOn: true,
+    },
     currentPage: "dashboard",
     editing: { productId: null, categoryId: null, faqId: null },
   };
@@ -336,6 +346,7 @@
     transactions: { title: "Pembayaran", group: "Transaksi" },
     reviews: { title: "Rating", group: "Transaksi" },
     customers: { title: "Customer", group: "Transaksi" },
+    livechat: { title: "Live Chat", group: "Transaksi" },
     content: { title: "Marketplace", group: "Website" },
     integrations: { title: "Integrasi", group: "Sistem" },
     settings: { title: "Pengaturan", group: "Sistem" },
@@ -350,6 +361,7 @@
     transactions: loadTransactions,
     reviews: loadRatings,
     customers: loadCustomers,
+    livechat: loadLiveChat,
     content: loadSettings,
     integrations: loadIntegrations,
     settings: loadAccountPage,
@@ -1781,11 +1793,19 @@
   };
 
   async function loadIntegrations() {
-    const [statusRes, templatesRes] = await Promise.all([api("/integrations/status"), api("/integrations/templates")]);
+    const [statusRes, templatesRes, liveChatRes] = await Promise.all([
+      api("/integrations/status"),
+      api("/integrations/templates"),
+      // Konfigurasi Live Chat tidak boleh menggagalkan seluruh halaman kalau
+      // dokumen singleton-nya belum pernah dibuat.
+      api("/integrations/livechat").catch(() => null),
+    ]);
     state.integrations = statusRes.data;
     state.templates = templatesRes.data;
+    state.liveChatConfig = liveChatRes ? liveChatRes.data : null;
     renderIntegrationStatus();
     fillIntegrationForms();
+    fillLiveChatForm();
     fillTemplateForms();
     // Riwayat pengiriman dimuat terpisah: kalau endpointnya bermasalah, tab
     // Integrasi tetap terbuka dan bisa dipakai, hanya tabelnya yang kosong.
@@ -2227,6 +2247,384 @@
     }
   }
 
+
+  /* ========================================================================
+     LIVE CHAT
+     Percakapan yang sama dengan yang dibuka pembeli di Marketplace — satu
+     thread, satu koleksi, bukan dua sistem terpisah. Semua isi diambil dari
+     API; Socket.IO hanya menambahkan pesan yang SUDAH tersimpan.
+     ===================================================================== */
+  const CHAT_EMOJI = ["😀", "😊", "🙏", "👍", "👌", "🔥", "❤️", "✅", "❌", "⏳", "🎮", "💳", "📦", "🙌", "😅", "❓"];
+
+  /* --- suara pesan baru -------------------------------------------------
+     Nada pendek dibangkitkan WebAudio, bukan file audio, supaya tidak ada
+     aset biner baru yang harus ikut ter-deploy. Dibunyikan HANYA saat pesan
+     customer benar-benar masuk — tidak pernah saat render halaman.
+     Browser memblokir audio sebelum ada interaksi pengguna, jadi konteksnya
+     dibuka pada klik/ketik pertama, lalu dipakai ulang. Tidak ada loop. */
+  let audioCtx = null;
+  let lastPing = 0;
+
+  function unlockAudio() {
+    if (audioCtx) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    try {
+      audioCtx = new Ctx();
+      if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+    } catch (e) {
+      audioCtx = null;
+    }
+  }
+
+  function playPing() {
+    if (!state.chat.soundOn || !audioCtx) return;
+    // Jaga jarak minimal antar bunyi: sepuluh pesan beruntun tetap satu nada,
+    // bukan sepuluh bunyi bertumpuk.
+    if (Date.now() - lastPing < 2000) return;
+    lastPing = Date.now();
+    try {
+      if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.setValueAtTime(1180, now + 0.09);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.14, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.28);
+    } catch (e) {
+      /* audio tidak tersedia — badge visual tetap jalan */
+    }
+  }
+
+  function chatClientId() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return "a" + Date.now() + Math.random().toString(16).slice(2, 10);
+  }
+
+  function chatTime(value) {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function chatDay(value) {
+    const d = new Date(value);
+    return d.toDateString() === new Date().toDateString()
+      ? "Hari ini"
+      : d.toLocaleDateString("id-ID", { day: "numeric", month: "long" });
+  }
+
+  function renderChatBadge() {
+    const badge = $("chatBadge");
+    if (!badge) return;
+    badge.textContent = state.chat.unread > 9 ? "9+" : String(state.chat.unread);
+    badge.hidden = state.chat.unread === 0;
+  }
+
+  async function refreshChatUnread() {
+    try {
+      const res = await api("/chat/admin/unread");
+      state.chat.unread = res.data.messages || 0;
+      renderChatBadge();
+    } catch (e) {
+      /* badge tidak kritis */
+    }
+  }
+
+  async function loadLiveChat() {
+    if (!$("chatEmoji").childElementCount) {
+      $("chatEmoji").innerHTML = CHAT_EMOJI.map((e) => '<button type="button">' + e + "</button>").join("");
+    }
+    await loadChatConversations();
+    if (state.chat.activeId) await openConversation(state.chat.activeId, { silent: true });
+  }
+
+  async function loadChatConversations() {
+    const params = new URLSearchParams({ limit: "40" });
+    if (state.chat.query) params.set("q", state.chat.query);
+    const res = await api("/chat/admin/conversations?" + params.toString());
+    state.chat.conversations = res.data || [];
+    state.chat.unread = res.unread || 0;
+    renderChatBadge();
+    renderChatList();
+  }
+
+  function renderChatList() {
+    const box = $("chatList");
+    if (!state.chat.conversations.length) {
+      box.innerHTML =
+        '<div class="chat-list-empty">Belum ada percakapan aktif. Thread hilang sendiri 24 jam setelah pesan terakhirnya.</div>';
+      return;
+    }
+
+    box.innerHTML = state.chat.conversations
+      .map((c) => {
+        const unread = c.unreadForAdmin || 0;
+        return (
+          '<button class="chat-row' +
+          (c.id === state.chat.activeId ? " active" : "") +
+          (unread ? " unread" : "") +
+          '" type="button" data-conversation="' +
+          esc(c.id) +
+          '">' +
+          '<span class="chat-avatar">' +
+          esc(initials(c.displayName)) +
+          "</span>" +
+          '<span class="chat-row-text"><b>' +
+          esc(c.displayName) +
+          "</b><small>" +
+          esc(c.lastMessagePreview || "Belum ada pesan") +
+          "</small></span>" +
+          '<span class="chat-row-side"><time>' +
+          esc(chatTime(c.lastMessageAt)) +
+          "</time>" +
+          (unread ? '<span class="chat-pip">' + (unread > 9 ? "9+" : unread) + "</span>" : "") +
+          "</span></button>"
+        );
+      })
+      .join("");
+  }
+
+  async function openConversation(id, options = {}) {
+    state.chat.activeId = id;
+    renderChatList();
+
+    const res = await api("/chat/admin/conversations/" + encodeURIComponent(id) + "/messages");
+    const conv = res.data.conversation;
+    state.chat.messages = res.data.messages || [];
+    state.chat.seen = new Set(state.chat.messages.map((m) => m.id));
+
+    $("chatThreadEmpty").hidden = true;
+    $("chatThreadInner").hidden = false;
+    $("chatThread").dataset.empty = "false";
+    $("chatPeerAvatar").textContent = initials(conv.displayName);
+    $("chatPeerName").textContent = conv.displayName;
+    $("chatPeerMeta").textContent =
+      [conv.contactEmail || "Tanpa email", conv.messageCount + " pesan", "Dari " + (conv.startedFrom || "Marketplace")].join(" · ");
+    $("chatExpiry").textContent = "Berakhir " + formatDate(conv.expiresAt);
+
+    renderChatLog();
+
+    if (!options.silent) chatNote("");
+    // Menandai terbaca mengurangi badge di sisi admin DAN memberi tahu
+    // pembeli lewat Socket.IO bahwa pesannya sudah dibaca.
+    await api("/chat/admin/conversations/" + encodeURIComponent(id) + "/read", { method: "POST" });
+    await refreshChatUnread();
+    await loadChatConversations();
+  }
+
+  function renderChatLog() {
+    const log = $("chatLog");
+    if (!state.chat.messages.length) {
+      log.innerHTML = '<div class="chat-list-empty">Belum ada pesan di percakapan ini.</div>';
+      return;
+    }
+
+    let lastDay = "";
+    log.innerHTML = "";
+    state.chat.messages.forEach((msg) => {
+      const label = chatDay(msg.createdAt);
+      if (label !== lastDay) {
+        lastDay = label;
+        const day = document.createElement("div");
+        day.className = "chat-day";
+        day.textContent = label;
+        log.appendChild(day);
+      }
+      log.appendChild(chatBubble(msg));
+    });
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function chatBubble(msg) {
+    const wrap = document.createElement("div");
+    wrap.className = "chat-msg " + (msg.sender === "admin" ? "from-admin" : "from-customer");
+
+    if (msg.attachment && msg.attachment.url) {
+      const img = document.createElement("img");
+      img.className = "chat-photo";
+      img.src = msg.attachment.url;
+      img.alt = "Foto";
+      img.loading = "lazy";
+      img.addEventListener("click", () => chatLightbox(msg.attachment.url));
+      wrap.appendChild(img);
+    }
+
+    if (msg.text) {
+      // textContent: isi pesan customer tidak pernah dirender sebagai HTML.
+      const bubble = document.createElement("div");
+      bubble.className = "chat-bubble";
+      bubble.textContent = msg.text;
+      wrap.appendChild(bubble);
+    }
+
+    const meta = document.createElement("div");
+    meta.className = "chat-meta";
+    const time = document.createElement("span");
+    time.textContent = chatTime(msg.createdAt);
+    meta.appendChild(time);
+
+    // Status DM Discord ditampilkan apa adanya: kalau DM gagal, chat-nya tetap
+    // ada — yang gagal hanya notifikasinya.
+    if (msg.discord && msg.discord.status === "failed") {
+      const dm = document.createElement("span");
+      dm.className = "dm-failed";
+      dm.textContent = "DM Discord gagal";
+      dm.title = msg.discord.message || "";
+      meta.appendChild(dm);
+    }
+    wrap.appendChild(meta);
+    return wrap;
+  }
+
+  function chatLightbox(url) {
+    const box = document.createElement("div");
+    box.className = "chat-lightbox";
+    const img = document.createElement("img");
+    img.src = url;
+    box.appendChild(img);
+    box.addEventListener("click", () => box.remove());
+    document.body.appendChild(box);
+  }
+
+  function chatNote(text, isError) {
+    const note = $("chatNote");
+    if (!note) return;
+    note.textContent = text || "";
+    note.hidden = !text;
+    note.classList.toggle("is-error", Boolean(isError));
+  }
+
+  function appendChatMessage(msg) {
+    if (state.chat.seen.has(msg.id)) return; // dedupe
+    state.chat.seen.add(msg.id);
+    state.chat.messages.push(msg);
+    renderChatLog();
+  }
+
+  async function sendChatReply() {
+    const input = $("chatInput");
+    const text = input.value.trim();
+    if (!text || !state.chat.activeId) return;
+
+    input.value = "";
+    input.style.height = "auto";
+    try {
+      const res = await api("/chat/admin/conversations/" + encodeURIComponent(state.chat.activeId) + "/messages", {
+        method: "POST",
+        body: { text, clientMessageId: chatClientId() },
+      });
+      appendChatMessage(res.data);
+      await loadChatConversations();
+    } catch (err) {
+      chatNote(err.message, true);
+    }
+  }
+
+  async function sendChatPhoto(file) {
+    if (!file || !state.chat.activeId) return;
+    const form = new FormData();
+    form.append("photo", file);
+    form.append("clientMessageId", chatClientId());
+    chatNote("Mengunggah foto…");
+    try {
+      const res = await api("/chat/admin/conversations/" + encodeURIComponent(state.chat.activeId) + "/messages/photo", {
+        method: "POST",
+        body: form,
+      });
+      appendChatMessage(res.data);
+      chatNote("");
+      await loadChatConversations();
+    } catch (err) {
+      chatNote(err.message, true);
+    }
+  }
+
+  function wireLiveChat() {
+    const list = $("chatList");
+    if (!list) return;
+
+    list.addEventListener("click", (e) => {
+      const row = e.target.closest("[data-conversation]");
+      if (row) openConversation(row.dataset.conversation).catch((err) => showToast(err.message, "error"));
+    });
+
+    $("chatRefresh").addEventListener("click", () => {
+      loadLiveChat().catch((err) => showToast(err.message, "error"));
+    });
+
+    $("chatSearch").addEventListener(
+      "input",
+      debounce((e) => {
+        state.chat.query = e.target.value.trim();
+        loadChatConversations().catch(() => {});
+      }, 300)
+    );
+
+    $("chatSend").addEventListener("click", sendChatReply);
+
+    $("chatInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendChatReply();
+      }
+    });
+
+    $("chatInput").addEventListener("input", (e) => {
+      e.target.style.height = "auto";
+      e.target.style.height = Math.min(110, e.target.scrollHeight) + "px";
+    });
+
+    $("chatAttachBtn").addEventListener("click", () => $("chatFile").click());
+    $("chatFile").addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      sendChatPhoto(file);
+    });
+
+    $("chatEmojiBtn").addEventListener("click", () => {
+      $("chatEmoji").hidden = !$("chatEmoji").hidden;
+    });
+
+    $("chatEmoji").addEventListener("click", (e) => {
+      if (e.target.tagName !== "BUTTON") return;
+      $("chatInput").value += e.target.textContent;
+      $("chatEmoji").hidden = true;
+      $("chatInput").focus();
+    });
+
+    const sound = $("chatSound");
+    try {
+      state.chat.soundOn = localStorage.getItem("mp_admin_chat_sound") !== "false";
+    } catch (e) {
+      /* abaikan */
+    }
+    sound.checked = state.chat.soundOn;
+    sound.addEventListener("change", () => {
+      state.chat.soundOn = sound.checked;
+      try {
+        localStorage.setItem("mp_admin_chat_sound", String(sound.checked));
+      } catch (e) {
+        /* abaikan */
+      }
+      if (sound.checked) {
+        unlockAudio();
+        playPing();
+      }
+    });
+
+    // Autoplay policy browser: konteks audio hanya boleh dibuka setelah ada
+    // interaksi. Dipasang sekali, lalu dilepas sendiri.
+    ["click", "keydown"].forEach((evt) =>
+      document.addEventListener(evt, unlockAudio, { once: true, capture: true })
+    );
+  }
+
   /* --------------------------------------------------------- notifications */
   function pushNotification(kind, title, text) {
     state.notifications.unshift({ kind, title, text, at: new Date().toISOString() });
@@ -2349,8 +2747,20 @@
     realtimeReady = true;
 
     const pill = $("connPill");
+
+    // Live Chat disiarkan ke room "admin", bukan ke semua koneksi — kalau
+    // tidak, isi percakapan pelanggan akan sampai ke browser pengunjung
+    // Marketplace. Token dikirim ulang setiap "connect" supaya keanggotaan
+    // room pulih sendiri setelah reconnect.
+    const joinAdminRoom = () => {
+      const token = getToken();
+      if (token) socket.emit("admin:auth", { token });
+    };
+    joinAdminRoom();
+
     socket.on("connect", () => {
       pill.dataset.state = "online";
+      joinAdminRoom();
       refreshCurrentPage(); // sinkron ulang setelah reconnect / restart server
     });
     socket.on("disconnect", () => {
@@ -2399,6 +2809,47 @@
     );
     // Hasil pengiriman tiap channel, dikirim notification.service.js begitu
     // provider menjawab — tabel riwayat ikut hidup tanpa perlu ditekan ulang.
+    // --- Live Chat ---
+    socket.on("chat:message", (msg) => {
+      if (!msg) return;
+
+      // Pesan untuk thread yang sedang dibuka: tambahkan langsung, dan tandai
+      // terbaca karena admin memang sedang melihatnya.
+      if (state.currentPage === "livechat" && String(msg.conversationId) === String(state.chat.activeId)) {
+        appendChatMessage(msg);
+        if (msg.sender === "customer") {
+          api("/chat/admin/conversations/" + encodeURIComponent(msg.conversationId) + "/read", { method: "POST" }).catch(
+            () => {}
+          );
+        }
+      }
+
+      if (msg.sender === "customer") {
+        // Suara hanya untuk pesan customer yang benar-benar baru masuk.
+        playPing();
+        if (state.currentPage !== "livechat" || String(msg.conversationId) !== String(state.chat.activeId)) {
+          state.chat.unread += 1;
+          renderChatBadge();
+          pushNotification("info", "Pesan Live Chat baru", (msg.senderName || "Customer") + ": " + (msg.text || "mengirim foto"));
+        }
+      }
+
+      if (state.currentPage === "livechat") loadChatConversations().catch(() => {});
+    });
+
+    socket.on("chat:conversation", () => {
+      if (state.currentPage === "livechat") loadChatConversations().catch(() => {});
+    });
+
+    socket.on("chat:discord", (payload) => {
+      if (!payload || payload.status !== "failed") return;
+      // Chat-nya sendiri tetap tersimpan — yang gagal hanya DM-nya.
+      pushNotification("error", "DM Discord gagal", payload.message || "Notifikasi Live Chat tidak terkirim ke Discord.");
+      if (state.currentPage === "livechat" && String(payload.conversationId) === String(state.chat.activeId)) {
+        openConversation(state.chat.activeId, { silent: true }).catch(() => {});
+      }
+    });
+
     socket.on("notification:log", (payload) => {
       if (payload && payload.status === "failed") {
         pushNotification(
@@ -2425,6 +2876,90 @@
         })
         .catch(() => {});
     });
+  }
+
+  /* -------------------------------------------- konfigurasi Live Chat DM */
+  function fillLiveChatForm() {
+    const cfg = state.liveChatConfig;
+    if (!cfg || !$("lcEnabled")) return;
+
+    $("lcEnabled").checked = Boolean(cfg.discordEnabled);
+    $("lcUserId").value = cfg.adminDiscordUserId || "";
+    $("lcUserId").placeholder = cfg.envAdminUserId
+      ? "Terisi dari Railway ENV — isi di sini untuk menimpanya"
+      : "Contoh: 123456789012345678";
+
+    // Status bot dijelaskan dengan bahasa yang bisa ditindaklanjuti, bukan
+    // sekadar "terhubung / tidak".
+    $("lcBotStatus").value = cfg.bot.dmCapable
+      ? "Bot terpasang — DM bisa dikirim"
+      : cfg.bot.configured
+      ? "Hanya webhook channel — DM butuh DISCORD_BOT_TOKEN"
+      : "Discord belum dikonfigurasi di server";
+
+    $("lcStatePill").innerHTML = statePill(
+      // `configured` di sini berarti "DM benar-benar bisa dikirim": ID admin
+      // terisi DAN bot tersedia. Tanpa keduanya, pill menulis "Belum
+      // dikonfigurasi" — bukan "Terhubung" yang menyesatkan.
+      {
+        configured: Boolean((cfg.adminDiscordUserId || cfg.envAdminUserId) && cfg.bot.dmCapable),
+        enabled: cfg.discordEnabled,
+        lastTestStatus: cfg.lastTestStatus,
+      },
+      "livechat"
+    );
+
+    const result = $("lcTestResult");
+    if (cfg.lastTestMessage) {
+      result.hidden = false;
+      $("lcTestText").innerHTML =
+        "<b>Test terakhir</b>" + esc(cfg.lastTestMessage) + (cfg.lastTestAt ? " · " + esc(formatDate(cfg.lastTestAt)) : "");
+    } else {
+      result.hidden = true;
+    }
+  }
+
+  async function saveLiveChat(btn) {
+    btn.disabled = true;
+    try {
+      await api("/integrations/livechat", {
+        method: "PUT",
+        body: { discordEnabled: $("lcEnabled").checked, adminDiscordUserId: $("lcUserId").value.trim() },
+      });
+      showToast("Konfigurasi Live Chat disimpan.", "success");
+      const res = await api("/integrations/livechat");
+      state.liveChatConfig = res.data;
+      fillLiveChatForm();
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function testLiveChatDM(btn) {
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.textContent = "Mengirim…";
+    try {
+      const res = await api("/integrations/livechat/test", {
+        method: "POST",
+        body: { adminDiscordUserId: $("lcUserId").value.trim() },
+      });
+      showToast(res.message || "DM test terkirim.", "success");
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = original;
+      try {
+        const res = await api("/integrations/livechat");
+        state.liveChatConfig = res.data;
+        fillLiveChatForm();
+      } catch (e) {
+        /* abaikan */
+      }
+    }
   }
 
   /* ---------------------------------------------------------- event wiring */
@@ -2794,6 +3329,9 @@
     );
     $("kqTest").addEventListener("click", () => testIntegration("klikqris", $("kqTest")));
 
+    $("lcSave").addEventListener("click", () => saveLiveChat($("lcSave")));
+    $("lcTest").addEventListener("click", () => testLiveChatDM($("lcTest")));
+
     $("fnSave").addEventListener("click", () =>
       saveIntegration("fonnte", $("fnSave"), {
         enabled: $("fnEnabled").checked,
@@ -3032,8 +3570,10 @@
     }
 
     wireEvents();
+    wireLiveChat();
     renderNotifications();
     initRealtime();
+    refreshChatUnread();
 
     // Branding sidebar selalu mengikuti WebsiteSettings yang asli.
     try {

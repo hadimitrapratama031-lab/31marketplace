@@ -8,6 +8,7 @@ const notificationService = require("../services/notification.service");
 const discordService = require("../services/discord.service");
 const diagnostics = require("../services/diagnostics.service");
 const asyncHandler = require("../utils/asyncHandler");
+const { AppError } = require("../middlewares/errorHandler");
 const { emitEvent } = require("../services/socket.service");
 
 // ADMIN — status dots for KlikQRIS / Fonnte / Resend / R2 (never returns secrets).
@@ -168,6 +169,83 @@ const getDiscordStatus = asyncHandler(async (req, res) => {
   res.json({ status: true, data: discordService.getStatus() });
 });
 
+/**
+ * Konfigurasi notifikasi Live Chat.
+ *
+ * Balasannya sengaja tidak pernah memuat token bot; yang dikirim hanya status
+ * ("bot terpasang atau belum") supaya Admin Web bisa menjelaskan kenapa DM
+ * tidak bisa aktif tanpa membocorkan kredensial apa pun.
+ */
+const getLiveChat = asyncHandler(async (req, res) => {
+  const settings = await IntegrationSettings.getSingleton();
+  const live = settings.liveChat || {};
+  const discord = discordService.getStatus();
+  res.json({
+    status: true,
+    data: {
+      discordEnabled: Boolean(live.discordEnabled),
+      adminDiscordUserId: live.adminDiscordUserId || "",
+      // Nilai ENV dipakai sebagai cadangan kalau admin belum pernah mengisi form.
+      envAdminUserId: Boolean(String(process.env.DISCORD_ADMIN_USER_ID || "").trim()),
+      lastTestStatus: live.lastTestStatus || "untested",
+      lastTestAt: live.lastTestAt || null,
+      lastTestMessage: live.lastTestMessage || "",
+      bot: {
+        configured: discord.configured,
+        mode: discord.mode,
+        // DM hanya bisa lewat bot; webhook channel tidak mendukung DM sama sekali.
+        dmCapable: discord.dmCapable,
+      },
+    },
+  });
+});
+
+const updateLiveChat = asyncHandler(async (req, res) => {
+  const settings = await IntegrationSettings.getSingleton();
+  const { discordEnabled, adminDiscordUserId } = req.body || {};
+
+  if (adminDiscordUserId !== undefined) {
+    const clean = String(adminDiscordUserId || "").trim();
+    // Snowflake Discord selalu numerik. Menolak di sini lebih baik daripada
+    // menyimpan nilai yang pasti gagal saat DM dikirim.
+    if (clean && !/^\d{5,25}$/.test(clean)) {
+      throw new AppError("Discord User ID harus berupa angka (Developer Mode > Copy User ID).", 400);
+    }
+    settings.liveChat.adminDiscordUserId = clean;
+  }
+  if (discordEnabled !== undefined) settings.liveChat.discordEnabled = Boolean(discordEnabled);
+
+  await settings.save();
+  emitEvent("integration:updated", { provider: "livechat" });
+  res.json({ status: true, message: "Konfigurasi notifikasi Live Chat disimpan." });
+});
+
+const testLiveChat = asyncHandler(async (req, res) => {
+  const settings = await IntegrationSettings.getSingleton();
+  const target =
+    String(req.body && req.body.adminDiscordUserId ? req.body.adminDiscordUserId : "").trim() ||
+    settings.liveChat.adminDiscordUserId ||
+    String(process.env.DISCORD_ADMIN_USER_ID || "").trim();
+
+  let storeName = "Live Chat";
+  try {
+    const website = await require("../models/WebsiteSettings").getSingleton();
+    storeName = (website.general && website.general.storeName) || storeName;
+  } catch {
+    /* branding tidak wajib untuk test */
+  }
+
+  const result = await discordService.testLiveChatDM(target, storeName);
+
+  settings.liveChat.lastTestStatus = result.success ? "success" : "error";
+  settings.liveChat.lastTestAt = new Date();
+  settings.liveChat.lastTestMessage = result.message;
+  await settings.save();
+  emitEvent("integration:updated", { provider: "livechat" });
+
+  res.status(result.success ? 200 : 400).json({ status: result.success, message: result.message });
+});
+
 const testDiscord = asyncHandler(async (req, res) => {
   const result = await discordService.testConnection();
   res.status(result.success ? 200 : 400).json({ status: result.success, message: result.message });
@@ -178,6 +256,9 @@ module.exports = {
   auditDeliverability,
   getDiscordStatus,
   testDiscord,
+  getLiveChat,
+  updateLiveChat,
+  testLiveChat,
   previewNotificationTemplates,
   listNotificationLogs,
   retryNotification,

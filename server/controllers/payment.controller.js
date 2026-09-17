@@ -6,6 +6,7 @@ const { AppError } = require("../middlewares/errorHandler");
 const { emitEvent } = require("../services/socket.service");
 const klikqris = require("../services/klikqris.service");
 const notificationService = require("../services/notification.service");
+const orderFeed = require("../services/orderFeed.service");
 const logger = require("../utils/logger");
 
 // Maps KlikQRIS transaction status -> our internal Order/Transaction status.
@@ -80,6 +81,15 @@ async function applyPaymentStatus({ orderCode, newStatus, paidAt }) {
 
   emitEvent("order:updated", { orderId: order._id, orderCode: order.orderCode, status: order.status });
   emitEvent("payment:updated", { orderCode: order.orderCode, paymentStatus: order.paymentStatus });
+
+  // Floating Order Success di Marketplace. Disiarkan HANYA di sini — setelah
+  // order tersimpan dengan paymentStatus SUCCESS — sehingga yang muncul di
+  // halaman pengunjung tidak mungkin order pending, gagal, atau kedaluwarsa.
+  // Penjaga duplikat ada di atas (status tidak berubah -> return lebih awal),
+  // jadi webhook yang dikirim ulang KlikQRIS tidak memunculkan kartu kedua.
+  if (orderFeed.isSuccessful(order)) {
+    emitEvent("order:success:public", orderFeed.toPublicOrder(order));
+  }
 
   const eventKey =
     newStatus === "PAID" ? "paymentSuccess" : newStatus === "FAILED" ? "paymentFailed" : newStatus === "EXPIRED" ? "paymentExpired" : null;

@@ -139,6 +139,9 @@
       <button class="rail-item" type="button" data-page="customers">
         <svg class="ico"><use href="#i-users"></use></svg><span>Customer</span>
       </button>
+      <button class="rail-item" type="button" data-page="livechat">
+        <svg class="ico"><use href="#i-message"></use></svg><span>Live Chat</span><em class="count" id="chatBadge" hidden>0</em>
+      </button>
 
       <div class="rail-group">Website</div>
       <button class="rail-item" type="button" data-page="content">
@@ -599,6 +602,65 @@
     </section>
 
     <!-- ================================================= MARKETPLACE CONTENT -->
+    <!-- ============================================================ LIVE CHAT -->
+    <section id="livechat" class="page">
+      <div class="page-head">
+        <div class="page-head-text">
+          <h2>Live Chat</h2>
+          <p>Percakapan dari Marketplace, realtime. Pesan terhapus otomatis 24 jam setelah dikirim.</p>
+        </div>
+        <div class="page-head-actions">
+          <label class="chat-sound-toggle">
+            <input type="checkbox" id="chatSound" checked>
+            <span>Suara pesan baru</span>
+          </label>
+          <button class="btn btn-outline" type="button" id="chatRefresh"><svg class="ico"><use href="#i-refresh"></use></svg>Muat ulang</button>
+        </div>
+      </div>
+
+      <div class="chat-shell">
+        <aside class="chat-list-pane">
+          <div class="chat-list-head">
+            <input id="chatSearch" placeholder="Cari nama atau email…">
+          </div>
+          <div class="chat-list" id="chatList"></div>
+        </aside>
+
+        <section class="chat-thread-pane" id="chatThread" data-empty="true">
+          <div class="chat-thread-empty" id="chatThreadEmpty">
+            <svg class="ico"><use href="#i-message"></use></svg>
+            <b>Pilih percakapan</b>
+            <span>Pesan baru dari Marketplace muncul di daftar kiri secara otomatis.</span>
+          </div>
+
+          <div class="chat-thread-inner" id="chatThreadInner" hidden>
+            <header class="chat-thread-head">
+              <span class="chat-avatar" id="chatPeerAvatar">··</span>
+              <div class="chat-thread-who">
+                <b id="chatPeerName">—</b>
+                <small id="chatPeerMeta">—</small>
+              </div>
+              <span class="pill" id="chatExpiry"></span>
+            </header>
+
+            <div class="chat-log" id="chatLog"></div>
+
+            <footer class="chat-composer">
+              <div class="chat-note" id="chatNote" hidden></div>
+              <div class="chat-composer-row">
+                <button class="btn-icon" type="button" id="chatEmojiBtn" title="Emoji">🙂</button>
+                <button class="btn-icon" type="button" id="chatAttachBtn" title="Kirim foto"><svg class="ico ico-sm"><use href="#i-image"></use></svg></button>
+                <textarea id="chatInput" rows="1" placeholder="Tulis balasan…" maxlength="2000"></textarea>
+                <button class="btn btn-primary btn-sm" type="button" id="chatSend">Kirim</button>
+              </div>
+              <div class="chat-emoji" id="chatEmoji" hidden></div>
+              <input type="file" id="chatFile" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+            </footer>
+          </div>
+        </section>
+      </div>
+    </section>
+
     <section id="content" class="page">
       <div class="page-head">
         <div class="page-head-text">
@@ -1082,6 +1144,7 @@
           <button class="split-tab" type="button" data-tab="resend"><svg class="ico"><use href="#i-mail"></use></svg><span>Resend</span></button>
           <button class="split-tab" type="button" data-tab="r2"><svg class="ico"><use href="#i-cloud"></use></svg><span>Cloudflare R2</span></button>
           <div class="split-nav-label">Pesan</div>
+          <button class="split-tab" type="button" data-tab="livechat"><svg class="ico"><use href="#i-message"></use></svg><span>Live Chat</span></button>
           <button class="split-tab" type="button" data-tab="notif"><svg class="ico"><use href="#i-bell"></use></svg><span>Notifikasi</span></button>
           <button class="split-tab" type="button" data-tab="templates"><svg class="ico"><use href="#i-list"></use></svg><span>Template</span></button>
         </nav>
@@ -1200,6 +1263,35 @@
           </div>
 
           <!-- notif -->
+          <!-- live chat -->
+          <div class="pane" id="tab-livechat">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-head-text"><h3>Notifikasi Live Chat ke Discord</h3><p>Setiap pesan baru dari customer dikirim sebagai DM ke akun Discord admin.</p></div>
+                <span id="lcStatePill"></span>
+              </div>
+              <div class="panel-body">
+                <div class="toggle-row">
+                  <div class="toggle-row-text"><b>Kirim DM Discord</b><small>Mematikan ini tidak memengaruhi Live Chat itu sendiri — pesan tetap masuk ke halaman Live Chat.</small></div>
+                  <label class="switch"><input type="checkbox" id="lcEnabled"><i></i></label>
+                </div>
+                <div class="form-grid" style="margin-top:var(--s5)">
+                  <label class="field"><span>Discord User ID admin</span><input id="lcUserId" inputmode="numeric" placeholder="Contoh: 123456789012345678"><span class="hint">Discord &gt; Settings &gt; Advanced &gt; Developer Mode, lalu klik kanan nama kamu &gt; Copy User ID.</span></label>
+                  <label class="field"><span>Status bot</span><input id="lcBotStatus" disabled><span class="hint">Token bot disimpan di Railway ENV, tidak pernah di database.</span></label>
+                </div>
+                <div class="notice" style="margin-top:var(--s5)">
+                  <svg class="ico ico-sm"><use href="#i-info"></use></svg>
+                  <div><b>Syarat DM</b>Discord tidak bisa mengirim DM lewat webhook channel, jadi <code>DISCORD_BOT_TOKEN</code> wajib terisi. Admin juga harus satu server dengan bot dan mengizinkan direct message dari anggota server.</div>
+                </div>
+                <div class="notice" id="lcTestResult" hidden><svg class="ico ico-sm"><use href="#i-info"></use></svg><div id="lcTestText"></div></div>
+              </div>
+              <div class="panel-foot split">
+                <button class="btn btn-outline" type="button" id="lcTest"><svg class="ico"><use href="#i-play"></use></svg>Test DM</button>
+                <button class="btn btn-primary" type="button" id="lcSave">Simpan Live Chat</button>
+              </div>
+            </div>
+          </div>
+
           <div class="pane" id="tab-notif">
             <div class="panel">
               <div class="panel-head"><div class="panel-head-text"><h3>Kanal pengiriman</h3><p>Saklar utama untuk seluruh notifikasi keluar.</p></div></div>

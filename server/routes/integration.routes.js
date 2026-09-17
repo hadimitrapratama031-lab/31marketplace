@@ -27,6 +27,12 @@ router.get("/notifications/deliverability", ctrl.auditDeliverability);
 router.get("/discord/status", ctrl.getDiscordStatus);
 router.post("/discord/test", ctrl.testDiscord);
 
+// Notifikasi Live Chat: saklar + Discord User ID admin. Token bot TIDAK punya
+// endpoint simpan di sini dengan sengaja — tempatnya tetap di Railway ENV.
+router.get("/livechat", ctrl.getLiveChat);
+router.put("/livechat", requireRole("superadmin", "admin"), ctrl.updateLiveChat);
+router.post("/livechat/test", ctrl.testLiveChat);
+
 router.put("/notifications", ctrl.updateNotifications);
 router.get("/notifications/logs", ctrl.listNotificationLogs);
 router.get("/notifications/preview", ctrl.previewNotificationTemplates);

@@ -11,6 +11,7 @@ const { emitEvent } = require("../services/socket.service");
 const { resolveAssetUrl } = require("../utils/assetUrl");
 const klikqris = require("../services/klikqris.service");
 const notificationService = require("../services/notification.service");
+const orderFeed = require("../services/orderFeed.service");
 const logger = require("../utils/logger");
 
 // PUBLIC — Customer checkout.
@@ -163,6 +164,15 @@ const getByOrderCode = asyncHandler(async (req, res) => {
         : null,
     },
   });
+});
+
+// PUBLIC — bahan tampilan pertama Floating Order Success di Marketplace.
+// Hanya order yang pembayarannya benar-benar SUCCESS, dan sudah dipangkas oleh
+// orderFeed.toPublicOrder(): tanpa email, nomor WhatsApp, atau kode order.
+// Setelah muat pertama, kartu berikutnya datang lewat Socket.IO, bukan polling.
+const recentSuccess = asyncHandler(async (req, res) => {
+  const orders = await orderFeed.recentSuccessfulOrders({ limit: req.query.limit, withinHours: 72 });
+  res.json({ status: true, data: orders });
 });
 
 // ADMIN — full order list with filters, real data from MongoDB.
@@ -371,4 +381,13 @@ const getPublicDetail = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { createOrder, getByOrderCode, lookupByEmail, getPublicDetail, listAdmin, summaryAdmin, getAdminById };
+module.exports = {
+  createOrder,
+  getByOrderCode,
+  lookupByEmail,
+  getPublicDetail,
+  recentSuccess,
+  listAdmin,
+  summaryAdmin,
+  getAdminById,
+};

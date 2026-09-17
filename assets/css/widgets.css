@@ -1,0 +1,735 @@
+/* ============================================================================
+   31 Store — Floating Order Success + Live Chat
+   Memakai token design system yang sudah ada di style.css (--violet, --paper-2,
+   --edge, --r-*, --display, --ui). Tidak ada palet baru dan tidak ada font
+   baru: dua panel ini harus terbaca sebagai bagian dari toko, bukan widget
+   pihak ketiga yang ditempel.
+
+     A  token & posisi
+     B  floating order (kiri bawah)
+     C  tombol live chat (kanan bawah)
+     D  panel live chat
+     E  gelembung pesan
+     F  composer
+     G  responsive & reduced motion
+   ========================================================================= */
+
+/* --------------------------------------------------------- A token & posisi */
+:root {
+  /* Lebih ringan dari --lift-strong: floater ini kertas yang mengapung, bukan
+     modal yang memblokir halaman. */
+  --w-lift: 0 10px 30px rgba(63, 32, 132, 0.12), 0 2px 6px rgba(63, 32, 132, 0.06);
+  --w-lift-panel: 0 24px 60px rgba(63, 32, 132, 0.18), 0 2px 8px rgba(63, 32, 132, 0.07);
+  --w-gap: 20px;
+  --w-safe: env(safe-area-inset-bottom, 0px);
+}
+
+.mp-float {
+  position: fixed;
+  bottom: calc(var(--w-gap) + var(--w-safe));
+  z-index: 260; /* di bawah .toast-stack (300) — toast sistem tetap menang */
+}
+
+.mp-float-order {
+  left: var(--w-gap);
+  width: 312px;
+  max-width: calc(100vw - 32px);
+}
+
+.mp-float-chat {
+  right: var(--w-gap);
+}
+
+/* ------------------------------------------------------- B floating order */
+.mp-order-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 12px;
+  padding: 12px 14px 14px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--edge);
+  background: var(--surface);
+  box-shadow: var(--w-lift);
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  animation: mp-order-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mp-order-card.is-out {
+  animation: mp-order-out 0.2s ease forwards;
+}
+
+.mp-order-media {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--media-bg);
+  display: grid;
+  place-items: center;
+  font: 600 13px/1 var(--display);
+  color: var(--media-ink);
+}
+
+.mp-order-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.mp-order-body {
+  min-width: 0;
+}
+
+.mp-order-line {
+  font: 400 13px/1.45 var(--ui);
+  color: var(--text-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mp-order-line b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.mp-order-price {
+  margin-top: 4px;
+  font: 700 15px/1.2 var(--display);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.mp-order-meta {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 500 11.5px/1 var(--ui);
+  color: var(--text-mute);
+}
+
+.mp-order-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+}
+
+.mp-order-time {
+  margin-left: auto;
+}
+
+/* Garis rambut penghitung mundur auto-hide: memberi tahu kartu akan pergi
+   sendiri, tanpa label tambahan yang menambah bacaan. */
+.mp-order-rail {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--violet);
+  transform-origin: left center;
+  animation: mp-rail var(--mp-hold, 6500ms) linear forwards;
+}
+
+.mp-order-card:hover .mp-order-rail,
+.mp-order-card:focus-visible .mp-order-rail {
+  animation-play-state: paused;
+}
+
+.mp-order-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-mute);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.mp-order-card:hover .mp-order-close,
+.mp-order-close:focus-visible {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------- C tombol live chat */
+/* Putih dengan glyph violet, bukan bola violet menyala: tombol primer situs
+   ini sudah violet, dua-duanya violet akan berebut perhatian dengan CTA hero. */
+.mp-chat-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 1px solid var(--edge-strong);
+  background: var(--surface);
+  color: var(--violet);
+  box-shadow: var(--w-lift);
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease;
+}
+
+.mp-chat-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--lift);
+}
+
+.mp-chat-btn:focus-visible {
+  outline: 2px solid var(--violet);
+  outline-offset: 3px;
+}
+
+.mp-chat-btn svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mp-chat-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--violet);
+  color: #fff;
+  font: 700 11px/20px var(--ui);
+  text-align: center;
+  border: 2px solid var(--surface);
+}
+
+.mp-chat-badge[hidden] {
+  display: none;
+}
+
+/* ------------------------------------------------------- D panel live chat */
+.mp-chat-panel {
+  position: absolute;
+  right: 0;
+  bottom: 66px;
+  width: 368px;
+  max-width: calc(100vw - 32px);
+  height: 540px;
+  max-height: calc(100vh - 140px);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-xl);
+  border: 1px solid var(--edge);
+  background: var(--surface);
+  box-shadow: var(--w-lift-panel);
+  overflow: hidden;
+  transform-origin: bottom right;
+  animation: mp-panel-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mp-chat-panel[hidden] {
+  display: none;
+}
+
+.mp-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 14px 14px 13px 16px;
+  border-bottom: 1px solid var(--edge);
+  background: var(--surface);
+}
+
+.mp-chat-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: var(--violet-pale);
+  color: var(--violet);
+  display: grid;
+  place-items: center;
+  font: 700 13px/1 var(--display);
+  overflow: hidden;
+  flex: none;
+}
+
+.mp-chat-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mp-chat-head-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.mp-chat-title {
+  font: 700 14.5px/1.3 var(--display);
+  color: var(--text);
+}
+
+.mp-chat-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 400 11.5px/1.4 var(--ui);
+  color: var(--text-mute);
+}
+
+.mp-chat-state i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+}
+
+.mp-chat-state[data-state="connecting"] i {
+  background: var(--amber);
+}
+
+.mp-chat-state[data-state="offline"] i {
+  background: var(--danger);
+}
+
+.mp-chat-x {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-mute);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mp-chat-x:hover {
+  background: var(--paper-2);
+  color: var(--text);
+}
+
+.mp-chat-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 14px;
+  background: var(--paper-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-behavior: smooth;
+}
+
+.mp-chat-empty,
+.mp-chat-loading {
+  margin: auto;
+  max-width: 250px;
+  text-align: center;
+  font: 400 13px/1.6 var(--ui);
+  color: var(--text-mute);
+}
+
+.mp-chat-empty b {
+  display: block;
+  margin-bottom: 4px;
+  font: 600 14px/1.4 var(--display);
+  color: var(--text);
+}
+
+.mp-chat-day {
+  align-self: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  font: 500 11px/1.5 var(--ui);
+  color: var(--text-mute);
+  margin: 4px 0;
+}
+
+/* ---------------------------------------------------- E gelembung pesan */
+.mp-msg {
+  max-width: 78%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.mp-msg.is-me {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.mp-msg.is-them {
+  align-self: flex-start;
+}
+
+.mp-bubble {
+  padding: 9px 13px;
+  border-radius: 18px;
+  font: 400 13.5px/1.55 var(--ui);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mp-msg.is-them .mp-bubble {
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  color: var(--text);
+  border-bottom-left-radius: 6px;
+}
+
+.mp-msg.is-me .mp-bubble {
+  background: var(--violet);
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+
+.mp-msg-photo {
+  display: block;
+  max-width: 220px;
+  border-radius: 14px;
+  border: 1px solid var(--edge);
+  background: var(--media-bg);
+  cursor: zoom-in;
+}
+
+.mp-msg-time {
+  font: 400 10.5px/1 var(--ui);
+  color: var(--text-mute);
+  padding: 0 4px;
+}
+
+.mp-msg.is-sending {
+  opacity: 0.55;
+}
+
+.mp-msg.is-failed .mp-bubble {
+  background: var(--danger-wash);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+/* --------------------------------------------------------- F composer */
+.mp-chat-foot {
+  border-top: 1px solid var(--edge);
+  background: var(--surface);
+  padding: 10px 12px calc(10px + var(--w-safe));
+}
+
+.mp-chat-note {
+  font: 400 11.5px/1.5 var(--ui);
+  color: var(--text-mute);
+  padding: 0 2px 6px;
+}
+
+.mp-chat-note.is-error {
+  color: var(--danger);
+}
+
+.mp-chat-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.mp-chat-tool {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+}
+
+.mp-chat-tool:hover {
+  background: var(--paper-2);
+  color: var(--violet);
+}
+
+.mp-chat-tool svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mp-chat-input {
+  flex: 1;
+  min-height: 34px;
+  max-height: 96px;
+  padding: 8px 12px;
+  border: 1px solid var(--edge);
+  border-radius: 17px;
+  background: var(--paper-2);
+  font: 400 13.5px/1.4 var(--ui);
+  color: var(--text);
+  resize: none;
+}
+
+.mp-chat-input:focus {
+  outline: none;
+  border-color: var(--violet);
+  background: var(--surface);
+}
+
+.mp-chat-send {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: var(--violet);
+  color: #fff;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.mp-chat-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mp-chat-send svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* pemilih emoji — daftar kecil, bukan pustaka pihak ketiga */
+.mp-emoji {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 62px;
+  padding: 8px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--edge);
+  background: var(--surface);
+  box-shadow: var(--lift);
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+}
+
+.mp-emoji[hidden] {
+  display: none;
+}
+
+.mp-emoji button {
+  border: 0;
+  background: transparent;
+  font-size: 19px;
+  line-height: 1;
+  padding: 5px 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.mp-emoji button:hover {
+  background: var(--paper-2);
+}
+
+/* progres upload */
+.mp-upload {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px 8px;
+  font: 400 11.5px/1.4 var(--ui);
+  color: var(--text-mute);
+}
+
+.mp-upload[hidden] {
+  display: none;
+}
+
+.mp-upload-bar {
+  flex: 1;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--violet-wash);
+  overflow: hidden;
+}
+
+.mp-upload-bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--violet);
+  transition: width 0.2s ease;
+}
+
+/* formulir pembuka */
+.mp-chat-start {
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mp-chat-start p {
+  margin: 0;
+  font: 400 13px/1.6 var(--ui);
+  color: var(--text-dim);
+}
+
+.mp-chat-start input {
+  padding: 10px 12px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font: 400 13.5px/1.4 var(--ui);
+  color: var(--text);
+}
+
+.mp-chat-start input:focus {
+  outline: none;
+  border-color: var(--violet);
+}
+
+.mp-chat-start button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--violet);
+  color: #fff;
+  font: 600 13.5px/1.4 var(--ui);
+  cursor: pointer;
+}
+
+/* lightbox foto */
+.mp-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(23, 18, 42, 0.78);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.mp-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--r-md);
+}
+
+/* ------------------------------------------------ G responsive & motion */
+@keyframes mp-order-in {
+  from {
+    opacity: 0;
+    transform: translateX(-16px) scale(0.98);
+  }
+}
+
+@keyframes mp-order-out {
+  to {
+    opacity: 0;
+    transform: translateX(-12px) scale(0.98);
+  }
+}
+
+@keyframes mp-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
+@keyframes mp-rail {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --w-gap: 14px;
+  }
+
+  /* Di layar kecil kartu order tidak boleh menutupi konten: lebarnya disisakan
+     untuk tombol chat, dan tingginya tetap satu kartu. */
+  .mp-float-order {
+    width: calc(100vw - 92px);
+    max-width: 320px;
+  }
+
+  .mp-order-card {
+    grid-template-columns: 38px 1fr;
+    padding: 10px 12px 12px;
+  }
+
+  .mp-order-media {
+    width: 38px;
+    height: 38px;
+  }
+
+  .mp-chat-panel {
+    position: fixed;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    border: 0;
+  }
+
+  /* Panel penuh layar: kartu order disembunyikan supaya tidak menumpuk. */
+  body.mp-chat-open .mp-float-order {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-order-card,
+  .mp-chat-panel {
+    animation: none;
+  }
+
+  .mp-order-rail {
+    animation: none;
+    transform: scaleX(0);
+  }
+
+  .mp-chat-btn {
+    transition: none;
+  }
+
+  .mp-chat-log {
+    scroll-behavior: auto;
+  }
+}
