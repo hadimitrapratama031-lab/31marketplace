@@ -231,4 +231,16 @@ async function testConnection() {
   }
 }
 
-module.exports = { createTransaction, checkStatus, testConnection };
+/**
+ * Mode KlikQRIS yang BENAR-BENAR dipakai request berikutnya — hasil resolusi
+ * yang sama persis dengan yang menentukan baseUrl (Admin Web > ENV > default
+ * production). Dipakai order.controller untuk membekukan Transaction.environment,
+ * sehingga laporan keuntungan bisa membedakan transaksi sandbox dari produksi
+ * tanpa menebak-nebak dari order_id.
+ */
+async function getMode() {
+  const cfg = await getKlikQrisConfig();
+  return cfg.mode === "sandbox" ? "sandbox" : "production";
+}
+
+module.exports = { createTransaction, checkStatus, testConnection, getMode };

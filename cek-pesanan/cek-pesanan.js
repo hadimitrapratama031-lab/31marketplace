@@ -1,15 +1,19 @@
 /* ============================================================================
    31 Store — Cek Pesanan.
 
-   Pencarian sekarang memakai EMAIL, bukan kode order. MongoDB adalah satu-
-   satunya sumber kebenaran: halaman ini tidak membaca LocalStorage sama sekali
-   untuk menentukan pesanan siapa yang boleh tampil — email yang diketik
-   dikirim ke backend, dan backend yang mencocokkannya.
+   Satu kolom pencarian yang menerima ORDER ID maupun EMAIL. Ini memperbaiki
+   akar masalah halaman ini: sebelumnya kolomnya bertipe email dan divalidasi
+   sebagai email, sementara yang dipegang pembeli setelah checkout justru Order
+   ID — sehingga menempelkannya di sini selalu berakhir "Format email tidak
+   valid", dan endpoint publik yang bisa mencari lewat Order ID tidak pernah
+   dipanggil dari halaman ini.
+
+   MongoDB tetap satu-satunya sumber kebenaran: tidak ada LocalStorage, tidak
+   ada data dummy. Semua status yang tampil berasal dari POST /api/orders/search.
 
    Realtime memakai Socket.IO yang sudah ada lewat MP.on(): tidak ada koneksi
    atau sistem realtime kedua. Saat order:updated / payment:updated datang,
-   tampilan yang sedang terbuka dibaca ulang dari backend supaya statusnya
-   selalu berasal dari database, bukan dari tebakan di sisi klien.
+   tampilan yang sedang terbuka dibaca ulang dari backend.
    ========================================================================= */
 (function () {
   "use strict";
@@ -18,16 +22,22 @@
     return document.getElementById(id);
   };
 
-  // Email yang sedang ditampilkan, dan (kalau sedang membuka detail) kode
-  // ordernya. Keduanya hanya ada di memori halaman ini.
-  var currentEmail = null;
-  var currentOrderCode = null;
+  // Pencarian terakhir yang berhasil, supaya refresh realtime bisa mengulanginya
+  // persis. Hanya ada di memori halaman ini.
+  var currentQuery = null; // { query, email }
+  var currentMode = null; // "email" | "order"
+  var currentEmail = null; // email pemilik, kalau memang sudah terbukti
+  var currentOrderCode = null; // kode order yang sedang dibuka detailnya
 
   var DONE = ["PAID", "SUCCESS", "COMPLETED"];
   var BAD = ["FAILED", "EXPIRED", "CANCELLED"];
 
   function normalizeEmail(value) {
     return String(value || "").trim().toLowerCase();
+  }
+
+  function isPaid(order) {
+    return DONE.indexOf(order.paymentStatus) !== -1 || DONE.indexOf(order.status) !== -1;
   }
 
   function pill(status) {
@@ -53,6 +63,59 @@
     note.textContent = message || "";
   }
 
+  /* --------------------------------------------------------- kontak admin */
+
+  // Tombol WhatsApp & Discord memakai konfigurasi kontak yang SAMA dengan
+  // homepage dan halaman Order Success (WebsiteSettings.contact lewat
+  // MP.contactChannels) — nomor, URL, dan logonya berasal dari Admin Web,
+  // tidak ada satu pun yang di-hardcode di sini. Kalau admin belum mengunggah
+  // logo, badge teks dipakai sebagai fallback, bukan aset acak dari internet.
+  function channelGlyph(iconUrl, fallbackText) {
+    return iconUrl
+      ? '<i><img src="' + MP.escapeHTML(iconUrl) + '" alt=""></i>'
+      : "<i>" + fallbackText + "</i>";
+  }
+
+  function contactHTML() {
+    var channels = MP.contactChannels(MP.getSettings());
+    var buttons = "";
+
+    if (channels.whatsapp.href) {
+      buttons +=
+        '<a class="order-contact-btn is-wa" href="' +
+        MP.escapeHTML(channels.whatsapp.href) +
+        '" target="_blank" rel="noopener">' +
+        channelGlyph(channels.whatsapp.icon, "WA") +
+        "Hubungi Admin</a>";
+    }
+    if (channels.discord.href) {
+      buttons +=
+        '<a class="order-contact-btn is-discord" href="' +
+        MP.escapeHTML(channels.discord.href) +
+        '" target="_blank" rel="noopener">' +
+        channelGlyph(channels.discord.icon, "DC") +
+        "Discord</a>";
+    }
+    if (!buttons) return "";
+
+    return (
+      '<div class="order-contact" id="order-contact">' +
+      "<h4>Butuh bantuan dengan pesanan ini?</h4>" +
+      "<p>Sebutkan Order ID kamu supaya admin bisa langsung mengeceknya.</p>" +
+      '<div class="order-contact-row">' +
+      buttons +
+      "</div></div>"
+    );
+  }
+
+  // Dipanggil ulang saat pengaturan kontak berubah dari Admin Web (Socket.IO).
+  // Hanya menyentuh blok kontaknya, jadi detail pesanan yang sedang dibaca
+  // tidak ikut dirender ulang.
+  function refreshContact() {
+    var host = $("order-contact-host");
+    if (host) host.innerHTML = contactHTML();
+  }
+
   /* ------------------------------------------------------------- daftar */
 
   function renderList(payload) {
@@ -63,7 +126,7 @@
         '<div class="panel order-card">' +
         "<h3>Belum ada pesanan untuk email ini</h3>" +
         '<p class="muted" style="margin-top:8px">Pastikan email yang kamu masukkan sama persis dengan yang dipakai saat checkout. ' +
-        'Kalau kamu memakai email lain, coba email tersebut.</p>' +
+        "Kalau kamu memakai email lain, coba email tersebut, atau cari dengan Order ID.</p>" +
         "</div>";
       return;
     }
@@ -98,7 +161,7 @@
   /* ------------------------------------------------------------- detail */
 
   function stepState(order) {
-    var paid = DONE.indexOf(order.paymentStatus) !== -1 || DONE.indexOf(order.status) !== -1;
+    var paid = isPaid(order);
     var stopped = BAD.indexOf(order.paymentStatus) !== -1 || BAD.indexOf(order.status) !== -1;
     var finished = order.status === "COMPLETED";
 
@@ -127,13 +190,14 @@
     return '<div class="kv"><span>' + MP.escapeHTML(label) + "</span><strong>" + MP.escapeHTML(String(value)) + "</strong></div>";
   }
 
-  function renderDetail(order) {
+  function renderDetail(order, showBack) {
     var steps = stepState(order)
       .map(function (s) {
         return '<div class="step ' + s.state + '"><i></i><b>' + s.label + "</b><span>" + s.note + "</span></div>";
       })
       .join("");
 
+    // Blok pembayaran hanya untuk order yang MASIH menunggu pembayaran.
     var payment = "";
     if (order.paymentStatus === "PENDING" && (order.qrisUrl || order.payUrl)) {
       payment =
@@ -147,12 +211,19 @@
         "</div>";
     }
 
+    // Tombol kontak HANYA untuk order yang sudah SUCCESS/PAID/COMPLETED, dan
+    // sengaja dipisahkan dari blok pembayaran di atas supaya tidak pernah
+    // terbaca sebagai tombol bayar.
+    var contact = isPaid(order) ? '<div id="order-contact-host">' + contactHTML() + "</div>" : "";
+
     var media = order.product && order.product.image
       ? '<img src="' + MP.escapeHTML(order.product.image) + '" alt="' + MP.escapeHTML(order.product.name) + '" style="width:100%;max-width:200px;border-radius:12px;display:block;margin-bottom:18px" loading="lazy" decoding="async">'
       : "";
 
     $("result").innerHTML =
-      '<button class="btn btn-ghost btn-sm order-back" type="button" id="order-back">Kembali ke daftar pesanan</button>' +
+      (showBack
+        ? '<button class="btn btn-ghost btn-sm order-back" type="button" id="order-back">Kembali ke daftar pesanan</button>'
+        : "") +
       '<div class="panel order-card">' +
       '<div class="order-top"><span class="order-code">' +
       MP.escapeHTML(order.orderCode) +
@@ -166,16 +237,23 @@
       media +
       kv("Produk", order.quantity > 1 ? order.product.name + " ×" + order.quantity : order.product.name) +
       kv("Order ID", order.orderCode) +
+      kv("Nama pembeli", order.customerName) +
       kv("Email pemesan", order.customerEmail) +
       kv("Harga satuan", MP.formatIDR(order.price)) +
       kv("Total", MP.formatIDR(order.total)) +
       kv("Metode pembayaran", order.paymentMethod) +
       kv("Status", MP.STATUS_LABEL[order.status] || order.status) +
-      kv("Dibuat", MP.formatDate(order.createdAt)) +
+      kv("Tanggal order", MP.formatDate(order.createdAt)) +
       (order.paidAt ? kv("Dibayar", MP.formatDate(order.paidAt)) : "") +
       (order.expiredAt ? kv("Kedaluwarsa", MP.formatDate(order.expiredAt)) : "") +
       "</div>" +
+      // Email disamarkan kalau pesanan dibuka hanya dengan Order ID. Yang
+      // ditampilkan di sini menjelaskan caranya membuka versi lengkapnya.
+      (order.emailMasked
+        ? '<p class="muted" style="font-size:12.5px;margin-top:14px">Email disamarkan. Isi juga kolom email di atas untuk melihatnya lengkap.</p>'
+        : "") +
       payment +
+      contact +
       "</div>";
   }
 
@@ -183,7 +261,7 @@
 
   // `silent` dipakai oleh refresh realtime: kalau gagal, tampilan terakhir yang
   // masih benar dibiarkan berdiri daripada diganti pesan error yang mengagetkan.
-  async function loadList(email, silent) {
+  async function runSearch(params, silent) {
     var btn = $("track-submit");
     if (!silent) {
       setNote("Mencari pesanan…");
@@ -192,17 +270,29 @@
     }
 
     try {
-      var res = await MP.post("/orders/lookup", { email: email });
-      currentEmail = email;
-      currentOrderCode = null;
+      var res = await MP.post("/orders/search", params);
+      var data = res.data;
+
+      currentQuery = params;
+      currentMode = data.mode;
+
+      if (data.mode === "email") {
+        currentEmail = data.email;
+        currentOrderCode = null;
+        renderList(data);
+      } else {
+        // Detail langsung: tidak ada daftar di belakangnya, jadi tidak ada
+        // tombol "kembali ke daftar" yang mengarah ke halaman kosong.
+        currentOrderCode = data.order.orderCode;
+        if (!data.order.emailMasked) currentEmail = data.order.customerEmail;
+        renderDetail(data.order, false);
+      }
+
       if (!silent) setNote("");
-      renderList(res.data);
     } catch (err) {
       if (silent) return;
-      currentEmail = null;
-      currentOrderCode = null;
       $("result").innerHTML = "";
-      setNote(err.message || "Pesanan tidak ditemukan untuk email tersebut.", true);
+      setNote(err.message || "Pesanan tidak ditemukan.", true);
     } finally {
       if (!silent) {
         btn.disabled = false;
@@ -211,18 +301,18 @@
     }
   }
 
+  // Membuka satu pesanan dari daftar hasil pencarian email. Emailnya ikut
+  // dikirim, jadi backend hanya membalas kalau order itu memang miliknya —
+  // dan email pemesan boleh ditampilkan lengkap.
   async function loadDetail(orderCode, silent) {
     if (!currentEmail) return;
     if (!silent) setNote("Membuka detail pesanan…");
 
     try {
-      // Email ikut dikirim: backend hanya membalas kalau order itu memang milik
-      // email tersebut, jadi kode order yang ditebak tidak membuka pesanan
-      // orang lain.
-      var res = await MP.post("/orders/detail", { email: currentEmail, orderCode: orderCode });
+      var res = await MP.post("/orders/search", { query: orderCode, email: currentEmail });
       currentOrderCode = orderCode;
       if (!silent) setNote("");
-      renderDetail(res.data);
+      renderDetail(res.data.order, true);
     } catch (err) {
       if (silent) return;
       setNote(err.message || "Detail pesanan tidak bisa dibuka.", true);
@@ -232,12 +322,16 @@
   document.addEventListener("DOMContentLoaded", function () {
     $("track-form").addEventListener("submit", function (e) {
       e.preventDefault();
+      var query = String($("order-query").value || "").trim();
       var email = normalizeEmail($("order-email").value);
-      if (!email) {
-        setNote("Masukkan email yang kamu pakai saat checkout.", true);
+
+      if (!query && !email) {
+        setNote("Masukkan Order ID atau email yang kamu pakai saat checkout.", true);
         return;
       }
-      loadList(email, false);
+      // Kolom email saja sudah cukup: pencarian tetap jalan walau kolom utama
+      // dibiarkan kosong.
+      runSearch({ query: query || email, email: email }, false);
     });
 
     // Satu listener untuk seluruh area hasil: daftar boleh dirender ulang
@@ -245,39 +339,49 @@
     $("result").addEventListener("click", function (e) {
       var row = e.target.closest("[data-order]");
       if (row) return loadDetail(row.dataset.order, false);
-      if (e.target.closest("#order-back") && currentEmail) return loadList(currentEmail, false);
+      if (e.target.closest("#order-back") && currentEmail) {
+        currentOrderCode = null;
+        return runSearch({ query: currentEmail }, false);
+      }
     });
 
     // Realtime lewat Socket.IO existing. Yang dibaca ulang adalah tampilan yang
     // sedang terbuka — detail kalau sedang membuka detail, daftar kalau tidak.
     var refresh = MP.debounce(function (payload) {
-      if (!currentEmail) return;
+      if (!currentQuery) return;
       if (currentOrderCode) {
         if (payload && payload.orderCode && payload.orderCode !== currentOrderCode) {
-          // Order lain berubah: daftarnya tetap perlu ikut segar nanti, tapi
-          // detail yang sedang dibaca tidak boleh tiba-tiba berganti isi.
+          // Order lain berubah: detail yang sedang dibaca tidak boleh
+          // tiba-tiba berganti isi.
           return;
         }
-        return loadDetail(currentOrderCode, true);
+        if (currentMode === "email") return loadDetail(currentOrderCode, true);
+        return runSearch(currentQuery, true);
       }
-      loadList(currentEmail, true);
+      runSearch(currentQuery, true);
     }, 250);
 
     MP.on(["order:updated", "payment:updated"], refresh);
     MP.onReconnect(function () {
-      if (!currentEmail) return;
-      if (currentOrderCode) loadDetail(currentOrderCode, true);
-      else loadList(currentEmail, true);
+      if (!currentQuery) return;
+      if (currentOrderCode && currentMode === "email") return loadDetail(currentOrderCode, true);
+      runSearch(currentQuery, true);
     });
 
-    // Link dari halaman sukses / email boleh membawa emailnya, supaya pembeli
-    // tidak perlu mengetik ulang. Kode order saja tidak lagi cukup untuk
-    // membuka pesanan — kepemilikannya tetap harus dibuktikan lewat email.
+    // Kontak admin bisa diubah kapan saja dari Admin Web; blok tombolnya ikut
+    // segar tanpa perlu memuat ulang halaman.
+    MP.onSettings(refreshContact);
+
+    // Link dari halaman sukses / email boleh membawa email atau Order ID,
+    // supaya pembeli tidak perlu mengetik ulang.
     var params = new URLSearchParams(window.location.search);
     var presetEmail = normalizeEmail(params.get("email"));
-    if (presetEmail) {
-      $("order-email").value = presetEmail;
-      loadList(presetEmail, false);
+    var presetOrder = String(params.get("order") || "").trim();
+
+    if (presetEmail) $("order-email").value = presetEmail;
+    if (presetOrder || presetEmail) {
+      $("order-query").value = presetOrder || presetEmail;
+      runSearch({ query: presetOrder || presetEmail, email: presetEmail }, false);
     }
   });
 })();

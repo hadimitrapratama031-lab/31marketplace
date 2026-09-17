@@ -2304,10 +2304,121 @@ h3.display {
   }
 }
 
-/* Kolom pencarian sekarang berisi email, bukan kode order: huruf kapital
-   paksa dan jarak huruf lebar dari .track-form .input tidak cocok di sini. */
+/* Kolom pencarian menerima Order ID MAUPUN email. Huruf kapital paksa dan
+   jarak huruf lebar dari .track-form .input akan merusak alamat email, jadi
+   dikembalikan ke normal — Order ID tetap dicocokkan case-insensitive di
+   backend, jadi tidak ada yang hilang dengan menampilkannya apa adanya. */
+.track-form #order-query,
 .track-form #order-email {
   text-transform: none;
   letter-spacing: normal;
   font-family: inherit;
+}
+
+.track-form .track-field {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.track-form .track-field .input {
+  flex: none;
+  width: 100%;
+}
+
+.track-hint {
+  color: var(--text-mute);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* Tombol kontak admin pada detail pesanan yang sudah dibayar. Bentuknya
+   sengaja sama dengan .admin-btn di flow.css (halaman Order Success) supaya
+   pembeli mengenali tombol yang sama, tapi kelasnya terpisah: halaman ini
+   tidak memuat flow.css, dan memuatnya hanya demi dua tombol akan menarik
+   seluruh layout alur checkout ikut masuk. */
+.order-contact {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--edge);
+}
+
+.order-contact h4 {
+  font-family: var(--display);
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.order-contact p {
+  color: var(--text-mute);
+  font-size: 13px;
+  margin: 0 0 14px;
+}
+
+.order-contact-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.order-contact-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--edge-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+.order-contact-btn:hover,
+.order-contact-btn:focus-visible {
+  border-color: var(--violet);
+  background: var(--violet-wash);
+  transform: translateY(-1px);
+}
+
+.order-contact-btn i {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  flex: none;
+  overflow: hidden;
+}
+
+.order-contact-btn i img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.order-contact-btn.is-wa i {
+  background: var(--ok-wash);
+  color: var(--ok);
+}
+
+.order-contact-btn.is-discord i {
+  background: var(--violet-pale);
+  color: var(--violet-deep);
+}
+
+@media (max-width: 560px) {
+  .order-contact-row {
+    flex-direction: column;
+  }
+
+  .order-contact-btn {
+    justify-content: center;
+  }
 }

@@ -3837,3 +3837,38 @@ td.empty-cell {
     min-height: 460px;
   }
 }
+
+/* ------------------------------------------------ aksi destruktif & profit */
+/* Tombol reset harus TERLIHAT (brief #10) tapi tidak boleh menyaingi aksi
+   utama halaman: outline merah, bukan bidang merah penuh. Warna penuh hanya
+   dipakai tombol konfirmasi di dalam modal, saat admin sudah membaca
+   konsekuensinya. */
+.btn-danger-ghost {
+  color: var(--danger);
+  border-color: var(--danger-line);
+}
+.btn-danger-ghost:hover:not(:disabled) {
+  color: var(--danger-hover);
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+/* Tombol hapus per baris: netral sampai disentuh, supaya tabel tidak penuh
+   titik merah yang menarik mata ke aksi paling berbahaya. */
+.btn-icon.is-danger:hover:not(:disabled) {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.muted-note {
+  color: var(--text-3);
+  font-size: var(--fs-12);
+}
+
+/* Angka yang memang belum bisa dibuktikan dari database ditulis sebagai teks,
+   bukan "Rp 0" — nol adalah klaim, dan klaim itu tidak ada datanya. */
+.stat-value.is-unavailable {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--text-3);
+}

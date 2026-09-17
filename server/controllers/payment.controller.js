@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const Transaction = require("../models/Transaction");
 const Product = require("../models/Product");
@@ -212,4 +213,75 @@ function startExpirySweeper(intervalMs = 5 * 60 * 1000) {
   return timer;
 }
 
-module.exports = { klikqrisWebhook, refreshStatus, sweepExpiredPayments, startExpirySweeper };
+/* --------------------------------------------- ADMIN: hapus & reset payment
+
+   ARAH RELASINYA SATU JALUR: Transaction.orderId -> Order.
+   Order sendiri tidak menyimpan referensi ke Transaction; halaman Cek Pesanan,
+   Order Success, dan detail admin semuanya mencari transaksi lewat
+   Transaction.findOne({ orderId }) dan sudah menangani hasil null (tampil
+   "Order ini belum punya transaksi pembayaran yang tercatat").
+
+   Jadi menghapus Payment TIDAK menghapus Order-nya: catatan penjualan dan
+   status pembayaran yang sudah final tetap ada di Order untuk audit — persis
+   aturan di brief #15 ("jika Delete Order harus mempertahankan Payment untuk
+   audit: pertahankan"), dibaca dari arah sebaliknya. Yang hilang hanya detail
+   gateway: QRIS, signature, nominal unik, dan payload webhook.
+
+   Konsekuensinya disebutkan di modal konfirmasi: order yang pembayarannya
+   dihapus tidak bisa lagi di-refresh statusnya lewat /payments/:orderCode/
+   refresh, karena jalur itu mencari berdasarkan transactionId.              */
+
+// ADMIN — DELETE /api/payments/admin/:id
+// Menerima _id Transaction ATAU _id Order, karena tabel Pembayaran di Admin
+// Web memang menampilkan satu baris per order. Tidak menerima nama collection,
+// filter, atau query apa pun dari frontend.
+const deletePaymentAdmin = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id)) throw new AppError("ID pembayaran tidak valid.", 400);
+
+  const transaction = (await Transaction.findById(id)) || (await Transaction.findOne({ orderId: id }));
+  if (!transaction) throw new AppError("Data pembayaran tidak ditemukan untuk baris ini.", 404);
+
+  const orderCode = transaction.transactionId;
+  await Transaction.deleteOne({ _id: transaction._id });
+
+  logger.warn("Data pembayaran dihapus permanen oleh admin", {
+    orderCode,
+    adminId: String(req.admin._id),
+    adminEmail: req.admin.email,
+  });
+
+  emitEvent("payment:deleted", { transactionId: String(transaction._id), orderId: String(transaction.orderId), orderCode });
+
+  res.json({ status: true, message: `Pembayaran ${orderCode} dihapus.`, data: { deleted: 1 } });
+});
+
+// ADMIN — DELETE /api/payments/admin/reset
+// Menghapus SELURUH dokumen Transaction, bukan hanya yang sedang tampil.
+const resetPaymentsAdmin = asyncHandler(async (req, res) => {
+  const result = await Transaction.deleteMany({});
+  const deleted = result.deletedCount || 0;
+
+  logger.warn("SELURUH data pembayaran direset oleh admin", {
+    adminId: String(req.admin._id),
+    adminEmail: req.admin.email,
+    deleted,
+  });
+
+  emitEvent("payments:reset", { deleted });
+
+  res.json({
+    status: true,
+    message: deleted ? `${deleted} data pembayaran dihapus.` : "Tidak ada data pembayaran untuk dihapus.",
+    data: { deleted },
+  });
+});
+
+module.exports = {
+  klikqrisWebhook,
+  refreshStatus,
+  sweepExpiredPayments,
+  startExpirySweeper,
+  deletePaymentAdmin,
+  resetPaymentsAdmin,
+};

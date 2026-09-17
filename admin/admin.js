@@ -22,6 +22,9 @@
     transactions: [],
     txPagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
     txStatus: "",
+    profit: null,
+    profitPager: { page: 1, limit: 25, total: 0, totalPages: 1 },
+    profitFilter: { month: null, year: null },
     summary: null,
     customers: [],
     customersPagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
@@ -502,6 +505,7 @@
     faq: { title: "FAQ", group: "Katalog" },
     orders: { title: "Pesanan", group: "Transaksi" },
     transactions: { title: "Pembayaran", group: "Transaksi" },
+    profit: { title: "Keuntungan Per Bulan", group: "Transaksi" },
     reviews: { title: "Rating", group: "Transaksi" },
     customers: { title: "Customer", group: "Transaksi" },
     livechat: { title: "Live Chat", group: "Transaksi" },
@@ -517,6 +521,7 @@
     faq: loadFaqs,
     orders: loadOrders,
     transactions: loadTransactions,
+    profit: loadProfit,
     reviews: loadRatings,
     customers: loadCustomers,
     livechat: loadLiveChat,
@@ -718,6 +723,14 @@
             o._id +
             '" title="Lihat detail" aria-label="Lihat detail">' +
             ico("eye", "ico-sm") +
+            '</button><button class="btn btn-icon btn-sm is-danger" type="button" data-delete-order="' +
+            o._id +
+            '" data-code="' +
+            esc(o.orderCode) +
+            '" title="Hapus pesanan" aria-label="Hapus pesanan ' +
+            esc(o.orderCode) +
+            '">' +
+            ico("trash", "ico-sm") +
             "</button></td></tr>"
         )
         .join("") || emptyRow(9, q ? "Tidak ada order yang cocok dengan pencarian." : "Belum ada pesanan.");
@@ -806,6 +819,14 @@
             o._id +
             '" title="Lihat detail transaksi" aria-label="Lihat detail transaksi">' +
             ico("eye", "ico-sm") +
+            '</button><button class="btn btn-icon btn-sm is-danger" type="button" data-delete-payment="' +
+            o._id +
+            '" data-code="' +
+            esc(o.orderCode) +
+            '" title="Hapus data pembayaran" aria-label="Hapus data pembayaran ' +
+            esc(o.orderCode) +
+            '">' +
+            ico("trash", "ico-sm") +
             "</button></td></tr>"
         )
         .join("") ||
@@ -815,6 +836,255 @@
       state.txPagination.page = page;
       loadTransactions().catch((err) => showToast(err.message, "error"));
     });
+  }
+
+  /* ------------------------------------------------- keuntungan per bulan */
+  /* Seluruh angka di halaman ini datang dari GET /orders/admin/profit — tidak
+     ada satu pun yang dijumlahkan di browser. Tabelnya dipotong 25 baris per
+     halaman, jadi menjumlahkan dari sisi frontend akan menghasilkan "total"
+     yang berubah setiap kali admin pindah halaman.
+
+     Mengganti bulan/tahun hanya mengubah query string. Tidak ada operasi tulis
+     atau hapus di jalur ini, jadi data bulan lain tidak pernah tersentuh dan
+     selalu bisa dibuka lagi. */
+  const MONTH_NAMES = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+  ];
+
+  function profitPeriod() {
+    const now = new Date();
+    if (!state.profitFilter.month) state.profitFilter.month = now.getMonth() + 1;
+    if (!state.profitFilter.year) state.profitFilter.year = now.getFullYear();
+    return state.profitFilter;
+  }
+
+  // Dropdown tahun diisi dari tahun-tahun yang BENAR-BENAR punya transaksi
+  // (dikirim backend), ditambah tahun yang sedang dipilih supaya pilihan admin
+  // tidak hilang sendiri saat bulan itu kosong.
+  function syncYearOptions(years) {
+    const select = $("profitYear");
+    const current = profitPeriod().year;
+    const options = Array.from(new Set([...(years || []), current, new Date().getFullYear()])).sort((a, b) => b - a);
+    select.innerHTML = options.map((y) => '<option value="' + y + '">' + y + "</option>").join("");
+    select.value = String(current);
+  }
+
+  async function loadProfit() {
+    const period = profitPeriod();
+    $("profitMonth").value = String(period.month);
+
+    const params = new URLSearchParams();
+    params.set("month", String(period.month));
+    params.set("year", String(period.year));
+    params.set("page", String(state.profitPager.page));
+    params.set("limit", String(state.profitPager.limit));
+
+    setTableLoading("profitTable", 8);
+    const res = await api("/orders/admin/profit?" + params.toString());
+    const data = res.data;
+
+    state.profit = data;
+    state.profitPager = syncPager(state.profitPager, data.pagination);
+    syncYearOptions(data.availableYears);
+
+    // Halaman jadi tidak valid setelah data berkurang: mundur ke halaman valid
+    // terakhir, bukan menampilkan tabel kosong yang menyesatkan.
+    if (!data.transactions.length && state.profitPager.page > 1) {
+      state.profitPager.page = state.profitPager.totalPages;
+      return loadProfit();
+    }
+
+    renderProfit();
+  }
+
+  function renderProfit() {
+    const data = state.profit;
+    if (!data) return;
+    const s = data.summary;
+    const label = MONTH_NAMES[data.period.month - 1] + " " + data.period.year;
+
+    $("profitPeriodNote").textContent = "Zona waktu " + data.period.timeZone + " · hanya transaksi production";
+
+    const cards = [
+      { label: "Total Transaksi", value: String(s.totalTransactions), icon: "receipt", note: s.totalItems + " item terjual" },
+      { label: "Total Pendapatan", value: formatIDR(s.totalRevenue), icon: "wallet", note: "Status pembayaran berhasil" },
+      s.costAvailable
+        ? { label: "Total Keuntungan", value: formatIDR(s.totalProfit), icon: "trend-up", note: "Pendapatan dikurangi modal" }
+        : {
+            label: "Total Keuntungan",
+            // Bukan "Rp 0": nol adalah klaim, dan schema project ini memang
+            // belum punya harga modal / biaya / fee untuk membuktikannya.
+            value: "Data modal belum tersedia",
+            unavailable: true,
+            icon: "info",
+            note: "Belum ada field harga modal di data produk",
+          },
+    ];
+
+    if (s.costAvailable && s.marginPercent !== null) {
+      cards.push({ label: "Margin", value: s.marginPercent + "%", icon: "chart", note: "Keuntungan terhadap pendapatan" });
+    }
+
+    $("profitStats").innerHTML = cards
+      .map(
+        (c) =>
+          '<div class="stat"><div class="stat-top"><span class="stat-label">' +
+          esc(c.label) +
+          '</span><span class="stat-mark">' +
+          ico(c.icon, "ico-sm") +
+          '</span></div><div class="stat-value' +
+          (c.unavailable ? " is-unavailable" : "") +
+          '">' +
+          esc(c.value) +
+          '</div><div class="stat-note">' +
+          esc(c.note) +
+          "</div></div>"
+      )
+      .join("");
+
+    $("profitTable").innerHTML =
+      data.transactions
+        .map(
+          (t) =>
+            '<tr><td><span class="mono">' +
+            esc(t.orderCode) +
+            "</span></td>" +
+            dateCell(t.paidAt || t.createdAt) +
+            '<td><b class="truncate" style="display:block;max-width:180px">' +
+            esc(t.customerName || "Tanpa nama") +
+            '</b><small class="sub">' +
+            esc(t.customerEmail) +
+            '</small></td><td class="truncate" style="max-width:200px">' +
+            esc(t.productName) +
+            (t.quantity > 1 ? " ×" + t.quantity : "") +
+            '</td><td class="num">' +
+            formatIDR(Math.round(t.revenue / (t.quantity || 1))) +
+            "</td><td>" +
+            chip(t.paymentStatus) +
+            '</td><td class="num strong">' +
+            formatIDR(t.revenue) +
+            '</td><td class="num">' +
+            (t.profit === null ? '<span class="sub">—</span>' : formatIDR(t.profit)) +
+            "</td></tr>"
+        )
+        .join("") || emptyRow(8, "Belum ada transaksi pada " + label + ".");
+
+    renderPager($("profitPager"), state.profitPager, (page) => {
+      state.profitPager.page = page;
+      loadProfit().catch((err) => showToast(err.message, "error"));
+    });
+  }
+
+  /* ------------------------------------------------ hapus & reset transaksi */
+  /* Setelah setiap penghapusan berhasil, SEMUA tampilan yang ikut bergantung
+     pada data itu disegarkan dalam satu jalur: daftar halaman ini, badge
+     pesanan di sidebar, statistik dashboard, dan halaman keuntungan. Backend
+     juga menyiarkan event Socket.IO yang sama ke sesi admin lain, jadi dua
+     admin yang membuka halaman bersamaan tidak akan melihat baris hantu. */
+  async function refreshAfterMutation() {
+    // Halaman keuntungan dihitung ulang di backend, bukan dari state lama —
+    // menghapus order sukses memang mengubah pendapatan bulan itu.
+    state.profit = null;
+    await Promise.all([
+      api("/orders/admin/summary")
+        .then((res) => updateOrderBadge(res.data.pendingPayments))
+        .catch(() => {}),
+      Promise.resolve(refreshCurrentPage()),
+    ]);
+  }
+
+  async function deleteOrder(id, orderCode) {
+    const ok = await confirmAction({
+      title: "Hapus pesanan ini?",
+      html:
+        "Pesanan <b>" +
+        esc(orderCode) +
+        "</b> akan dihapus permanen, beserta data pembayaran dan riwayat notifikasinya. " +
+        "Stok produk tidak dikembalikan. Tindakan ini tidak dapat dibatalkan.",
+      confirmLabel: "Hapus pesanan",
+    });
+    if (!ok) return;
+
+    try {
+      const res = await api("/orders/admin/" + id, { method: "DELETE" });
+      showToast(res.message || "Pesanan dihapus.", "success");
+      await loadOrders();
+      await refreshAfterMutation();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
+  async function resetAllOrders() {
+    const total = state.ordersPagination.total || 0;
+    const ok = await confirmAction({
+      title: "Reset Semua Pesanan?",
+      html:
+        "Tindakan ini akan menghapus <b>seluruh data pesanan</b> di database" +
+        (total ? " (saat ini " + total + " pesanan pada filter aktif)" : "") +
+        ", termasuk data pembayaran dan riwayat notifikasinya. " +
+        "Bukan hanya yang tampil di halaman ini. Tindakan ini tidak dapat dibatalkan.",
+      confirmLabel: "Reset Semua",
+    });
+    if (!ok) return;
+
+    try {
+      const res = await api("/orders/admin/reset", { method: "DELETE" });
+      showToast(res.message || "Semua pesanan dihapus.", "success");
+      // Kembali ke halaman 1: halaman 7 dari daftar yang sekarang kosong hanya
+      // akan menampilkan tabel kosong yang terlihat seperti error.
+      state.ordersPagination.page = 1;
+      state.txPagination.page = 1;
+      state.profitPager.page = 1;
+      await loadOrders();
+      await refreshAfterMutation();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
+  async function deletePayment(id, orderCode) {
+    const ok = await confirmAction({
+      title: "Hapus data pembayaran ini?",
+      html:
+        "Data pembayaran untuk <b>" +
+        esc(orderCode) +
+        "</b> akan dihapus permanen. Pesanannya tetap tersimpan untuk audit, " +
+        "tetapi status pembayarannya tidak bisa lagi di-refresh dari KlikQRIS. Tindakan ini tidak dapat dibatalkan.",
+      confirmLabel: "Hapus pembayaran",
+    });
+    if (!ok) return;
+
+    try {
+      const res = await api("/payments/admin/" + id, { method: "DELETE" });
+      showToast(res.message || "Data pembayaran dihapus.", "success");
+      await loadTransactions();
+      await refreshAfterMutation();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
+  async function resetAllPayments() {
+    const ok = await confirmAction({
+      title: "Reset Semua Pembayaran?",
+      html:
+        "Tindakan ini akan menghapus <b>seluruh data pembayaran</b> di database, bukan hanya yang tampil di halaman ini. " +
+        "Data pesanan tetap tersimpan. Tindakan ini tidak dapat dibatalkan.",
+      confirmLabel: "Reset Semua",
+    });
+    if (!ok) return;
+
+    try {
+      const res = await api("/payments/admin/reset", { method: "DELETE" });
+      showToast(res.message || "Semua data pembayaran dihapus.", "success");
+      state.txPagination.page = 1;
+      await loadTransactions();
+      await refreshAfterMutation();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
   }
 
   /* ---------------------------------------------------------- order detail */
@@ -3006,7 +3276,7 @@
     api("/orders/admin/summary")
       .then((res) => updateOrderBadge(res.data.pendingPayments))
       .catch(() => {});
-    if (["orders", "transactions", "dashboard", "customers"].includes(state.currentPage)) refreshCurrentPage();
+    if (["orders", "transactions", "profit", "dashboard", "customers"].includes(state.currentPage)) refreshCurrentPage();
   }, 400);
 
   function initRealtime() {
@@ -3051,6 +3321,21 @@
       }
       refreshOrdersRelated();
     });
+    // Penghapusan dari sesi admin lain. Yang disegarkan hanya halaman yang
+    // memang sedang terbuka, memakai loader halaman itu sendiri — bukan
+    // menyisipkan/menghapus baris secara manual, sehingga pagination dan total
+    // selalu berasal dari backend dan tidak pernah dobel setelah reconnect.
+    ["order:deleted", "orders:reset", "payment:deleted", "payments:reset"].forEach((ev) =>
+      socket.on(ev, () => {
+        if (["orders", "transactions", "profit", "dashboard", "customers"].includes(state.currentPage)) {
+          refreshCurrentPageDebounced();
+        }
+        api("/orders/admin/summary")
+          .then((res) => updateOrderBadge(res.data.pendingPayments))
+          .catch(() => {});
+      })
+    );
+
     socket.on("stock:updated", () => {
       if (["products", "dashboard"].includes(state.currentPage)) refreshCurrentPageDebounced();
     });
@@ -3290,6 +3575,11 @@
       const delFaq = e.target.closest("[data-delete-faq]");
       if (delFaq) return deleteFaq(delFaq.dataset.deleteFaq);
 
+      const delOrder = e.target.closest("[data-delete-order]");
+      if (delOrder) return deleteOrder(delOrder.dataset.deleteOrder, delOrder.dataset.code);
+      const delPayment = e.target.closest("[data-delete-payment]");
+      if (delPayment) return deletePayment(delPayment.dataset.deletePayment, delPayment.dataset.code);
+
       const orderDetail = e.target.closest("[data-order-detail]");
       if (orderDetail) {
         closeAllPops();
@@ -3460,6 +3750,22 @@
       state.txPagination.page = 1;
       loadTransactions().catch((err) => showToast(err.message, "error"));
     });
+
+    // Hapus & reset
+    $("resetOrdersBtn").addEventListener("click", resetAllOrders);
+    $("resetPaymentsBtn").addEventListener("click", resetAllPayments);
+
+    // Keuntungan Per Bulan
+    // Ganti bulan/tahun = permintaan baru ke backend dari halaman 1. Bulan yang
+    // kosong hanya menampilkan empty state; data bulan lain tidak tersentuh.
+    const reloadProfit = () => {
+      state.profitFilter.month = Number($("profitMonth").value);
+      state.profitFilter.year = Number($("profitYear").value);
+      state.profitPager.page = 1;
+      loadProfit().catch((err) => showToast(err.message, "error"));
+    };
+    $("profitMonth").addEventListener("change", reloadProfit);
+    $("profitYear").addEventListener("change", reloadProfit);
 
     // Produk
     $("productSearch").addEventListener("input", debounce(() => reloadProducts(), 350));
