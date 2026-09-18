@@ -10,6 +10,7 @@ const cookieParser = require("cookie-parser");
 const morgan = require("morgan");
 
 const { connectDB } = require("./config/db");
+const { isR2DevPreviewUrl } = require("./config/r2");
 const { initSocket } = require("./services/socket.service");
 const { notFoundHandler, errorHandler } = require("./middlewares/errorHandler");
 const { publicApiLimiter } = require("./middlewares/rateLimit");
@@ -256,9 +257,26 @@ function checkRequiredEnv() {
   }
 }
 
+// Peringatan non-fatal (server tetap jalan) untuk kondisi yang membuat
+// gambar/asset tampil normal saat testing tapi gagal untuk sebagian user
+// production — supaya kelihatan di log Railway, bukan ditemukan lewat
+// laporan user.
+function warnAboutProductionReadiness() {
+  if (isR2DevPreviewUrl(process.env.R2_PUBLIC_URL)) {
+    logger.warn(
+      "R2_PUBLIC_URL masih memakai hostname preview r2.dev — Cloudflare menandainya 'not intended for production' (rate limit & tanpa cache edge, dan pernah dilaporkan diblokir sebagian ISP). Pasang Custom Domain di Cloudflare R2 lalu update R2_PUBLIC_URL; jalankan server/scripts/migrateR2PublicDomain.js untuk memindahkan URL lama.",
+      { current: process.env.R2_PUBLIC_URL }
+    );
+  }
+  if (process.env.NODE_ENV !== "production") {
+    logger.warn(`NODE_ENV="${process.env.NODE_ENV || "(kosong)"}" — set NODE_ENV=production di deployment production.`);
+  }
+}
+
 async function start() {
   try {
     checkRequiredEnv();
+    warnAboutProductionReadiness();
     await connectDB();
     initSocket(httpServer, allowedOrigins.length ? allowedOrigins : "*");
 

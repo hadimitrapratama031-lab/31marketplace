@@ -27,4 +27,26 @@ function getR2Client() {
   });
 }
 
-module.exports = { getR2Client, isR2Configured };
+// ROOT CAUSE (lihat laporan audit gambar September 2026): "pub-xxxx.r2.dev"
+// adalah hostname PREVIEW/DEV bawaan Cloudflare, bukan domain produksi.
+// Cloudflare sendiri menyatakan hostname ini "not intended for production
+// usage" — punya rate limit variabel (throttle/429 setelah ratusan
+// request/detik, tanpa cache di edge Cloudflare) dan sudah pernah dilaporkan
+// diblokir oleh ISP tertentu di beberapa negara. Efeknya persis seperti yang
+// dilaporkan: gambar tampil normal di satu PC/koneksi (trafik rendah, ISP
+// yang tidak memblokir) tapi gagal untuk sebagian user lain (ISP berbeda,
+// atau saat banyak request bersamaan kena throttle) — BUKAN masalah cache
+// browser. Perbaikan produksi: pasang Custom Domain di Cloudflare R2
+// (dashboard R2 > bucket > Settings > Public Access > Connect Domain), lalu
+// arahkan R2_PUBLIC_URL ke domain itu. Lihat juga
+// server/scripts/migrateR2PublicDomain.js untuk memindahkan URL yang sudah
+// tersimpan di MongoDB.
+function isR2DevPreviewUrl(url) {
+  try {
+    return /(^|\.)r2\.dev$/i.test(new URL(String(url)).hostname);
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { getR2Client, isR2Configured, isR2DevPreviewUrl };
