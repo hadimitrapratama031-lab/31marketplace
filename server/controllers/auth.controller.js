@@ -4,10 +4,14 @@ const asyncHandler = require("../utils/asyncHandler");
 const { AppError } = require("../middlewares/errorHandler");
 const { isValidEmail } = require("../utils/phone");
 const logger = require("../utils/logger");
+const { SESSION_MAX_AGE_MS } = require("../config/session");
 
 function signToken(admin) {
+  // Batas absolut session (spec: SESSION_MAX_AGE = 2 jam) — jwt.verify di
+  // requireAdminAuth otomatis menolak token begitu klaim exp ini terlewati,
+  // tidak ada logika expiry terpisah yang perlu ditulis ulang.
   return jwt.sign({ sub: admin._id.toString(), role: admin.role }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    expiresIn: Math.floor(SESSION_MAX_AGE_MS / 1000),
   });
 }
 
@@ -28,6 +32,7 @@ const login = asyncHandler(async (req, res) => {
   }
 
   admin.lastLoginAt = new Date();
+  admin.lastActivityAt = new Date();
   await admin.save();
 
   const token = signToken(admin);

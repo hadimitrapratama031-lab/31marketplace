@@ -126,6 +126,13 @@ function buildPaymentSuccessEmbed(ctx) {
     field("💰 Price", ctx.total, false),
     field("⌚ Payment Time", ctx.paidAt || ctx.orderedAt, false),
     field("📄 Status", ctx.statusLabel, false),
+    // Field paling bawah, ditambahkan SETELAH semua field existing (jangan
+    // ubah urutan yang sudah ada). ctx.storeUrl berasal dari CLIENT_URL —
+    // konfigurasi yang sama yang sudah dipakai di seluruh project (lihat
+    // template.service.buildContext) — bukan variabel/sistem baru. Discord
+    // otomatis menjadikan URL polos pada value field sebagai link yang bisa
+    // diklik, jadi tidak perlu markdown tambahan.
+    field("Website", ctx.storeUrl || "https://www.31store.site", false),
   ].filter(Boolean);
 
   const embed = {

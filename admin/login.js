@@ -1,6 +1,5 @@
 (function () {
   "use strict";
-  const TOKEN_KEY = "mp_admin_token";
   const form = document.getElementById("loginForm");
   const errorBox = document.getElementById("loginError");
   const errorText = document.getElementById("loginErrorText");
@@ -42,13 +41,15 @@
     })
     .catch(() => {});
 
-  // If a valid session already exists, skip the login form.
-  const existing = sessionStorage.getItem(TOKEN_KEY);
+  // If a valid, non-expired session already exists, skip the login form.
+  // getToken() itself sudah menolak token yang lewat batas absolut/idle
+  // (lihat session.js) — jadi tidak perlu logika expiry terpisah di sini.
+  const existing = window.MPAuth.getToken();
   if (existing) {
     fetch("/api/auth/me", { headers: { Authorization: "Bearer " + existing } })
       .then((r) => {
         if (r.ok) window.location.replace("./index.html");
-        else sessionStorage.removeItem(TOKEN_KEY);
+        else window.MPAuth.clearToken();
       })
       .catch(() => {});
   }
@@ -74,7 +75,7 @@
         throw new Error((payload && payload.message) || "Login gagal. Coba lagi.");
       }
 
-      sessionStorage.setItem(TOKEN_KEY, payload.data.token);
+      window.MPAuth.setToken(payload.data.token);
       window.location.replace("./index.html");
     } catch (err) {
       showError(err.message);

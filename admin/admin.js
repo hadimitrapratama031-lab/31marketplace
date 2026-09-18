@@ -6,7 +6,6 @@
 (function () {
   "use strict";
 
-  const TOKEN_KEY = "mp_admin_token";
   const LOGIN_URL = "./login.html";
   const { formatIDR, formatDate, escapeHTML, getSocket, debounce } = window.MP;
   const esc = escapeHTML;
@@ -66,12 +65,44 @@
 
   /* ------------------------------------------------------------------ api */
   function getToken() {
-    return sessionStorage.getItem(TOKEN_KEY);
+    return window.MPAuth.getToken();
   }
 
-  function logout() {
-    sessionStorage.removeItem(TOKEN_KEY);
+  // reason: dipakai untuk menampilkan notifikasi yang jelas kalau logout
+  // terjadi karena session expired/idle timeout, bukan logout manual
+  // (spec 2 — "Tampilkan notifikasi yang jelas...").
+  function logout(reason) {
+    window.MPAuth.clearToken();
+    stopIdleWatcher();
+    if (reason) {
+      try {
+        window.alert(reason);
+      } catch (e) {
+        /* abaikan kalau alert diblokir */
+      }
+    }
     window.location.replace(LOGIN_URL);
+  }
+
+  // Cek berkala apakah session masih valid TANPA menunggu request API
+  // berikutnya gagal — supaya idle timeout benar-benar berjalan walau admin
+  // sedang tidak membuka halaman yang memanggil api() (spec: "Setelah 2 jam
+  // idle → logout otomatis"). getToken() sendiri yang menilai expired/idle
+  // (lihat session.js) — interval ini hanya pemicunya.
+  let idleWatcherTimer = null;
+  function startIdleWatcher() {
+    if (idleWatcherTimer) return; // jangan pasang timer dobel (spec multi-tab)
+    idleWatcherTimer = window.setInterval(() => {
+      if (!window.MPAuth.getToken()) {
+        logout("Sesi Anda berakhir karena tidak ada aktivitas selama 2 jam. Silakan masuk kembali.");
+      }
+    }, 30000);
+  }
+  function stopIdleWatcher() {
+    if (idleWatcherTimer) {
+      window.clearInterval(idleWatcherTimer);
+      idleWatcherTimer = null;
+    }
   }
 
   async function api(path, options = {}) {
@@ -96,7 +127,7 @@
     }
 
     if (res.status === 401) {
-      logout();
+      logout("Sesi Anda berakhir. Silakan masuk kembali.");
       throw new Error("Sesi berakhir. Silakan masuk kembali.");
     }
 
@@ -4263,6 +4294,15 @@
       window.location.replace(LOGIN_URL);
       return;
     }
+
+    // Aktivitas nyata (klik/ketik/submit/navigasi) memperpanjang idle
+    // timeout; Socket.IO heartbeat/reconnect di initRealtime() TIDAK
+    // pernah memanggil markActivity (spec: background process tidak boleh
+    // memperpanjang idle timeout). Logout di tab lain (event "storage")
+    // langsung disinkronkan ke tab ini tanpa membuat sistem realtime baru.
+    window.MPAuth.wireActivityTracking();
+    window.MPAuth.onRemoteLogout = () => logout();
+    startIdleWatcher();
 
     try {
       const me = await api("/auth/me");

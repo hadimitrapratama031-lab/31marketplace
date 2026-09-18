@@ -9,6 +9,10 @@ const AdminSchema = new mongoose.Schema(
     role: { type: String, enum: ["superadmin", "admin"], default: "admin" },
     active: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
+    // Diperbarui setiap request API terautentikasi (lihat requireAdminAuth)
+    // — dipakai backend untuk memvalidasi idle timeout sendiri, bukan hanya
+    // mengandalkan JavaScript frontend (spec).
+    lastActivityAt: { type: Date },
   },
   { timestamps: true }
 );
