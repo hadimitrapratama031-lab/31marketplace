@@ -212,7 +212,13 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
     orderedAt: formatDateTime(order.createdAt),
     paidAt: formatDateTime(transaction && transaction.paidAt),
     expiredAt: formatDateTime(transaction && transaction.expiredAt),
-    payUrl: safeRemoteUrl(transaction && (transaction.directUrl || transaction.qrisUrl), "transaction.payUrl"),
+    // "Bayar Disini" HARUS mengarah ke halaman payment.html milik toko sendiri
+    // (?order=ORDERCODE, dibaca assets/js/payment.js), BUKAN link KlikQRIS
+    // (transaction.directUrl/qrisUrl) — itu link gateway, bukan link
+    // pembayaran yang dimaksud di notifikasi. Diisi setelah ctx.storeUrl &
+    // ctx.orderCode diketahui, lihat penetapan di bawah (sama pola dengan
+    // ctx.invoiceUrl).
+    payUrl: "",
 
     waHref,
     // Ikon dibungkus proxy (gambar); href tautan dibiarkan apa adanya (bukan
@@ -238,6 +244,11 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
   // tidak dirender (lihat detailLineIf di buildWhatsAppMessage) daripada
   // menampilkan link yang rusak.
   ctx.invoiceUrl = ctx.storeUrl ? `${ctx.storeUrl}/order-success?order=${encodeURIComponent(ctx.orderCode)}` : "";
+
+  // "Bayar Disini" mengarah ke halaman payment.html milik toko sendiri
+  // (dibaca ?order= oleh assets/js/payment.js), bukan link KlikQRIS.
+  // Kosong kalau CLIENT_URL belum diset, sama seperti invoiceUrl di atas.
+  ctx.payUrl = ctx.storeUrl ? `${ctx.storeUrl}/payment.html?order=${encodeURIComponent(ctx.orderCode)}` : "";
 
   // Link WhatsApp admin dengan pesan pra-isi berisi Order ID, seperti pada
   // template yang diberikan. Nomor admin TIDAK di-hardcode — tetap dari
