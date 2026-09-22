@@ -7,6 +7,7 @@ const { AppError } = require("../middlewares/errorHandler");
 const { emitEvent } = require("../services/socket.service");
 const klikqris = require("../services/klikqris.service");
 const notificationService = require("../services/notification.service");
+const redeemCodeService = require("../services/redeemCode.service");
 const orderFeed = require("../services/orderFeed.service");
 const logger = require("../utils/logger");
 const { PAYMENT_WINDOW_MINUTES, isExpired } = require("../utils/paymentWindow");
@@ -78,6 +79,36 @@ async function applyPaymentStatus({ orderCode, newStatus, paidAt }) {
       });
     } else {
       emitEvent("stock:updated", { productId: updatedProduct._id, stock: updatedProduct.stock, sold: updatedProduct.sold });
+
+      // Sistem Baru — Automatic Redeem Code (spec 2, 4, 10). Klaim dilakukan
+      // SETELAH stok produk berhasil didekremen di atas, jadi jumlah code yang
+      // diklaim tidak pernah melebihi stok yang baru saja dikurangi. Produk
+      // lama (orderSystem "MANUAL", termasuk seluruh produk sebelum fitur ini
+      // ada) tidak pernah masuk cabang ini — flow lama sama sekali tidak
+      // tersentuh (spec 13).
+      if (updatedProduct.orderSystem === "REDEEM_CODE") {
+        try {
+          const { claimed, shortfall } = await redeemCodeService.claimCodesForOrder(order, updatedProduct);
+          if (shortfall > 0) {
+            // Jangan mengarang code: order TETAP berstatus "PAID" (bukan
+            // "COMPLETED"), dan error-nya dicatat supaya Admin Web bisa
+            // menindaklanjuti (spec 7 & 11).
+            order.redeemCodeError =
+              "Stok redeem code tidak mencukupi saat pembayaran diproses. Admin perlu memeriksa dan menambahkan code secara manual.";
+          } else if (claimed.length > 0) {
+            // Order sistem baru selesai OTOMATIS setelah pembayaran — tidak
+            // ada proses manual admin lagi (spec 2).
+            order.status = "COMPLETED";
+          }
+        } catch (err) {
+          logger.error("Gagal klaim redeem code saat pembayaran SUCCESS", {
+            orderCode,
+            productId: String(updatedProduct._id),
+            message: err.message,
+          });
+          order.redeemCodeError = "Terjadi kesalahan saat mengambil redeem code. Admin perlu memeriksa order ini secara manual.";
+        }
+      }
     }
   } else if (["FAILED", "EXPIRED", "CANCELLED"].includes(newStatus)) {
     order.status = newStatus;

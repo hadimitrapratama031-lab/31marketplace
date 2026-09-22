@@ -37,6 +37,12 @@ const OrderSchema = new mongoose.Schema(
       paymentFailed: { type: Boolean, default: false },
       paymentExpired: { type: Boolean, default: false },
     },
+    // Diisi HANYA kalau produk order ini memakai orderSystem "REDEEM_CODE" dan
+    // klaim code gagal/tidak lengkap saat pembayaran SUCCESS (stok produk dan
+    // koleksi RedeemCode ternyata tidak sinkron — seharusnya tidak pernah
+    // terjadi, tapi kalau terjadi, order TIDAK BOLEH menampilkan code karangan).
+    // Kosong berarti tidak ada masalah. Lihat services/redeemCode.service.js.
+    redeemCodeError: { type: String, default: "" },
   },
   { timestamps: true }
 );

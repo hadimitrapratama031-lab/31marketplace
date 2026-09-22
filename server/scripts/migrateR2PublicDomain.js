@@ -60,9 +60,13 @@ function rewriteDeep(value, from, to, stats) {
   if (Array.isArray(value)) {
     return value.map((item) => rewriteDeep(item, from, to, stats));
   }
-  if (value && typeof value === "object") {
-    // Dokumen Mongoose punya banyak internal (_id, $__, dll) — hanya jalan
-    // di atas plain object hasil .toObject()/.lean(), jadi ini aman.
+  // Hanya masuk ke plain object ({ ... } hasil .lean()) — BUKAN ObjectId,
+  // Date, Buffer, dll. Nilai-nilai itu juga "typeof === object" tapi
+  // constructor-nya bukan Object biasa; kalau ikut dibongkar jadi
+  // {0: 1, 1: 2, ...} (byte-byte-nya), makanya _id kemarin jadi rusak dan
+  // ditolak MongoDB. Apa pun yang bukan plain object dikembalikan apa
+  // adanya, tidak disentuh.
+  if (value && typeof value === "object" && value.constructor === Object) {
     const out = {};
     for (const [key, val] of Object.entries(value)) {
       out[key] = rewriteDeep(val, from, to, stats);

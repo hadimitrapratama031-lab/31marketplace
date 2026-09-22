@@ -13,9 +13,47 @@ const { resolveAssetUrl } = require("../utils/assetUrl");
 const klikqris = require("../services/klikqris.service");
 const notificationService = require("../services/notification.service");
 const orderFeed = require("../services/orderFeed.service");
+const redeemCodeService = require("../services/redeemCode.service");
 const logger = require("../utils/logger");
 const { resolvePaymentExpiry } = require("../utils/paymentWindow");
 const { expireIfOverdue } = require("./payment.controller");
+
+/**
+ * Bahan REDEEM CODE + CARA REDEEM untuk halaman transaksi customer (spec 7).
+ *
+ * HANYA mengembalikan sesuatu kalau:
+ *   - produknya memakai orderSystem "REDEEM_CODE", DAN
+ *   - order ini sudah PAID/COMPLETED (paymentStatus SUCCESS).
+ * Kalau payment belum SUCCESS, atau order memakai sistem lama, hasilnya
+ * `null` — jangan sampai frontend salah menampilkan blok redeem code untuk
+ * order yang tidak berhak.
+ *
+ * Instruksi diambil LIVE dari Product.redeemInstructions (bukan disalin ke
+ * Order) supaya perbaikan instruksi oleh admin langsung terlihat di order
+ * lama maupun baru (spec 7 & Product.js).
+ */
+async function resolveRedeemInfo(order) {
+  const productId = order.product && order.product.productId;
+  if (!productId) return null;
+
+  const paid = order.paymentStatus === "SUCCESS" || ["PAID", "COMPLETED"].includes(order.status);
+  if (!paid) return null;
+
+  const product = await Product.findById(productId).select("orderSystem redeemInstructions").lean();
+  if (!product || product.orderSystem !== "REDEEM_CODE") return null;
+
+  const codes = await redeemCodeService.getCodesForOrder(order._id);
+
+  return {
+    orderSystem: "REDEEM_CODE",
+    codes,
+    instructions: product.redeemInstructions || "",
+    // Order sudah PAID/COMPLETED tapi code-nya kosong: klaim gagal/tidak
+    // lengkap saat pembayaran (lihat payment.controller.js). Frontend TIDAK
+    // BOLEH mengarang code — tampilkan error ini apa adanya (spec 7).
+    error: !codes.length ? order.redeemCodeError || "Redeem code sedang diproses. Silakan hubungi admin jika belum muncul." : "",
+  };
+}
 
 // PUBLIC — Customer checkout.
 // Frontend may only send productId, quantity, name, email, whatsapp.
@@ -161,6 +199,7 @@ const getByOrderCode = asyncHandler(async (req, res) => {
   const order = await Order.findOne({ orderCode: code });
   if (!order) throw new AppError("Order tidak ditemukan. Periksa kembali kode order Anda.", 404);
   const transaction = await Transaction.findOne({ orderId: order._id });
+  const redeem = await resolveRedeemInfo(order);
   res.json({
     status: true,
     data: {
@@ -171,6 +210,7 @@ const getByOrderCode = asyncHandler(async (req, res) => {
       status: order.status,
       paymentStatus: order.paymentStatus,
       createdAt: order.createdAt,
+      redeem,
       payment: transaction
         ? {
             qrisUrl: transaction.status === "PENDING" ? transaction.qrisUrl : null,
@@ -372,7 +412,8 @@ function maskEmail(email) {
 // Satu bentuk detail untuk semua jalur (email + Order ID, atau Order ID saja),
 // sehingga UI tidak perlu tahu lewat mana pesanan itu ditemukan.
 // Tidak pernah memuat signature, kredensial, atau payload gateway mentah.
-function toPublicDetail(order, transaction, { revealEmail }) {
+async function toPublicDetail(order, transaction, { revealEmail }) {
+  const redeem = await resolveRedeemInfo(order);
   return {
     orderCode: order.orderCode,
     customerName: order.customer.name || "",
@@ -396,6 +437,7 @@ function toPublicDetail(order, transaction, { revealEmail }) {
     // Link bayar hanya relevan (dan hanya aman) selama pesanan masih PENDING.
     payUrl: transaction && transaction.status === "PENDING" ? transaction.directUrl || transaction.qrisUrl || "" : "",
     qrisUrl: transaction && transaction.status === "PENDING" ? transaction.qrisUrl || "" : "",
+    redeem,
   };
 }
 
@@ -460,7 +502,7 @@ const searchOrders = asyncHandler(async (req, res) => {
     const transaction = await Transaction.findOne({ orderId: order._id });
     return res.json({
       status: true,
-      data: { mode: "order", order: toPublicDetail(order, transaction, { revealEmail: Boolean(email) }) },
+      data: { mode: "order", order: await toPublicDetail(order, transaction, { revealEmail: Boolean(email) }) },
     });
   }
 
@@ -537,6 +579,7 @@ const getPublicDetail = asyncHandler(async (req, res) => {
   if (!order) throw new AppError("Pesanan tidak ditemukan untuk email tersebut.", 404);
 
   const transaction = await Transaction.findOne({ orderId: order._id });
+  const redeem = await resolveRedeemInfo(order);
 
   res.json({
     status: true,
@@ -556,6 +599,7 @@ const getPublicDetail = asyncHandler(async (req, res) => {
       status: order.status,
       paymentStatus: order.paymentStatus,
       createdAt: order.createdAt,
+      redeem,
       paidAt: transaction ? transaction.paidAt || null : null,
       expiredAt: transaction ? transaction.expiredAt || null : null,
       // Link bayar hanya relevan (dan hanya aman) selama pesanan masih PENDING.
