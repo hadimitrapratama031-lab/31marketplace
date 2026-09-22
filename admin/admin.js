@@ -57,7 +57,8 @@
       soundOn: true,
     },
     currentPage: "dashboard",
-    editing: { productId: null, categoryId: null, faqId: null },
+    editing: { productId: null, categoryId: null, faqId: null, orderSystem: "MANUAL", restockProductId: null },
+    redeemSold: { rows: [], pagination: { page: 1, limit: 25, total: 0, totalPages: 1 }, productId: "", q: "" },
   };
 
   const $ = (id) => document.getElementById(id);
@@ -547,7 +548,7 @@
 
   const LOADERS = {
     dashboard: loadDashboard,
-    products: loadProducts,
+    products: loadProductsPage,
     categories: loadCategories,
     faq: loadFaqs,
     orders: loadOrders,
@@ -1281,7 +1282,11 @@
 
     $("productGrid").innerHTML = list
       .map((p) => {
+        const isRedeem = p.orderSystem === "REDEEM_CODE";
         const low = p.stock <= 0;
+        const stockText = isRedeem
+          ? (low ? "0 available" : p.stock + " available") + " · " + (p.redeemStats ? p.redeemStats.sold : p.sold) + " sold"
+          : (low ? "Stok habis" : p.stock + " stok") + " · " + p.sold + " terjual";
         return (
           '<article class="pcard"><div class="pcard-img">' +
           (p.image
@@ -1290,6 +1295,7 @@
           '<span class="tag"><span>' +
           esc(categoryNameOf(p)) +
           "</span></span>" +
+          (isRedeem ? '<span class="tag tag-redeem"><span>' + ico("key", "ico-sm") + "Redeem Code</span></span>" : "") +
           (p.status === "inactive" ? '<span class="st st-neutral"><i></i>Nonaktif</span>' : "") +
           '</div><div class="pcard-body"><h3>' +
           esc(p.name) +
@@ -1300,14 +1306,20 @@
           '</span><span class="pcard-stock"' +
           (low ? ' style="color:var(--danger)"' : "") +
           ">" +
-          (low ? "Stok habis" : p.stock + " stok") +
-          " · " +
-          p.sold +
-          ' terjual</span></div></div><div class="pcard-foot"><button class="btn btn-sm btn-outline" type="button" data-edit-product="' +
+          stockText +
+          '</span></div></div><div class="pcard-foot"><button class="btn btn-sm btn-outline" type="button" data-edit-product="' +
           p._id +
           '">' +
           ico("edit") +
-          'Edit</button><button class="btn btn-sm btn-icon danger" type="button" data-delete-product="' +
+          "Edit</button>" +
+          (isRedeem
+            ? '<button class="btn btn-sm btn-outline" type="button" data-restock-product="' +
+              p._id +
+              '" title="Restock redeem code" aria-label="Restock redeem code">' +
+              ico("plus", "ico-sm") +
+              "</button>"
+            : "") +
+          '<button class="btn btn-sm btn-icon danger" type="button" data-delete-product="' +
           p._id +
           '" title="Hapus produk" aria-label="Hapus produk">' +
           ico("trash", "ico-sm") +
@@ -1317,12 +1329,14 @@
       .join("");
 
     $("productTable").innerHTML = list
-      .map(
-        (p) =>
+      .map((p) => {
+        const isRedeem = p.orderSystem === "REDEEM_CODE";
+        return (
           '<tr><td><div class="cell-media">' +
           thumbHTML(p.image, p.name) +
           '<div class="cell-media-text"><b>' +
           esc(p.name) +
+          (isRedeem ? ' <span class="tag tag-redeem" style="vertical-align:1px"><span>Redeem Code</span></span>' : "") +
           "</b><small>" +
           esc(p.slug || "") +
           '</small></div></div></td><td><span class="tag"><span>' +
@@ -1337,7 +1351,15 @@
           p.sold +
           "</td><td>" +
           chipActive(p.status) +
-          '</td><td class="cell-actions"><div class="row-actions"><button class="btn btn-icon btn-sm" type="button" data-edit-product="' +
+          '</td><td class="cell-actions"><div class="row-actions">' +
+          (isRedeem
+            ? '<button class="btn btn-icon btn-sm" type="button" data-restock-product="' +
+              p._id +
+              '" title="Restock redeem code" aria-label="Restock redeem code">' +
+              ico("plus", "ico-sm") +
+              "</button>"
+            : "") +
+          '<button class="btn btn-icon btn-sm" type="button" data-edit-product="' +
           p._id +
           '" title="Edit produk" aria-label="Edit produk">' +
           ico("edit", "ico-sm") +
@@ -1346,10 +1368,93 @@
           '" title="Hapus produk" aria-label="Hapus produk">' +
           ico("trash", "ico-sm") +
           "</button></div></td></tr>"
-      )
+        );
+      })
       .join("");
 
     renderPager($("productsPager"), state.productsPagination, goProductPage);
+  }
+
+  /* --- redeem code terjual (spec 6) --- */
+  function syncRedeemProductFilterOptions() {
+    const sel = $("redeemSoldProductFilter");
+    const keep = sel.value;
+    const redeemProducts = state.products.filter((p) => p.orderSystem === "REDEEM_CODE");
+    // Daftar produk redeem code juga diambil dari produk yang sedang dimuat
+    // di halaman ini — cukup untuk filter praktis tanpa endpoint tambahan.
+    sel.innerHTML =
+      '<option value="">Semua produk redeem code</option>' +
+      redeemProducts.map((p) => '<option value="' + p._id + '">' + esc(p.name) + "</option>").join("");
+    if (redeemProducts.some((p) => p._id === keep)) sel.value = keep;
+  }
+
+  function goRedeemSoldPage(page) {
+    state.redeemSold.pagination.page = page;
+    loadRedeemSold().catch((err) => showToast(err.message, "error"));
+  }
+
+  async function loadRedeemSold() {
+    syncRedeemProductFilterOptions();
+    const params = new URLSearchParams();
+    const q = ($("redeemSoldSearch").value || "").trim();
+    const productId = $("redeemSoldProductFilter").value;
+    if (q) params.set("q", q);
+    if (productId) params.set("productId", productId);
+    params.set("page", String(state.redeemSold.pagination.page));
+    params.set("limit", String(state.redeemSold.pagination.limit));
+
+    setTableLoading("redeemSoldTable", 5, 4);
+    const res = await api("/products/admin/redeem-codes/sold?" + params.toString());
+    state.redeemSold.rows = res.data;
+    state.redeemSold.pagination = syncPager(state.redeemSold.pagination, res.pagination);
+
+    if (!state.redeemSold.rows.length && state.redeemSold.pagination.page > 1) {
+      state.redeemSold.pagination.page = state.redeemSold.pagination.totalPages;
+      return loadRedeemSold();
+    }
+    renderRedeemSold();
+  }
+
+  function reloadRedeemSold() {
+    state.redeemSold.pagination.page = 1;
+    loadRedeemSold().catch((err) => showToast(err.message, "error"));
+  }
+
+  function renderRedeemSold() {
+    const rows = state.redeemSold.rows;
+    if (!rows.length) {
+      $("redeemSoldTable").innerHTML = emptyRow(5, "Belum ada redeem code yang terjual.");
+      renderPager($("redeemSoldPager"), state.redeemSold.pagination, goRedeemSoldPage);
+      return;
+    }
+    $("redeemSoldTable").innerHTML = rows
+      .map(
+        (r) =>
+          "<tr><td><code>" +
+          esc(r.code) +
+          '</code></td><td class="truncate" style="max-width:180px">' +
+          esc(r.productName) +
+          '</td><td><span class="mono">' +
+          esc(r.orderCode || "—") +
+          "</span></td><td>" +
+          esc(r.customerName || "—") +
+          "</td><td>" +
+          formatDate(r.soldAt) +
+          "</td></tr>"
+      )
+      .join("");
+    renderPager($("redeemSoldPager"), state.redeemSold.pagination, goRedeemSoldPage);
+  }
+
+  // Halaman Produk memuat DUA daftar: katalog produk dan redeem code
+  // terjual. Keduanya independen (pager, filter masing-masing) tapi dimuat
+  // bersamaan setiap kali halaman "products" dibuka/disegarkan.
+  async function loadProductsPage() {
+    // Berurutan, bukan paralel: filter produk di panel "Redeem Code Terjual"
+    // dibangun dari state.products, jadi katalog harus selesai dimuat lebih
+    // dulu supaya dropdown filternya tidak dibangun dari data basi/kosong.
+    await loadProducts();
+    await loadRedeemSold();
   }
 
   /* --- form produk --- */
@@ -1475,7 +1580,19 @@
     extraNew.forEach((item) => URL.revokeObjectURL(item.preview));
   }
 
-  function openProductModal(id) {
+  // Popup pilih sistem order (spec 1), dibuka HANYA saat Tambah produk baru.
+  // Editing tidak pernah melewati popup ini — orderSystem terkunci sejak
+  // produk dibuat (spec 11).
+  function openOrderSystemModal() {
+    if (!state.categories.length) {
+      showToast("Buat minimal satu kategori sebelum menambah produk.", "error");
+      showPage("categories");
+      return;
+    }
+    openModal("orderSystemModal");
+  }
+
+  function openProductModal(id, newOrderSystem) {
     if (!state.categories.length) {
       showToast("Buat minimal satu kategori sebelum menambah produk.", "error");
       showPage("categories");
@@ -1490,8 +1607,14 @@
     setAlert("productAlert", "");
 
     const p = id ? state.products.find((x) => x._id === id) : null;
+    // Produk lama tidak punya field ini sama sekali — otomatis MANUAL tanpa
+    // migrasi apa pun (spec 13). Untuk produk baru, sistem berasal dari popup
+    // pemilihan (spec 1); "MANUAL" jadi default aman kalau dipanggil langsung.
+    const orderSystem = p ? p.orderSystem || "MANUAL" : newOrderSystem || "MANUAL";
+    const isRedeem = orderSystem === "REDEEM_CODE";
+    state.editing.orderSystem = orderSystem;
 
-    $("productModalTitle").textContent = p ? "Edit produk" : "Tambah produk";
+    $("productModalTitle").textContent = p ? "Edit produk" : isRedeem ? "Tambah produk — Automatic Redeem Code" : "Tambah produk";
     $("productSubmit").textContent = p ? "Simpan perubahan" : "Simpan produk";
     $("pName").value = p ? p.name : "";
     $("pCategory").value = p ? categoryIdOf(p) : state.categories[0]._id;
@@ -1504,6 +1627,25 @@
     $("pSoldHint").textContent = p
       ? "Sudah terjual " + p.sold + " unit. Angka ini dihitung otomatis dari order yang dibayar dan tidak bisa diubah manual."
       : "Jumlah terjual akan dihitung otomatis dari order yang dibayar.";
+
+    // Stok manual disembunyikan untuk produk Automatic Redeem Code — nilainya
+    // dihitung otomatis dari redeem code yang tersedia (spec 3), bukan diketik
+    // admin. required dicopot juga supaya validasi form tidak memblokir submit.
+    $("pStockField").hidden = isRedeem;
+    $("pStock").required = !isRedeem;
+
+    $("redeemFieldset").hidden = !isRedeem;
+    $("pRedeemInstructions").value = p ? p.redeemInstructions || "" : "";
+    $("pRedeemInstructions").required = isRedeem;
+    $("pRedeemCodesInitial").value = "";
+    // Restock awal (paste code langsung) hanya masuk akal saat produk BELUM
+    // ada — begitu tersimpan, penambahan berikutnya lewat "+ Restock Code".
+    $("redeemInitialBlock").hidden = Boolean(p);
+    $("redeemStatsBlock").hidden = !p;
+    if (isRedeem && p) {
+      const stats = p.redeemStats || { total: 0, available: 0, sold: 0 };
+      setRedeemStatBadges("redeemStat", stats);
+    }
 
     const drop = $("imageDrop");
     setDropState("idle");
@@ -1520,23 +1662,47 @@
     openModal("productModal");
   }
 
+  // Dipakai form Add/Edit Produk (prefix "redeemStat") maupun modal Restock
+  // (prefix "restockStat") — satu fungsi, dua target DOM.
+  function setRedeemStatBadges(prefix, stats) {
+    $(prefix + "Total").textContent = String(stats.total || 0);
+    $(prefix + "Available").textContent = String(stats.available || 0);
+    $(prefix + "Sold").textContent = String(stats.sold || 0);
+  }
+
   async function submitProduct(e) {
     e.preventDefault();
     setAlert("productAlert", "");
+
+    const id = state.editing.productId;
+    const isRedeem = state.editing.orderSystem === "REDEEM_CODE";
 
     const form = new FormData();
     form.append("name", $("pName").value.trim());
     form.append("categoryId", $("pCategory").value);
     form.append("status", $("pStatus").value);
     form.append("price", $("pPrice").value);
-    form.append("stock", $("pStock").value);
+    // Stok manual TIDAK dikirim untuk produk Automatic Redeem Code — backend
+    // mengabaikannya untuk produk ini (dihitung dari redeem code), jadi tidak
+    // ada gunanya mengirim nilai yang tidak dipakai (spec 3 & 11).
+    if (!isRedeem) form.append("stock", $("pStock").value);
     form.append("sortOrder", $("pSortOrder").value || "0");
     form.append("description", $("pDesc").value.trim());
     form.append("shortDescription", $("pShortDesc").value.trim());
     if (pendingImageFile) form.append("image", pendingImageFile);
     else if (removeExistingImage) form.append("removeImage", "true");
 
-    const id = state.editing.productId;
+    // orderSystem hanya berlaku saat MEMBUAT produk baru — backend mengunci
+    // field ini selamanya begitu produk ada (spec 11), jadi tidak pernah
+    // dikirim saat edit supaya niatnya jelas dari sisi frontend juga.
+    if (!id) form.append("orderSystem", state.editing.orderSystem);
+    if (isRedeem) {
+      form.append("redeemInstructions", $("pRedeemInstructions").value.trim());
+      if (!id) {
+        const initialCodes = $("pRedeemCodesInitial").value.trim();
+        if (initialCodes) form.append("redeemCodes", initialCodes);
+      }
+    }
 
     // Daftar key yang dipertahankan: yang tidak ada di sini akan dibersihkan
     // backend dari R2 SETELAH dokumen tersimpan. Hanya dikirim saat edit —
@@ -1549,12 +1715,18 @@
 
     await withBusy($("productSubmit"), "Menyimpan…", async () => {
       try {
-        await api(id ? "/products/admin/" + id : "/products/admin", { method: id ? "PUT" : "POST", body: form });
+        const res = await api(id ? "/products/admin/" + id : "/products/admin", { method: id ? "PUT" : "POST", body: form });
         setDropState("idle");
         releaseExtraPreviews();
         extraNew = [];
         closeModal("productModal");
-        showToast(id ? "Produk diperbarui." : "Produk ditambahkan.", "success");
+        const restock = res && res.redeemRestock;
+        showToast(
+          id
+            ? "Produk diperbarui."
+            : "Produk ditambahkan." + (restock ? " " + restock.inserted + " redeem code awal tersimpan." : ""),
+          "success"
+        );
         await loadProducts();
       } catch (err) {
         if (hasImageWork) {
@@ -1562,6 +1734,54 @@
           setDropState("error");
         }
         setAlert("productAlert", err.message);
+      }
+    });
+  }
+
+  /* --- restock redeem code (spec 5) --- */
+  function openRestockModal(productId) {
+    if (!productId) return;
+    const p = state.products.find((x) => x._id === productId);
+    state.editing.restockProductId = productId;
+    setAlert("restockAlert", "");
+    $("restockCodes").value = "";
+    $("restockProductName").textContent = p ? p.name : "";
+    const stats = (p && p.redeemStats) || { total: 0, available: 0, sold: 0 };
+    setRedeemStatBadges("restockStat", stats);
+    openModal("restockModal");
+  }
+
+  async function submitRestock(e) {
+    e.preventDefault();
+    setAlert("restockAlert", "");
+    const productId = state.editing.restockProductId;
+    const codes = $("restockCodes").value;
+    if (!codes.trim()) {
+      setAlert("restockAlert", "Tempel minimal satu redeem code.");
+      return;
+    }
+    await withBusy($("restockSubmit"), "Menyimpan…", async () => {
+      try {
+        const res = await api("/products/admin/" + productId + "/redeem-codes", { method: "POST", body: { codes } });
+        const stats = res.data.stats;
+        setRedeemStatBadges("restockStat", stats);
+        // Sinkronkan juga badge di form Add/Edit Produk kalau produk yang
+        // sama sedang terbuka di sana (mis. admin restock lewat tombol di
+        // dalam form Edit, bukan dari daftar produk).
+        if (state.editing.productId === productId && !$("redeemStatsBlock").hidden) {
+          setRedeemStatBadges("redeemStat", stats);
+        }
+        const p = state.products.find((x) => x._id === productId);
+        if (p) {
+          p.redeemStats = stats;
+          p.stock = stats.available;
+        }
+        $("restockCodes").value = "";
+        showToast(res.message, "success");
+        renderProducts();
+        loadRedeemSold().catch(() => {});
+      } catch (err) {
+        setAlert("restockAlert", err.message);
       }
     });
   }
@@ -3487,6 +3707,29 @@
       if (["products", "dashboard"].includes(state.currentPage)) refreshCurrentPageDebounced();
     });
 
+    // Realtime redeem code (spec 9): restock/klaim dari sesi admin lain, atau
+    // dari pembayaran customer yang baru saja sukses. Badge yang SEDANG
+    // terbuka (form produk / modal restock) diupdate langsung dari payload —
+    // tidak menunggu refresh halaman supaya admin yang lagi memandanginya
+    // melihat angkanya berubah seketika.
+    socket.on("redeem:stock:updated", (payload) => {
+      if (!payload || !payload.productId) return;
+      const stats = { total: payload.total, available: payload.available, sold: payload.sold };
+      const p = state.products.find((x) => x._id === payload.productId);
+      if (p) {
+        p.redeemStats = stats;
+        p.stock = stats.available;
+        if (state.currentPage === "products") renderProducts();
+      }
+      if (state.editing.productId === payload.productId && !$("redeemStatsBlock").hidden) {
+        setRedeemStatBadges("redeemStat", stats);
+      }
+      if (state.editing.restockProductId === payload.productId && $("restockModal").classList.contains("open")) {
+        setRedeemStatBadges("restockStat", stats);
+      }
+      if (state.currentPage === "products") refreshCurrentPageDebounced();
+    });
+
     ["product:created", "product:updated", "product:deleted", "products:updated", "categories:updated"].forEach((ev) =>
       socket.on(ev, () => {
         if (["products", "categories", "dashboard"].includes(state.currentPage)) refreshCurrentPageDebounced();
@@ -3703,14 +3946,30 @@
         return;
       }
 
-      if (e.target.closest("[data-open-product]")) return openProductModal(null);
+      // Add Product sekarang membuka popup pilihan sistem dulu (spec 1),
+      // bukan langsung form. Edit tetap langsung ke form — orderSystem sudah
+      // terkunci sejak produk dibuat.
+      if (e.target.closest("[data-open-product]")) return openOrderSystemModal();
       if (e.target.closest("[data-open-category]")) return openCategoryModal(null);
       if (e.target.closest("[data-open-faq]")) return openFaqModal(null);
+
+      const chooseSystem = e.target.closest("[data-choose-order-system]");
+      if (chooseSystem) {
+        closeModal("orderSystemModal");
+        openProductModal(null, chooseSystem.dataset.chooseOrderSystem);
+        return;
+      }
 
       const editProduct = e.target.closest("[data-edit-product]");
       if (editProduct) return openProductModal(editProduct.dataset.editProduct);
       const delProduct = e.target.closest("[data-delete-product]");
       if (delProduct) return deleteProduct(delProduct.dataset.deleteProduct);
+
+      if (e.target.closest("[data-open-restock]") || e.target.closest("#openRestockFromProductBtn")) {
+        return openRestockModal(state.editing.productId);
+      }
+      const restockRow = e.target.closest("[data-restock-product]");
+      if (restockRow) return openRestockModal(restockRow.dataset.restockProduct);
 
       const editCategory = e.target.closest("[data-edit-category]");
       if (editCategory) return openCategoryModal(editCategory.dataset.editCategory);
@@ -3926,6 +4185,11 @@
       renderProducts();
     });
     $("productForm").addEventListener("submit", submitProduct);
+    $("restockForm").addEventListener("submit", submitRestock);
+
+    // Redeem Code Terjual
+    $("redeemSoldSearch").addEventListener("input", debounce(() => reloadRedeemSold(), 350));
+    $("redeemSoldProductFilter").addEventListener("change", () => reloadRedeemSold());
 
     // Dropzone gambar produk
     const imageDrop = $("imageDrop");

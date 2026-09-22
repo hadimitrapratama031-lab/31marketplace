@@ -585,6 +585,39 @@
           </table>
         </div>
       </div>
+
+      <!-- ------------------------------------------------- REDEEM CODE TERJUAL -->
+      <div class="panel" id="redeemSoldPanel" style="margin-top:var(--s6)">
+        <div class="panel-head">
+          <div class="panel-head-text">
+            <h3>Redeem Code Terjual</h3>
+            <p>Redeem code yang sudah diberikan ke customer, dari produk Automatic Redeem Code.</p>
+          </div>
+        </div>
+        <div class="toolbar">
+          <label class="search">
+            <svg class="ico ico-sm"><use href="#i-search"></use></svg>
+            <input id="redeemSoldSearch" type="search" placeholder="Cari redeem code" aria-label="Cari redeem code">
+          </label>
+          <span class="spacer"></span>
+          <select id="redeemSoldProductFilter" aria-label="Filter produk"><option value="">Semua produk redeem code</option></select>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Redeem Code</th>
+                <th>Produk</th>
+                <th>Order</th>
+                <th>Customer</th>
+                <th>Waktu Terjual</th>
+              </tr>
+            </thead>
+            <tbody id="redeemSoldTable"></tbody>
+          </table>
+        </div>
+        <div class="pager" id="redeemSoldPager"></div>
+      </div>
     </section>
 
     <!-- =========================================================== CATEGORIES -->
@@ -1604,6 +1637,35 @@
 
 <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
+<!-- ============================================== MODAL — PILIH SISTEM ORDER -->
+<div class="modal-root" id="orderSystemModal" role="dialog" aria-modal="true" aria-labelledby="orderSystemModalTitle">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <div class="modal-head-text">
+        <h3 id="orderSystemModalTitle">Pilih sistem order</h3>
+        <p>Pilihan ini menentukan bagaimana produk diproses setelah pembayaran berhasil, dan tidak bisa diganti setelah produk dibuat.</p>
+      </div>
+      <button class="modal-close" type="button" data-close-modal="orderSystemModal" aria-label="Tutup"><svg class="ico"><use href="#i-x"></use></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="order-system-grid">
+        <button type="button" class="order-system-card" data-choose-order-system="MANUAL">
+          <span class="order-system-icon"><svg class="ico"><use href="#i-message"></use></svg></span>
+          <b>Sistem Lama</b>
+          <span class="order-system-sub">Manual / WhatsApp</span>
+          <p>Cocok untuk produk yang diproses manual. Customer diarahkan chat admin setelah pembayaran selesai.</p>
+        </button>
+        <button type="button" class="order-system-card is-new" data-choose-order-system="REDEEM_CODE">
+          <span class="order-system-icon"><svg class="ico"><use href="#i-key"></use></svg></span>
+          <b>Sistem Baru</b>
+          <span class="order-system-sub">Automatic Redeem Code</span>
+          <p>Order selesai otomatis setelah pembayaran berhasil. Redeem code diambil dari stok dan langsung tampil ke customer.</p>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ======================================================== MODAL — PRODUK -->
 <div class="modal-root" id="productModal" role="dialog" aria-modal="true" aria-labelledby="productModalTitle">
   <div class="modal modal-lg">
@@ -1643,10 +1705,46 @@
           <div class="fieldset-head"><h4>Harga &amp; stok</h4><p>Sumber kebenaran harga dan ketersediaan saat checkout.</p></div>
           <div class="form-grid three">
             <label class="field"><span>Harga (IDR) <i class="req">*</i></span><input id="pPrice" required type="number" min="0" step="1" placeholder="0"></label>
-            <label class="field"><span>Stok <i class="req">*</i></span><input id="pStock" required type="number" min="0" step="1" value="0"></label>
+            <label class="field" id="pStockField"><span>Stok <i class="req">*</i></span><input id="pStock" required type="number" min="0" step="1" value="0"></label>
             <label class="field"><span>Urutan tampil</span><input id="pSortOrder" type="number" step="1" value="0"></label>
           </div>
           <p class="hint-line" id="pSoldHint" style="margin-top:var(--s3)"></p>
+        </div>
+
+        <div class="fieldset" id="redeemFieldset" hidden>
+          <div class="fieldset-head">
+            <h4><svg class="ico ico-sm" style="vertical-align:-3px;margin-right:4px"><use href="#i-key"></use></svg>Automatic Redeem Code</h4>
+            <p>Redeem code disimpan aman di database dan hanya bisa dipakai satu kali per code.</p>
+          </div>
+
+          <div class="form-grid one">
+            <label class="field span-full">
+              <span>Cara Redeem <i class="req">*</i></span>
+              <textarea id="pRedeemInstructions" rows="4" placeholder="Contoh: Buka aplikasi, masuk ke menu Redeem Code, masukkan kode di atas."></textarea>
+              <span class="hint">Tampil ke customer di halaman transaksi &amp; notifikasi WhatsApp setelah pembayaran berhasil.</span>
+            </label>
+          </div>
+
+          <div id="redeemInitialBlock">
+            <div class="form-grid one" style="margin-top:var(--s4)">
+              <label class="field span-full">
+                <span>Redeem Code Awal (opsional)</span>
+                <textarea id="pRedeemCodesInitial" rows="5" placeholder="CODE-XXXX-XXXX&#10;CODE-YYYY-YYYY&#10;CODE-ZZZZ-ZZZZ"></textarea>
+                <span class="hint">Satu kode per baris. Bisa ditambah/restock kapan saja setelah produk dibuat.</span>
+              </label>
+            </div>
+          </div>
+
+          <div id="redeemStatsBlock" hidden style="margin-top:var(--s4)">
+            <div class="redeem-stat-grid">
+              <div class="redeem-stat"><b id="redeemStatTotal">0</b><span>Total</span></div>
+              <div class="redeem-stat is-available"><b id="redeemStatAvailable">0</b><span>Available</span></div>
+              <div class="redeem-stat is-sold"><b id="redeemStatSold">0</b><span>Sold</span></div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline" id="openRestockFromProductBtn" style="margin-top:var(--s3)">
+              <svg class="ico ico-sm"><use href="#i-plus"></use></svg>Restock Code
+            </button>
+          </div>
         </div>
 
         <div class="fieldset">
@@ -1693,6 +1791,42 @@
       <div class="modal-foot">
         <button type="button" class="btn btn-ghost" data-close-modal="productModal">Batal</button>
         <button type="submit" class="btn btn-primary" id="productSubmit">Simpan produk</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================================================ MODAL — RESTOCK REDEEM CODE -->
+<div class="modal-root" id="restockModal" role="dialog" aria-modal="true" aria-labelledby="restockModalTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-head-text">
+        <h3 id="restockModalTitle">Restock Redeem Code</h3>
+        <p id="restockProductName">—</p>
+      </div>
+      <button class="modal-close" type="button" data-close-modal="restockModal" aria-label="Tutup"><svg class="ico"><use href="#i-x"></use></svg></button>
+    </div>
+    <form id="restockForm">
+      <div class="modal-body">
+        <div class="modal-alert" id="restockAlert"><svg class="ico ico-sm"><use href="#i-alert"></use></svg><span></span></div>
+
+        <div class="redeem-stat-grid" id="restockStatGrid">
+          <div class="redeem-stat"><b id="restockStatTotal">0</b><span>Total</span></div>
+          <div class="redeem-stat is-available"><b id="restockStatAvailable">0</b><span>Available</span></div>
+          <div class="redeem-stat is-sold"><b id="restockStatSold">0</b><span>Sold</span></div>
+        </div>
+
+        <div class="form-grid one" style="margin-top:var(--s5)">
+          <label class="field span-full">
+            <span>Tempel Redeem Code <i class="req">*</i></span>
+            <textarea id="restockCodes" rows="8" placeholder="CODE-XXXX-XXXX&#10;CODE-YYYY-YYYY&#10;CODE-ZZZZ-ZZZZ"></textarea>
+            <span class="hint">Satu kode per baris. Kode kosong dilewati otomatis; kode yang sudah ada untuk produk ini tidak akan ditambahkan dua kali.</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close-modal="restockModal">Tutup</button>
+        <button type="submit" class="btn btn-primary" id="restockSubmit">Simpan kode</button>
       </div>
     </form>
   </div>
