@@ -41,35 +41,10 @@ const ProductSchema = new mongoose.Schema(
       },
     },
     price: { type: Number, required: true, min: 0 }, // source of truth price (IDR)
-    // Untuk orderSystem "MANUAL": stok diisi manual oleh admin, seperti
-    // sebelumnya. Untuk "REDEEM_CODE": angka ini adalah JUMLAH REDEEM CODE
-    // BERSTATUS AVAILABLE milik produk ini, dijaga tetap sinkron oleh
-    // services/redeemCode.service.js setiap kali restock atau klaim terjadi.
-    // Sengaja memakai field yang SAMA (bukan field baru) supaya checkout,
-    // validasi stok, tampilan Marketplace, dan kolom Stok di Admin Web yang
-    // sudah ada — yang semuanya membaca `stock` — otomatis bekerja untuk
-    // kedua sistem order tanpa perlu diubah satu baris pun.
     stock: { type: Number, required: true, min: 0, default: 0 },
     sold: { type: Number, required: true, min: 0, default: 0 },
     status: { type: String, enum: ["active", "inactive"], default: "active", index: true },
     sortOrder: { type: Number, default: 0 },
-    // Sistem order produk ini. Default "MANUAL" berarti produk LAMA yang
-    // belum punya field ini sama sekali otomatis terbaca sebagai sistem lama
-    // (Mongoose menerapkan default ini saat hydrate dokumen dari MongoDB,
-    // bukan hanya saat dokumen baru dibuat) — tidak perlu migrasi apa pun,
-    // persis pola yang sudah dipakai `additionalImages` di atas.
-    orderSystem: {
-      type: String,
-      enum: ["MANUAL", "REDEEM_CODE"],
-      default: "MANUAL",
-      index: true,
-    },
-    // Hanya relevan kalau orderSystem = "REDEEM_CODE". Ditampilkan ke
-    // customer di halaman transaksi & WhatsApp SETELAH pembayaran SUCCESS.
-    // Dibaca LIVE dari sini (bukan disalin ke Order) supaya kalau admin
-    // membetulkan instruksinya, order lama maupun baru sama-sama melihat
-    // versi terbaru.
-    redeemInstructions: { type: String, default: "" },
   },
   { timestamps: true }
 );

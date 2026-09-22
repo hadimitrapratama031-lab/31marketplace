@@ -1,6 +1,5 @@
 require("dotenv").config();
 
-const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const express = require("express");
@@ -168,72 +167,6 @@ function sendPage(res, next, ...segments) {
   });
 }
 
-// =====================================================================
-// CACHE-BUSTING UNTUK HALAMAN HTML (root cause "fitur baru tidak muncul
-// setelah deploy" meskipun sudah Ctrl+Shift+R):
-//
-// admin.js / admin.css / assets/js/*.js / assets/css/*.css diserve lewat
-// express.static dengan Cache-Control: max-age 7 hari (lihat assetOptions
-// di bawah), dan nama filenya TIDAK PERNAH berubah antar deploy (bukan
-// hashed filename). Browser (dan proxy/CDN apa pun di depan Railway) boleh
-// terus memakai admin.js versi lama sampai 7 hari, tidak peduli sudah
-// deploy versi baru — Ctrl+Shift+R hanya memaksa browser lokal mengabaikan
-// cache-nya sendiri, tidak menyentuh cache di proxy/CDN perantara.
-//
-// Perbaikannya: setiap kali server ini START (= setiap deploy baru di
-// Railway, karena deploy selalu menjalankan proses baru), ASSET_VERSION di
-// bawah berubah nilainya. Semua <script src="admin.js"> / <link
-// href="admin.css"> di HTML entry point di-suntik jadi
-// "admin.js?v=ASSET_VERSION" saat dikirim ke browser. Karena URL-nya
-// sendiri berubah tiap deploy, browser/CDN WAJIB mengambil file baru — file
-// JS/CSS di baliknya tetap boleh di-cache lama (aman & cepat), yang
-// berubah cuma query string-nya.
-//
-// Prioritas ASSET_VERSION: pakai commit SHA dari Railway kalau ada (paling
-// stabil — sama persis untuk semua instance dari deploy yang sama), fallback
-// ke waktu proses start (development / platform lain).
-const ASSET_VERSION = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_DEPLOYMENT_ID || String(Date.now());
-logger.info("Asset version untuk cache-busting HTML", { ASSET_VERSION });
-
-// Cache file HTML yang sudah disisipi ?v=... di memori (per path), supaya
-// tidak baca+regex ulang setiap request. Aman karena file di disk tidak
-// berubah selama proses ini hidup — proses baru (= deploy baru) otomatis
-// dapat ASSET_VERSION baru dan cache di bawah kosong lagi.
-const versionedPageCache = new Map();
-
-// Hanya menyisipi ?v= pada referensi LOKAL (relatif atau diawali "/", tanpa
-// query string sendiri) ke .js/.css — bukan URL eksternal (http://, https://,
-// //) seperti "/socket.io/socket.io.js" (itu disediakan Socket.IO sendiri,
-// bukan file statis kita, jadi sengaja dilewati lewat pengecualian di bawah).
-function injectAssetVersion(html) {
-  return html.replace(/(src|href)="((?!https?:\/\/|\/\/|\/socket\.io\/)[^"?]+\.(?:js|css))"/g, (match, attr, url) => `${attr}="${url}?v=${ASSET_VERSION}"`);
-}
-
-// Sama seperti sendPage, tapi untuk halaman HTML yang mereferensikan
-// admin.js/admin.css/assets JS-CSS kita sendiri: dibaca, disuntik ?v=, dan
-// dikirim dengan Cache-Control: no-cache supaya browser SELALU revalidate ke
-// origin untuk file HTML-nya sendiri (murah — cukup 304 kalau memang belum
-// berubah), sehingga referensi ?v= yang baru langsung didapat begitu deploy
-// baru live, tanpa harus menunggu browser cache HTML lama kadaluarsa.
-function sendPageVersioned(res, next, ...segments) {
-  if (!frontendDir) {
-    return sendPage(res, next, ...segments);
-  }
-  const file = path.join(frontendDir, ...segments);
-  try {
-    let versioned = versionedPageCache.get(file);
-    if (!versioned) {
-      const raw = fs.readFileSync(file, "utf8");
-      versioned = injectAssetVersion(raw);
-      versionedPageCache.set(file, versioned);
-    }
-    res.set("Cache-Control", "no-cache");
-    res.type("html").send(versioned);
-  } catch (err) {
-    next(err);
-  }
-}
-
 if (frontendDir) {
   // ---- 3. Asset: /assets/*, /css/*, /js/* ----
   // /css dan /js disediakan sebagai alias agar path absolut gaya
@@ -262,41 +195,41 @@ if (frontendDir) {
 // ---- 4. Halaman frontend ----
 
 // Homepage Marketplace
-app.get(["/", "/index.html"], (req, res, next) => sendPageVersioned(res, next, "index.html"));
+app.get("/", (req, res, next) => sendPage(res, next, "index.html"));
 
 // Admin Web. Bare "/admin" di-redirect ke "/admin/" supaya path relatif
 // admin.css / admin.js di dalam admin/index.html resolve ke /admin/admin.css,
 // bukan ke /admin.css di root (inilah penyebab /admin tampil polos tanpa CSS).
-app.get(["/admin/login", "/admin/login.html"], (req, res, next) => sendPageVersioned(res, next, "admin", "login.html"));
+app.get(["/admin/login", "/admin/login.html"], (req, res, next) => sendPage(res, next, "admin", "login.html"));
 app.get(["/admin", "/admin/"], (req, res, next) => {
   // Express non-strict routing menganggap "/admin" dan "/admin/" sama, jadi
   // pembedaannya harus lewat req.path — kalau tidak, redirect-nya jadi loop.
   if (req.path === "/admin") return res.redirect(301, "/admin/");
-  return sendPageVersioned(res, next, "admin", "index.html");
+  return sendPage(res, next, "admin", "index.html");
 });
 
 // Katalog produk (daftar). Didaftarkan eksplisit supaya "/products" tidak
 // bergantung pada opsi `extensions` di express.static.
-app.get(["/products", "/products.html"], (req, res, next) => sendPageVersioned(res, next, "products.html"));
+app.get(["/products", "/products.html"], (req, res, next) => sendPage(res, next, "products.html"));
 
 // Halaman detail produk
-app.get(["/product", "/product.html"], (req, res, next) => sendPageVersioned(res, next, "product.html"));
+app.get(["/product", "/product.html"], (req, res, next) => sendPage(res, next, "product.html"));
 
 // Alur pembayaran: Checkout -> Payment (QRIS) -> Order Success
-app.get(["/checkout", "/checkout.html"], (req, res, next) => sendPageVersioned(res, next, "checkout.html"));
-app.get(["/payment", "/payment.html"], (req, res, next) => sendPageVersioned(res, next, "payment.html"));
-app.get(["/order-success", "/order-success.html"], (req, res, next) => sendPageVersioned(res, next, "order-success.html"));
+app.get(["/checkout", "/checkout.html"], (req, res, next) => sendPage(res, next, "checkout.html"));
+app.get(["/payment", "/payment.html"], (req, res, next) => sendPage(res, next, "payment.html"));
+app.get(["/order-success", "/order-success.html"], (req, res, next) => sendPage(res, next, "order-success.html"));
 
 // Cek Pesanan
 app.get(["/cek-pesanan", "/cek-pesanan/", "/cek-pesanan/*"], (req, res, next) => {
   if (req.path === "/cek-pesanan") return res.redirect(301, "/cek-pesanan/");
-  return sendPageVersioned(res, next, "cek-pesanan", "index.html");
+  return sendPage(res, next, "cek-pesanan", "index.html");
 });
 
 // Rating
 app.get(["/rating", "/rating/", "/rating/*"], (req, res, next) => {
   if (req.path === "/rating") return res.redirect(301, "/rating/");
-  return sendPageVersioned(res, next, "rating", "index.html");
+  return sendPage(res, next, "rating", "index.html");
 });
 
 // ---- 5. Sisa file statis (favicon, gambar, file lain di root repo) ----

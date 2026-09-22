@@ -190,77 +190,6 @@
     return '<div class="kv"><span>' + MP.escapeHTML(label) + "</span><strong>" + MP.escapeHTML(String(value)) + "</strong></div>";
   }
 
-  // Blok REDEEM CODE + CARA REDEEM (sistem baru — Automatic Redeem Code).
-  // `order.redeem` HANYA diisi backend kalau produknya orderSystem
-  // "REDEEM_CODE" DAN pembayaran sudah SUCCESS — null berarti produk sistem
-  // lama, tidak ada blok apa pun (flow lama tidak berubah). `codes` kosong
-  // berarti klaim gagal/tidak lengkap saat pembayaran: TIDAK PERNAH
-  // mengarang code, tampilkan pesan error apa adanya.
-  function redeemBoxHTML(redeem) {
-    if (!redeem) return "";
-
-    if (redeem.codes && redeem.codes.length) {
-      var rows = redeem.codes
-        .map(function (code) {
-          return (
-            '<div class="redeem-code-row"><span class="redeem-code-value">' +
-            MP.escapeHTML(code) +
-            '</span><button type="button" class="redeem-copy-btn" data-copy-code="' +
-            MP.escapeHTML(code) +
-            '">Salin</button></div>'
-          );
-        })
-        .join("");
-      var instructions = redeem.instructions
-        ? '<div class="redeem-instructions"><h4>Cara Redeem</h4><p>' + MP.escapeHTML(redeem.instructions) + "</p></div>"
-        : "";
-      return '<section class="panel redeem-box"><h4>Redeem Code</h4>' + rows + instructions + "</section>";
-    }
-
-    return (
-      '<section class="panel redeem-box is-error"><h4>Redeem Code</h4><p>' +
-      MP.escapeHTML(redeem.error || "Redeem code sedang diproses. Silakan hubungi admin jika belum muncul.") +
-      "</p></section>"
-    );
-  }
-
-  // Tombol "Salin" pada tiap baris redeem code. Dipasang ulang setiap kali
-  // #result dirender ulang (buka detail baru / refresh realtime), memakai
-  // clipboard API dengan fallback execCommand untuk browser lama.
-  function bindCopyButtons(root) {
-    root.querySelectorAll("[data-copy-code]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var code = btn.dataset.copyCode;
-        var markCopied = function () {
-          var original = btn.textContent;
-          btn.textContent = "Tersalin";
-          btn.classList.add("is-copied");
-          setTimeout(function () {
-            btn.textContent = original;
-            btn.classList.remove("is-copied");
-          }, 1600);
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(code).then(markCopied).catch(function () {});
-          return;
-        }
-        var ta = document.createElement("textarea");
-        ta.value = code;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        try {
-          document.execCommand("copy");
-          markCopied();
-        } catch (e) {
-          /* abaikan kalau copy tidak didukung */
-        }
-        document.body.removeChild(ta);
-      });
-    });
-  }
-
   function renderDetail(order, showBack) {
     var steps = stepState(order)
       .map(function (s) {
@@ -323,12 +252,9 @@
       (order.emailMasked
         ? '<p class="muted" style="font-size:12.5px;margin-top:14px">Email disamarkan karena pesanan ini dibuka dengan Order ID. Cari dengan emailmu untuk melihatnya lengkap.</p>'
         : "") +
-      redeemBoxHTML(order.redeem) +
       payment +
       contact +
       "</div>";
-
-    bindCopyButtons($("result"));
   }
 
   /* --------------------------------------------------------- pemanggilan */

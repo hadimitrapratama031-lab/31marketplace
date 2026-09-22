@@ -135,7 +135,7 @@ const EVENT_COPY = {
  * database — tidak ada yang dikarang, dan field yang kosong tetap kosong
  * sehingga baris yang bersangkutan tidak ikut dirender.
  */
-function buildContext({ event, order, transaction, settings, productImageFallback, redeemCodes, redeemInstructions }) {
+function buildContext({ event, order, transaction, settings, productImageFallback }) {
   const general = (settings && settings.general) || {};
   const contact = (settings && settings.contact) || {};
   const theme = (settings && settings.theme) || {};
@@ -235,19 +235,6 @@ function buildContext({ event, order, transaction, settings, productImageFallbac
     accentSoft: copy ? copy.accentSoft : "#f1ecff",
   };
 
-  // Sistem Baru — Automatic Redeem Code (spec 7 & 8). Hanya diisi oleh
-  // pemanggil (notification.service.js) untuk event paymentSuccess pada
-  // produk orderSystem "REDEEM_CODE" — untuk event lain dan produk sistem
-  // lama, redeemCodes selalu kosong sehingga ctx.hasRedeemCode tetap false
-  // dan tidak ada satu baris pun blok redeem code yang dirender (spec 8:
-  // "Untuk sistem order lama: WhatsApp notification tetap sama... Tidak ada
-  // redeem code").
-  const redeemCodesList = Array.isArray(redeemCodes) ? redeemCodes.filter(Boolean) : [];
-  ctx.redeemCodes = redeemCodesList;
-  ctx.redeemCode = redeemCodesList.join("\n");
-  ctx.redeemInstructions = redeemInstructions || "";
-  ctx.hasRedeemCode = redeemCodesList.length > 0;
-
   ctx.subject = copy ? copy.subject(ctx) : `Update pesanan ${ctx.orderCode}`;
 
   // Link "Silakan cek invoice melalui" pada template WhatsApp Order Sukses —
@@ -294,8 +281,6 @@ function placeholders(ctx) {
     pay_url: ctx.payUrl,
     wa_admin_url: ctx.waHref,
     discord_url: ctx.discordHref,
-    redeem_code: ctx.redeemCode,
-    redeem_instructions: ctx.redeemInstructions,
   };
 }
 
@@ -362,18 +347,6 @@ function buildOrderFailedOrExpiredWhatsApp(ctx) {
   return lines.join("\n");
 }
 
-// Baris "Code Redeem Kamu" + "Cara Redeem" (spec 8) — HANYA muncul kalau
-// ctx.hasRedeemCode (diisi buildContext dari klaim RedeemCode sungguhan).
-// Tidak pernah mengarang code: kalau claim gagal, notification.service.js
-// tidak pernah memanggil buildContext dengan redeemCodes terisi, jadi fungsi
-// ini otomatis tidak merender apa pun untuk order itu.
-function redeemWhatsAppBlock(ctx) {
-  if (!ctx.hasRedeemCode) return "";
-  const lines = ["*Code Redeem Kamu:*", ctx.redeemCode];
-  if (ctx.redeemInstructions) lines.push("", "*Cara Redeem:*", ctx.redeemInstructions);
-  return lines.join("\n");
-}
-
 function buildOrderSuccessWhatsApp(ctx) {
   const lines = [
     "*Pembayaran Berhasil*",
@@ -393,9 +366,6 @@ function buildOrderSuccessWhatsApp(ctx) {
       bulletLine("Waktu Pembayaran", ctx.paidAt),
     ].filter(Boolean),
   ];
-
-  const redeemBlock = redeemWhatsAppBlock(ctx);
-  if (redeemBlock) lines.push("", redeemBlock);
 
   if (ctx.invoiceUrl) {
     lines.push("", "Silakan cek invoice melalui:", ctx.invoiceUrl);
@@ -428,52 +398,6 @@ const PAGE = "#f4f3f7";
 // Baris label/nilai di dalam card detail. Label rata kiri abu-abu, nilai
 // rata kanan gelap — pola yang stabil di Gmail, Outlook, dan Apple Mail
 // karena hanya memakai <table>, bukan flex/grid.
-// Kotak "REDEEM CODE" + "CARA REDEEM" (spec 7 & 8) — versi HTML untuk email.
-// `standalone` membungkusnya jadi <div> biasa (dipakai saat disisipkan ke
-// template HTML custom admin, yang strukturnya tidak diketahui); tanpa itu
-// dikembalikan sebagai isi <tr><td> untuk ditempel langsung di tabel email
-// bawaan (lihat buildEmailHtml).
-function redeemBoxHTML(ctx) {
-  if (!ctx.hasRedeemCode) return "";
-  return `<div style="background:#eef7f1;border:1px solid #cdeadb;border-radius:12px;padding:20px;">
-<p style="margin:0 0 6px;font-family:${FONT};font-size:12px;font-weight:700;color:#0f7a52;letter-spacing:0.04em;">REDEEM CODE</p>
-<p style="margin:0 0 ${ctx.redeemInstructions ? "14px" : "0"};font-family:${FONT};font-size:19px;font-weight:800;color:${INK};letter-spacing:0.03em;word-break:break-all;white-space:pre-line;">${escapeHTML(
-    ctx.redeemCode
-  )}</p>
-${
-  ctx.redeemInstructions
-    ? `<p style="margin:0 0 4px;font-family:${FONT};font-size:12px;font-weight:700;color:#0f7a52;letter-spacing:0.04em;">CARA REDEEM</p><p style="margin:0;font-family:${FONT};font-size:14px;line-height:1.6;color:${INK};white-space:pre-line;">${escapeHTML(
-        ctx.redeemInstructions
-      )}</p>`
-    : ""
-}
-</div>`;
-}
-
-function redeemEmailHtmlRow(ctx) {
-  const box = redeemBoxHTML(ctx);
-  return box ? `<tr><td class="pad" style="padding:22px 32px 0;">${box}</td></tr>` : "";
-}
-
-// Menyisipkan block HTML sebelum </body> (case-insensitive); kalau template
-// custom admin tidak punya tag itu, ditempel di akhir. Dipakai HANYA untuk
-// template HTML custom admin — template bawaan sudah punya tempatnya sendiri
-// di dalam tabel lewat redeemEmailHtmlRow() (spec 8: tidak merusak template
-// existing, hanya menambahkan bagian redeem code).
-function appendHtmlBlock(html, block) {
-  if (!block) return html;
-  if (!html) return block;
-  const match = /<\/body>/i.exec(html);
-  if (match) return html.slice(0, match.index) + block + html.slice(match.index);
-  return html + block;
-}
-
-function appendRedeemToCustomHtml(html, ctx) {
-  const box = redeemBoxHTML(ctx);
-  if (!box) return html;
-  return appendHtmlBlock(html, `<div style="max-width:560px;margin:20px auto 0;padding:0 16px;box-sizing:border-box;">${box}</div>`);
-}
-
 function row(label, value, opts = {}) {
   if (value === undefined || value === null || value === "") return "";
   const valueStyle = opts.strong
@@ -616,7 +540,6 @@ ${productThumb}${rows}
 </td></tr>
 
 <tr><td style="height:24px;font-size:0;line-height:0;">&nbsp;</td></tr>
-${redeemEmailHtmlRow(ctx)}
 ${payBlock}
 ${helpBlock}
 <tr><td style="height:30px;font-size:0;line-height:0;">&nbsp;</td></tr>
@@ -679,17 +602,6 @@ function buildEmailText(ctx) {
     textLine("Total", ctx.total),
   ].filter(Boolean);
   lines.push(...details);
-
-  if (ctx.hasRedeemCode) {
-    lines.push("");
-    lines.push("REDEEM CODE");
-    lines.push(ctx.redeemCode);
-    if (ctx.redeemInstructions) {
-      lines.push("");
-      lines.push("CARA REDEEM");
-      lines.push(ctx.redeemInstructions);
-    }
-  }
 
   if (ctx.event === "orderCreated" && ctx.payUrl) {
     lines.push("");
@@ -754,19 +666,10 @@ function isAdminWritten(value) {
  * dikembalikan supaya bisa dicatat di NotificationLog dan dilihat admin —
  * tanpa itu tidak ada cara membuktikan template mana yang benar-benar
  * dipakai runtime, hanya menebak dari isi pesan.
- *
- * Redeem code (spec 8): template BAWAAN sudah menyisipkannya sendiri di
- * tempat yang tepat (buildOrderSuccessWhatsApp / buildEmailHtml /
- * buildEmailText). Template CUSTOM admin ditulis SEBELUM fitur ini ada, jadi
- * tidak mungkin sudah menyertakan blok redeem code — di sinilah satu-satunya
- * tempat blok itu ditambahkan untuknya, TANPA mengubah isi template admin
- * yang sudah ada (hanya ditambahkan di akhir).
  */
 function resolveWhatsApp(ctx, customTemplate) {
   if (isAdminWritten(customTemplate)) {
-    const text = renderTemplate(customTemplate, placeholders(ctx));
-    const redeemBlock = redeemWhatsAppBlock(ctx);
-    return { source: "custom", text: redeemBlock ? `${text}\n\n${redeemBlock}` : text };
+    return { source: "custom", text: renderTemplate(customTemplate, placeholders(ctx)) };
   }
   return { source: "builtin", text: buildWhatsAppMessage(ctx) };
 }
@@ -776,16 +679,13 @@ function resolveEmail(ctx, customTemplate) {
   const tpl = customTemplate || {};
   const htmlIsCustom = isAdminWritten(tpl.html);
   const subjectIsCustom = isAdminWritten(tpl.subject);
-  const html = htmlIsCustom ? appendRedeemToCustomHtml(renderTemplate(tpl.html, data), ctx) : buildEmailHtml(ctx);
   return {
     source: htmlIsCustom ? "custom" : "builtin",
     subject: subjectIsCustom ? renderTemplate(tpl.subject, data) : ctx.subject,
-    html,
+    html: htmlIsCustom ? renderTemplate(tpl.html, data) : buildEmailHtml(ctx),
     // Selalu diturunkan dari `ctx`, bukan dari HTML admin (yang bisa berisi
     // markup tak beraturan kalau ditelanjangi tag-nya). Ini bagian
-    // text/plain wajib untuk email multipart — lihat buildEmailText(). Sudah
-    // memuat blok redeem code sendiri (lihat buildEmailText di atas), jadi
-    // berlaku sama untuk template builtin maupun custom.
+    // text/plain wajib untuk email multipart — lihat buildEmailText().
     text: buildEmailText(ctx),
   };
 }

@@ -3,7 +3,6 @@ const NotificationLog = require("../models/NotificationLog");
 const WebsiteSettings = require("../models/WebsiteSettings");
 const Transaction = require("../models/Transaction");
 const Product = require("../models/Product");
-const redeemCodeService = require("./redeemCode.service");
 const fonnte = require("./fonnte.service");
 const resend = require("./resend.service");
 const discord = require("./discord.service");
@@ -262,38 +261,6 @@ async function resolveProductImageFallback(order) {
 }
 
 /**
- * Bahan "Code Redeem Kamu" + "Cara Redeem" untuk notifikasi paymentSuccess
- * (spec 8). HANYA dipanggil untuk event paymentSuccess dari produk
- * orderSystem "REDEEM_CODE" — lihat pemanggilnya di notifyOrderEvent/retryLog.
- *
- * Tidak pernah mengarang code: kalau claim gagal/tidak lengkap saat
- * pembayaran (order.redeemCodeError terisi, lihat payment.controller.js),
- * RedeemCode.find({orderId}) akan kosong dan fungsi ini mengembalikan
- * redeemCodes: [] — buildContext() otomatis membuat ctx.hasRedeemCode false,
- * sehingga notifikasi TIDAK menampilkan blok redeem code sama sekali untuk
- * order itu, bukan menampilkan code kosong/palsu.
- *
- * Instruksi diambil LIVE dari Product.redeemInstructions (bukan disalin ke
- * Order) — kalau admin membetulkan instruksinya, notifikasi yang terkirim
- * setelahnya (termasuk retry manual) memakai versi terbaru.
- */
-async function resolveRedeemForNotification(order) {
-  const productId = order.product && order.product.productId;
-  if (!productId) return { redeemCodes: [], redeemInstructions: "" };
-
-  try {
-    const product = await Product.findById(productId).select("orderSystem redeemInstructions").lean();
-    if (!product || product.orderSystem !== "REDEEM_CODE") return { redeemCodes: [], redeemInstructions: "" };
-
-    const redeemCodes = await redeemCodeService.getCodesForOrder(order._id);
-    return { redeemCodes, redeemInstructions: product.redeemInstructions || "" };
-  } catch (err) {
-    logger.warn("[Notification] gagal membaca redeem code untuk notifikasi", { orderCode: order.orderCode, message: err.message });
-    return { redeemCodes: [], redeemInstructions: "" };
-  }
-}
-
-/**
  * Menyiapkan payload email SIAP KIRIM: subject/html/text dari resolver
  * template (tidak berubah), plus lampiran CID untuk gambar (lihat
  * emailInlineImages.service.js).
@@ -349,21 +316,7 @@ async function notifyOrderEvent(order, eventKey, opts = {}) {
   // nomor admin, link Discord, logo, dan gambar produk semuanya berasal dari
   // WebsiteSettings (Admin Web), tidak ada yang di-hardcode.
   const productImageFallback = await resolveProductImageFallback(order);
-  // Redeem code HANYA relevan untuk paymentSuccess (spec 8) — event lain
-  // tidak pernah memanggil resolveRedeemForNotification, jadi ctx.hasRedeemCode
-  // selalu false untuk orderCreated/paymentFailed/paymentExpired, persis
-  // seperti perilaku sistem lama yang tidak berubah.
-  const redeemInfo =
-    eventKey === "paymentSuccess" ? await resolveRedeemForNotification(order) : { redeemCodes: [], redeemInstructions: "" };
-  const ctx = templates.buildContext({
-    event: eventKey,
-    order,
-    transaction,
-    settings: websiteSettings,
-    productImageFallback,
-    redeemCodes: redeemInfo.redeemCodes,
-    redeemInstructions: redeemInfo.redeemInstructions,
-  });
+  const ctx = templates.buildContext({ event: eventKey, order, transaction, settings: websiteSettings, productImageFallback });
   const results = [];
 
   if (integrationSettings.notifications.whatsappEnabled) {
@@ -505,17 +458,7 @@ async function retryLog(logId) {
   const websiteSettings = await WebsiteSettings.getSingleton();
   const transaction = await Transaction.findOne({ orderId: order._id });
   const productImageFallback = await resolveProductImageFallback(order);
-  const redeemInfo =
-    log.event === "paymentSuccess" ? await resolveRedeemForNotification(order) : { redeemCodes: [], redeemInstructions: "" };
-  const ctx = templates.buildContext({
-    event: log.event,
-    order,
-    transaction,
-    settings: websiteSettings,
-    productImageFallback,
-    redeemCodes: redeemInfo.redeemCodes,
-    redeemInstructions: redeemInfo.redeemInstructions,
-  });
+  const ctx = templates.buildContext({ event: log.event, order, transaction, settings: websiteSettings, productImageFallback });
 
   // Template diselesaikan SEKALI di sini, bukan di dalam callback send():
   // dengan begitu retry ketiga memakai teks yang persis sama dengan percobaan

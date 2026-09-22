@@ -5,8 +5,6 @@ const asyncHandler = require("../utils/asyncHandler");
 const { AppError } = require("../middlewares/errorHandler");
 const { emitEvent } = require("../services/socket.service");
 const r2Service = require("../services/r2.service");
-const redeemCodeService = require("../services/redeemCode.service");
-const logger = require("../utils/logger");
 
 /* ---------------------------------------------------------- gambar produk */
 
@@ -128,27 +126,10 @@ const listAdmin = asyncHandler(async (req, res) => {
 
   const order = SORTS[sort] || SORTS.order;
 
-  // Menempelkan Total/Available/Sold redeem code ke tiap produk yang
-  // orderSystem-nya REDEEM_CODE, satu aggregate untuk seluruh halaman —
-  // bukan satu query per baris (spec 5: "Stock harus berasal dari database
-  // asli", bukan angka hardcode).
-  async function withRedeemStats(products) {
-    const redeemIds = products.filter((p) => p.orderSystem === "REDEEM_CODE").map((p) => p._id);
-    if (!redeemIds.length) return products;
-    const statsMap = await redeemCodeService.getStatsMany(redeemIds);
-    return products.map((p) => {
-      const obj = p.toObject();
-      if (p.orderSystem === "REDEEM_CODE") {
-        obj.redeemStats = statsMap.get(String(p._id)) || { total: 0, available: 0, sold: 0 };
-      }
-      return obj;
-    });
-  }
-
   // Tanpa `page`: perilaku lama, seluruh hasil.
   if (page === undefined) {
     const products = await Product.find(filter).sort(order).populate("categoryId", "name slug");
-    return res.json({ status: true, data: await withRedeemStats(products) });
+    return res.json({ status: true, data: products });
   }
 
   const pageNum = Math.max(1, Number(page) || 1);
@@ -165,7 +146,7 @@ const listAdmin = asyncHandler(async (req, res) => {
 
   res.json({
     status: true,
-    data: await withRedeemStats(products),
+    data: products,
     pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.max(1, Math.ceil(total / limitNum)) },
   });
 });
@@ -176,30 +157,13 @@ const getAdminById = asyncHandler(async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) throw new AppError("Produk tidak valid.", 400);
   const product = await Product.findById(req.params.id).populate("categoryId", "name slug");
   if (!product) throw new AppError("Produk tidak ditemukan.", 404);
-  const obj = product.toObject();
-  if (product.orderSystem === "REDEEM_CODE") {
-    obj.redeemStats = await redeemCodeService.getStats(product._id);
-  }
-  res.json({ status: true, data: obj });
+  res.json({ status: true, data: product });
 });
 
-const ORDER_SYSTEMS = ["MANUAL", "REDEEM_CODE"];
-
 const create = asyncHandler(async (req, res) => {
-  const { name, categoryId, description, shortDescription, price, stock, status, sortOrder, redeemInstructions, redeemCodes } =
-    req.body;
-  // "orderSystem" hanya dikirim saat admin memilih "Sistem Baru" di popup
-  // pemilihan (lihat admin/admin.js openOrderSystemModal). Tanpa field ini —
-  // termasuk seluruh pemanggil lama — produk otomatis MANUAL, flow lama
-  // (spec 13: backward compatibility).
-  const orderSystem = ORDER_SYSTEMS.includes(req.body.orderSystem) ? req.body.orderSystem : "MANUAL";
-  const isRedeemSystem = orderSystem === "REDEEM_CODE";
-
-  if (!name || !categoryId || price === undefined || (!isRedeemSystem && stock === undefined)) {
+  const { name, categoryId, description, shortDescription, price, stock, status, sortOrder } = req.body;
+  if (!name || !categoryId || price === undefined || stock === undefined) {
     throw new AppError("Nama, kategori, harga, dan stok wajib diisi.", 400);
-  }
-  if (isRedeemSystem && !String(redeemInstructions || "").trim()) {
-    throw new AppError("Cara Redeem wajib diisi untuk produk dengan Automatic Redeem Code.", 400);
   }
   const category = await Category.findById(categoryId);
   if (!category) throw new AppError("Kategori tidak ditemukan.", 400);
@@ -243,15 +207,10 @@ const create = asyncHandler(async (req, res) => {
     imageKey,
     additionalImages,
     price: Number(price),
-    // Untuk REDEEM_CODE, stok BUKAN angka yang diketik admin — dihitung dari
-    // jumlah redeem code yang benar-benar tersimpan di bawah (restock awal).
-    // Mulai dari 0 dan disinkronkan oleh redeemCodeService.restock().
-    stock: isRedeemSystem ? 0 : Number(stock),
+    stock: Number(stock),
     sold: 0,
     status: status || "active",
     sortOrder: sortOrder || 0,
-    orderSystem,
-    redeemInstructions: isRedeemSystem ? String(redeemInstructions || "").trim() : "",
     });
   } catch (err) {
     // Do not leave an orphaned R2 object when MongoDB rejects the product.
@@ -260,23 +219,9 @@ const create = asyncHandler(async (req, res) => {
     throw err;
   }
 
-  // Restock awal opsional: admin boleh langsung paste code saat Add Product,
-  // atau menambahkannya nanti lewat "+ Restock Code" (spec 3 & 5).
-  let redeemResult = null;
-  if (isRedeemSystem && String(redeemCodes || "").trim()) {
-    try {
-      redeemResult = await redeemCodeService.restock(product._id, redeemCodes);
-      product = await Product.findById(product._id); // re-read: stock sudah disinkronkan
-    } catch (err) {
-      // Produk sudah tersimpan; kegagalan restock awal tidak boleh membuang
-      // produk yang sudah valid — admin tinggal restock ulang dari form Edit.
-      logger.error("Restock awal redeem code gagal saat Add Product", { productId: String(product._id), message: err.message });
-    }
-  }
-
   emitEvent("product:created", { product });
   emitEvent("products:updated", { action: "created", productId: product._id });
-  res.status(201).json({ status: true, data: product, redeemRestock: redeemResult });
+  res.status(201).json({ status: true, data: product });
 });
 
 const update = asyncHandler(async (req, res) => {
@@ -284,19 +229,8 @@ const update = asyncHandler(async (req, res) => {
   const product = await Product.findById(id);
   if (!product) throw new AppError("Produk tidak ditemukan.", 404);
 
-  const {
-    name,
-    categoryId,
-    description,
-    shortDescription,
-    price,
-    stock,
-    status,
-    sortOrder,
-    removeImage,
-    keepAdditionalImages,
-    redeemInstructions,
-  } = req.body;
+  const { name, categoryId, description, shortDescription, price, stock, status, sortOrder, removeImage, keepAdditionalImages } =
+    req.body;
   if (categoryId) {
     const category = await Category.findById(categoryId);
     if (!category) throw new AppError("Kategori tidak ditemukan.", 400);
@@ -306,19 +240,7 @@ const update = asyncHandler(async (req, res) => {
   if (description !== undefined) product.description = description;
   if (shortDescription !== undefined) product.shortDescription = shortDescription;
   if (price !== undefined) product.price = Number(price);
-  // `orderSystem` TIDAK PERNAH diubah lewat edit — pilihannya dikunci saat
-  // Add Product (spec 11). Kalau boleh diganti di sini, hubungan produk
-  // dengan koleksi RedeemCode yang sudah ada (termasuk code yang sudah
-  // SOLD) bisa jadi tidak konsisten dengan tampilannya.
-  if (product.orderSystem === "REDEEM_CODE") {
-    // Stok produk REDEEM_CODE hanya boleh berubah lewat restock/klaim code —
-    // nilai `stock` dari form Edit (yang untuk produk ini memang tidak
-    // menampilkan input stok manual) diabaikan supaya tidak pernah menyimpang
-    // dari jumlah code AVAILABLE yang sebenarnya.
-    if (redeemInstructions !== undefined) product.redeemInstructions = String(redeemInstructions || "").trim();
-  } else if (stock !== undefined) {
-    product.stock = Number(stock);
-  }
+  if (stock !== undefined) product.stock = Number(stock);
   if (status !== undefined) product.status = status;
   if (sortOrder !== undefined) product.sortOrder = sortOrder;
 
@@ -389,20 +311,8 @@ const update = asyncHandler(async (req, res) => {
 
 const remove = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const product = await Product.findById(id);
+  const product = await Product.findByIdAndDelete(id);
   if (!product) throw new AppError("Produk tidak ditemukan.", 404);
-
-  // Redeem code TIDAK IKUT DIHAPUS (spec 11): code yang sudah SOLD tetap
-  // tercatat sebagai histori untuk "Redeem Code Terjual", dan code AVAILABLE
-  // yang tersisa tidak hilang — hanya jadi tidak terhubung ke produk yang
-  // tampil di katalog lagi. Admin diberi tahu jumlahnya di pesan respons.
-  let orphanedAvailable = 0;
-  if (product.orderSystem === "REDEEM_CODE") {
-    const s = await redeemCodeService.getStats(product._id);
-    orphanedAvailable = s.available;
-  }
-
-  await Product.deleteOne({ _id: id });
   if (product.imageKey) await r2Service.deleteObject(product.imageKey).catch(() => {});
   // Gambar tambahannya ikut dibersihkan — tanpa ini setiap produk yang dihapus
   // meninggalkan sampai lima objek yatim di R2 yang tidak dirujuk apa pun lagi.
@@ -410,15 +320,7 @@ const remove = asyncHandler(async (req, res) => {
 
   emitEvent("product:deleted", { productId: id });
   emitEvent("products:updated", { action: "deleted", productId: id });
-
-  res.json({
-    status: true,
-    message:
-      "Produk dihapus." +
-      (orphanedAvailable
-        ? ` ${orphanedAvailable} redeem code yang belum terjual tetap tersimpan di database (tidak ikut terhapus).`
-        : ""),
-  });
+  res.json({ status: true, message: "Produk dihapus." });
 });
 
 module.exports = {
